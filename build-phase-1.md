@@ -28,7 +28,7 @@ This list covers the essential hardware required for *this* guide.
 
 ## **2\. Set up the 'brain' (Raspberry Pi OS \+ Docker)**
 
-We will install the standard Raspberry Pi operating system and then run Home Assistant inside a "container."
+We will install the standard Raspberry Pi operating system and then run Home Assistant inside a container.
 
 1. **Get the imager:** On your Mac, download and install **Raspberry Pi Imager**.  
 2. **Flash the OS:**  
@@ -44,7 +44,7 @@ We will install the standard Raspberry Pi operating system and then run Home Ass
    * Click **Write**.  
 3. **Boot the Pi:**  
    * Eject the SD card and put it in the Pi.  
-   * Connect the Pi to your mom's router with an **Ethernet cable**. This is its permanent internet connection.  
+   * Connect the Pi to your main router with an **Ethernet cable**. This is its permanent internet connection.  
    * Connect the power.  
 4. **Log in (via Terminal):**  
    * Wait 2-3 minutes.  
@@ -79,14 +79,13 @@ This is where we turn the Pi's built-in WiFi into its own private network.
      ssid=GREENHOUSE\_IOT  
      hw\_mode=g  
      channel=7  
-     wmm\_enabled=0  
+     wmm\_enabled=1  
      macaddr\_acl=0  
      auth\_algs=1  
      ignore\_broadcast\_ssid=0  
      wpa=2  
      wpa\_passphrase=YourSecurePassword  
      wpa\_key\_mgmt=WPA-PSK  
-     wpa\_pairwise=TKIP  
      rsn\_pairwise=CCMP
 
    * Save and exit (Ctrl+O, Enter, Ctrl+X).  
@@ -119,7 +118,6 @@ This is where we turn the Pi's built-in WiFi into its own private network.
 2. **Run the Home Assistant container:** This command is a one-time copy-paste. It tells Docker to run Home Assistant, give it access to your configuration files, and restart it automatically.  
    docker run \-d \\  
      \--name homeassistant \\  
-     \--privileged \\  
      \--restart=unless-stopped \\  
      \-e TZ=America/New\_York \\  
      \-v /home/pi/ha\_config:/config \\  
@@ -142,7 +140,6 @@ ESPHome will also run as a separate container.
      \--name esphome \\  
      \--restart=unless-stopped \\  
      \-v /home/pi/esphome\_config:/config \\  
-     \-p 6052:6052 \\  
      \--network=host \\  
      ghcr.io/esphome/esphome:stable
 
@@ -154,7 +151,7 @@ This is the prototype test. You will wire the BME280 sensor to the ESP32 and use
 
 ### **6.a. Hardware assembly (the wiring)**
 
-Use your breadboard and jumper wires to connect the sensor. The BME280 sensor uses the I2C communication protocol, which requires four wires.
+Use your breadboard and jumper wires to connect the sensor. The BME280 sensor uses the I2C communication protocol, which requires four wires. We are using GPIO 21 and 22, which are the default I2C pins for most ESP32 boards.
 
 * **ESP32 3.3V** \-\> BME280 **VIN** (Power)  
 * **ESP32 GND** \-\> BME280 **GND** (Ground)  
@@ -198,7 +195,7 @@ Use your breadboard and jumper wires to connect the sensor. The BME280 sensor us
 
 1. Connect your wired-up ESP32 to your Mac using a USB cable.  
 2. In the ESPHome UI (http://greenhouse-pi.local:6052), click **Install** on your new node.  
-3. Select **Plug into this computer**.  
+3. Select **Plug into this computer**.**Note:** This web-based flashing method only works in **Google Chrome**, **Microsoft Edge**, or **Opera** browsers. It will not work in Firefox or Safari.  
 4. A new window will pop up. Select the USB port your ESP32 is connected to (it may be named CP210x or similar) and click **Connect**.  
 5. ESPHome will compile the code and flash it to the ESP32. This may take a few minutes.  
 6. Once done, disconnect the ESP32 from your Mac and power it with a USB charger. It will automatically connect to your Pi's GREENHOUSE\_IOT network.
