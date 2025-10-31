@@ -12,8 +12,9 @@ This stack is selected for local operational reliability, open-source flexibilit
 | Component | Recommendation | Role | Rationale |
 | :---- | :---- | :---- | :---- |
 | **Controller** | **Raspberry Pi 4 or 5** | Hosts the centralized operating system, data storage, and dashboard application. | Provides necessary processing power for future AI integration (Phase 3). |
-| **Operating system** | **Home Assistant OS** | Dedicated operating system for the automation hub. | Streamlines system setup and maintenance. |
-| **Sensor nodes** | **ESP32 / ESP8266** | Low-power, wireless microcontrollers for remote data collection. | Distributes sensor load; enables sensor communication over WiFi with minimal wiring to the main controller. |
+| **Operating system** | **Raspberry Pi OS (Lite) \+ Home Assistant Container** | Runs the core server application within a container on a standard OS. | Provides host OS access to configure the Pi as an isolated WiFi Access Point (AP), ensuring all IoT devices are on a stable, private network. |
+| **Network arch.** | **Isolated IoT network** | Pi acts as WiFi AP (via hostapd) and DHCP server (via dnsmasq). | Creates a private GREENHOUSE\_IOT network for all ESP32s. Decouples the system from the home router. Prevents failure if the home WiFi password changes or router reboots. |
+| **Sensor nodes** | **ESP32 / ESP8266** | Low-power, wireless microcontrollers for remote data collection. | Connects directly to the Pi's private WiFi network. |
 | **Node firmware** | **ESPHome** | Configuration management tool for ESP nodes. | Permits device programming via YAML configuration files, minimizing the need for C/C++ development. |
 | **User interface** | **Figma design \+ Home Assistant Lovelace** | Dashboard design completed in Figma and implemented using Home Assistant's native custom card system. | Maximizes the use of design skills while reducing the need for full-stack web development. |
 | **Enclosures** | **OnShape / STL Files** | Used to design and 3D print custom, weatherproof housings for all electronic components. | Utilizes CADD skills to ensure component protection and proper mounting. |
@@ -27,7 +28,7 @@ This stack is selected for local operational reliability, open-source flexibilit
 | Task Category | Deliverables | Key Components / Focus |
 | :---- | :---- | :---- |
 | **Hardware setup** | Installation of the Pi controller and one foundational ESP32 sensor node. | **Sensors:** BME280 (temperature/humidity), Capacitive soil moisture, BH1750 (light). |
-| **Networking** | Home Assistant and ESPHome add-on operational. | **Verification:** Confirm data transfer between the ESP32 and Pi when external internet access is severed. |
+| **Networking** | **Pi configured as a WiFi Access Point.** Home Assistant and ESPHome operational. | **Verification:** Pi hosts a private GREENHOUSE\_IOT network. ESP32s connect to this network, not the home WiFi. Pi connects to home internet via Ethernet. |
 | **Data visualization** | Creation of historical time-series charts for all collected sensor data. | **Figma:** Development of the "Monitoring view" wireframes. |
 | **Visual capture** | Configuration of live video streaming and automatic scheduled daily timelapse capture. | **Camera:** Raspberry Pi Camera Module 3 or a suitable USB webcam. |
 | **Remote access** | Implementation of secure external access for remote monitoring. | **Security:** Use of Nabu Casa or manual setup (DuckDNS, NGINX) for encrypted tunnel (HTTPS). |
@@ -94,6 +95,7 @@ This list covers the essential hardware required to complete Phase 1\.
 ## **6\. Initial setup steps**
 
 1. **Procurement:** Order the hardware specified in the Phase 1 Bill of Materials.  
-2. **Configuration:** Flash the SD card with **Home Assistant OS** and connect the Pi to the local network.  
-3. **Software prep:** Install the **ESPHome** add-on within the Home Assistant environment. Review the YAML structure for defining a sensor entity.  
-4. **Prototype test:** Assemble the BME280 sensor and ESP32 on a breadboard. Compile and flash the configuration to the ESP32. Confirm successful sensor data transmission and display in the Home Assistant interface.
+2. **Configuration:** Flash the SD card with **Raspberry Pi OS (Lite)** and install Home Assistant Container.  
+3. **Networking:** Configure the Pi's host OS to act as a WiFi Access Point (hostapd) and DHCP server (dnsmasq).  
+4. **Software prep:** Install the **ESPHome** add-on within the Home Assistant environment.  
+5. **Prototype test:** Assemble the BME280 sensor and ESP32 on a breadboard. Compile and flash the configuration to connect to the Pi's private WiFi network. Confirm successful data transmission.
