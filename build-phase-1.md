@@ -16,7 +16,9 @@ This list covers the essential hardware required for *this* guide.
   * 1x Raspberry Pi 4 (4GB+ model) or Raspberry Pi 5  
   * 1x 32GB (or larger) A2-rated microSD card  
   * 1x Official Raspberry Pi USB-C power supply  
-  * 1x Ethernet cable  
+* **Networking (Choose one):**  
+  * 1x Ethernet cable (for wired internet, **recommended**)  
+  * **OR** 1x USB Wi-Fi Adapter (for wireless internet, **advanced**)  
 * **Sensor node:**  
   * 1x ESP32-WROOM-32 development board (with USB)  
   * 1x Breadboard (for prototyping)  
@@ -40,12 +42,15 @@ We will install the standard Raspberry Pi operating system and then run Home Ass
    * Check **Enable SSH** and select **Use password authentication**.  
    * Set a **username** (e.g., pi) and a secure **password**.  
    * Set a **hostname** (e.g., greenhouse-pi). Check "Enable".  
+   * **Configure your home Wi-Fi here.** This is necessary for the initial setup and for the Dual-Wi-Fi (Option B) setup.  
    * Click **Save**.  
    * Click **Write**.  
 3. **Boot the Pi:**  
    * Eject the SD card and put it in the Pi.  
-   * Connect the Pi to your main router with an **Ethernet cable**. This is its permanent internet connection.  
-   * Connect the power.  
+   * **Connect your Internet:**  
+     * **For Option A (Wired):** Plug the Pi into your main router with an **Ethernet cable**.  
+     * **For Option B (Wireless):** Plug your **USB Wi-Fi Adapter** into the Pi.  
+   * Connect the power. The Pi will boot and connect to your home Wi-Fi (either via Ethernet or the USB Wi-Fi adapter).  
 4. **Log in (via Terminal):**  
    * Wait 2-3 minutes.  
    * On your Mac, open the **Terminal** app.  
@@ -60,11 +65,50 @@ We will install the standard Raspberry Pi operating system and then run Home Ass
 
    *After this, **log out (exit) and log back in** for the changes to take effect.*
 
-## **3\. Configure the isolated IoT network**
+## **3\. Install Home Assistant**
 
-This is where we turn the Pi's built-in WiFi into its own private network.
+1. **Log in** to your Pi via SSH (if you're not already).  
+2. **Run the Home Assistant container:** This command is a one-time copy-paste. It tells Docker to download the Home Assistant image, run it, give it access to your configuration files, and restart it automatically.  
+   docker run \-d \\  
+     \--name homeassistant \\  
+     \--restart=unless-stopped \\  
+     \-e TZ=America/New\_York \\  
+     \-v /home/pi/ha\_config:/config \\  
+     \--network=host \\  
+     ghcr.io/home-assistant/home-assistant:stable
+
+   *(Note: TZ is set to America/New\_York for the Outer Banks; adjust if needed).*  
+3. **Onboard:**  
+   * Wait 5-10 minutes for the first boot (it's downloading and setting up in the background).  
+   * On your Mac, go to: http://greenhouse-pi.local:8123  
+   * You will see the "Welcome" screen. Create your account.
+
+## **4\. Install ESPHome**
+
+ESPHome will also run as a separate container.
 
 1. **Log in** to your Pi via SSH.  
+2. **Run the ESPHome container:**  
+   docker run \-d \\  
+     \--name esphome \\  
+     \--restart=unless-stopped \\  
+     \-v /home/pi/esphome\_config:/config \\  
+     \--network=host \\  
+     ghcr.io/esphome/esphome:stable
+
+3. **Access ESPHome:** The ESPHome dashboard will now be running on a different port. Go to: http://greenhouse-pi.local:6052
+
+## **5\. Configure the isolated IoT network**
+
+Now that all software is downloaded, we will reconfigure the Pi's **built-in Wi-Fi (wlan0)** to be its own private network.  
+**Choose the option that matches your setup:**
+
+### **Option A: Ethernet (Wired) Setup**
+
+*(Use this if your Pi is connected to the internet with an Ethernet cable).*  
+This is the simplest, most reliable setup. Your Pi gets internet via Ethernet and uses its built-in Wi-Fi for the IoT network.
+
+1. **Log in** to your Pi via SSH (over Ethernet).  
 2. **Install networking tools:**  
    sudo apt update  
    sudo apt install hostapd dnsmasq
@@ -98,11 +142,11 @@ This is where we turn the Pi's built-in WiFi into its own private network.
      dhcp-range=10.0.0.50,10.0.0.150,255.255.255.0,12h
 
    * Save and exit.  
-5. **Set a static IP for the Pi's WiFi:**  
+5. **Set a static IP for the Pi's built-in WiFi:**  
    * Edit the dhcpcd.conf file:  
      sudo nano /etc/dhcpcd.conf
 
-   * Paste this at the *end* of the file:  
+   * Paste this at the *end* of the file. This line is key: nohook wpa\_supplicant tells the Pi to stop using wlan0 for internet.  
      interface wlan0  
      static ip\_address=10.0.0.1/24  
      nohook wpa\_supplicant
@@ -110,40 +154,65 @@ This is where we turn the Pi's built-in WiFi into its own private network.
    * Save and exit.  
 6. **Start the new network:**  
    * Reboot the Pi: sudo reboot  
-   * After it reboots, log back in. Your GREENHOUSE\_IOT WiFi network should now be visible from your phone or Mac (but don't connect to it).
+   * Your SSH session will disconnect. Wait 2-3 minutes.  
+   * Log back in: ssh pi@greenhouse-pi.local (You will now be connecting over Ethernet).  
+   * Your GREENHOUSE\_IOT WiFi network should now be visible.
 
-## **4\. Install Home Assistant**
+### **Option B: Dual-Wi-Fi (Wireless) Setup**
 
-1. **Log in** to your Pi via SSH.  
-2. **Run the Home Assistant container:** This command is a one-time copy-paste. It tells Docker to run Home Assistant, give it access to your configuration files, and restart it automatically.  
-   docker run \-d \\  
-     \--name homeassistant \\  
-     \--restart=unless-stopped \\  
-     \-e TZ=America/New\_York \\  
-     \-v /home/pi/ha\_config:/config \\  
-     \--network=host \\  
-     ghcr.io/home-assistant/home-assistant:stable
+*(Use this if your Pi is connected to the internet with a USB Wi-Fi Adapter).*  
+This setup makes your Pi fully wireless. The **USB Adapter (wlan1)** handles the internet connection, and the **Built-in Wi-Fi (wlan0)** creates the IoT network.  
+The good news: the steps are **identical** to Option A. The commands are all hard-coded to modify wlan0. The nohook wpa\_supplicant command in step 5.5 will force the Pi to stop using wlan0 for internet, and the OS will automatically use the *other* adapter (wlan1, your USB dongle) for its internet connection.
 
-   *(Note: TZ is set to America/New\_York for the Outer Banks; adjust if needed).*  
-3. **Onboard:**  
-   * Wait 5-10 minutes for the first boot.  
-   * On your Mac, go to: http://greenhouse-pi.local:8123  
-   * You will see the "Welcome" screen. Create your account.
+1. **Log in** to your Pi via SSH (over your home Wi-Fi, using the USB adapter).  
+2. **Install networking tools:**  
+   sudo apt update  
+   sudo apt install hostapd dnsmasq
 
-## **5\. Install ESPHome**
+3. **Configure hostapd** (the Access Point software):  
+   * Create a new configuration file:  
+     sudo nano /etc/hostapd/hostapd.conf
 
-ESPHome will also run as a separate container.
+   * Paste this *exact* content into the file. Choose a secure password.  
+     interface=wlan0  
+     driver=nl80211  
+     ssid=GREENHOUSE\_IOT  
+     hw\_mode=g  
+     channel=7  
+     wmm\_enabled=1  
+     macaddr\_acl=0  
+     auth\_algs=1  
+     ignore\_broadcast\_ssid=0  
+     wpa=2  
+     wpa\_passphrase=YourSecurePassword  
+     wpa\_key\_mgmt=WPA-PSK  
+     rsn\_pairwise=CCMP
 
-1. **Log in** to your Pi via SSH.  
-2. **Run the ESPHome container:**  
-   docker run \-d \\  
-     \--name esphome \\  
-     \--restart=unless-stopped \\  
-     \-v /home/pi/esphome\_config:/config \\  
-     \--network=host \\  
-     ghcr.io/esphome/esphome:stable
+   * Save and exit (Ctrl+O, Enter, Ctrl+X).  
+4. **Configure dnsmasq** (the DHCP/DNS server):  
+   * Edit the main configuration file:  
+     sudo nano /etc/dnsmasq.conf
 
-3. **Access ESPHome:** The ESPHome dashboard will now be running on a different port. Go to: http://greenhouse-pi.local:6052
+   * Paste this at the *end* of the file:  
+     interface=wlan0  
+     dhcp-range=10.0.0.50,10.0.0.150,255.255.255.0,12h
+
+   * Save and exit.  
+5. **Set a static IP for the Pi's built-in WiFi:**  
+   * Edit the dhcpcd.conf file:  
+     sudo nano /etc/dhcpcd.conf
+
+   * Paste this at the *end* of the file. This line is key: nohook wpa\_supplicant tells the Pi to stop using wlan0 for internet.  
+     interface wlan0  
+     static ip\_address=10.0.0.1/24  
+     nohook wpa\_supplicant
+
+   * Save and exit.  
+6. **Start the new network:**  
+   * Reboot the Pi: sudo reboot  
+   * Your SSH session will disconnect. Wait 2-3 minutes.  
+   * Log back in: ssh pi@greenhouse-pi.local (You will now be connecting over the USB Wi-Fi adapter).  
+   * Your GREENHOUSE\_IOT WiFi network should now be visible.
 
 ## **6\. Build and program your first sensor**
 
