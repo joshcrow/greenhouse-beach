@@ -17,7 +17,7 @@ This stack is selected for local operational reliability, open-source flexibilit
 | **Sensor nodes** | **ESP32 / ESP8266** | Low-power, wireless microcontrollers for remote data collection. | Connects directly to the Pi's private WiFi network. |
 | **Node firmware** | **ESPHome** | Configuration management tool for ESP nodes. | Permits device programming via YAML configuration files, minimizing the need for C/C++ development. |
 | **User interface** | **Figma design \+ Home Assistant Lovelace** | Dashboard design completed in Figma and implemented using Home Assistant's native custom card system. | Maximizes the use of design skills while reducing the need for full-stack web development. |
-| **Enclosures** | **OnShape / STL Files** | Used to design and 3D print custom, weatherproof housings for all electronic components. | Utilizes CADD skills to ensure component protection and proper mounting. |
+| **Enclosures** | **OnShape / STL Files** | Used to design and 3D print custom, weatherproof housings for all electronic components. | Utilizes CAD (Computer-Aided Design) skills to ensure component protection and proper mounting. |
 
 ## **2\. Project phases and objectives**
 
@@ -41,7 +41,7 @@ This stack is selected for local operational reliability, open-source flexibilit
 | :---- | :---- | :---- |
 | **Hardware integration** | Installation of a relay board and primary actuators (fan, pump). | **Actuators:** Relay Module (5V/12V), 12V DC water pump, Smart Plug (flashed with local firmware like Tasmota/ESPHome). |
 | **Control logic** | Deployment of three core automation routines within Home Assistant. | **Examples:** 1\. Temperature threshold fan control. 2\. Soil moisture content irrigation control. 3\. Scheduled lighting based on ambient light levels. |
-| **Irrigation** | Installation of a simple drip irrigation system connected to the main water pump relay. | **CADD:** Design 3D-printed mounting brackets for all weatherproof actuator enclosures. |
+| **Irrigation** | Installation of a simple drip irrigation system connected to the main water pump relay. | **CAD:** Design 3D-printed mounting brackets for all weatherproof actuator enclosures. |
 | **Interface control** | Addition of manual control switches and scheduling inputs to the Home Assistant Lovelace dashboard. | **Figma:** Design of the "Control panel" and "Automation status" interface elements. |
 
 ### **Phase 3: AI and expansion**
@@ -95,7 +95,11 @@ This list covers the essential hardware required to complete Phase 1\.
 ## **6\. Initial setup steps**
 
 1. **Procurement:** Order the hardware specified in the Phase 1 Bill of Materials.  
-2. **Configuration:** Flash the SD card with **Raspberry Pi OS (Lite)** and install Home Assistant Container.  
-3. **Networking:** Configure the Pi's host OS to act as a WiFi Access Point (hostapd) and DHCP server (dnsmasq).  
-4. **Software prep:** Install the **ESPHome** add-on within the Home Assistant environment.  
-5. **Prototype test:** Assemble the BME280 sensor and ESP32 on a breadboard. Compile and flash the configuration to connect to the Pi's private WiFi network. Confirm successful data transmission.
+2. **Configuration:** Flash the SD card with **Raspberry Pi OS (Lite)** and install Home Assistant Container. See **build-phase-1.md** for detailed instructions.  
+3. **Networking:** Configure the Pi's host OS to act as a WiFi Access Point (hostapd) and DHCP server (dnsmasq). See **build-phase-1.md** Section 5 for detailed instructions.  
+4. **Software prep:** Install the **ESPHome** container. See **build-phase-1.md** Section 4 for detailed instructions.  
+5. **Prototype test:** Assemble the BME280 sensor and ESP32 on a breadboard. Compile and flash the configuration to connect to the Pi's private WiFi network. Confirm successful data transmission. See **build-phase-1.md** Section 6 for detailed instructions.
+
+**Note:** For detailed step-by-step instructions, refer to:  
+* **build-phase-1.md** - Initial Pi setup, network configuration, and first sensor  
+* **build-phase-2.md** - Adding additional sensors and camera setup

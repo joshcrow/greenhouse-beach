@@ -4,6 +4,13 @@
 
 This guide follows "Build Guide: Pi Setup and First Sensor." The goal is to complete the hardware assembly for Phase 1 by adding the capacitive soil moisture and ambient light sensors to the existing ESP32 node. It also covers the physical installation and software configuration of the Raspberry Pi camera.
 
+**Prerequisites:**  
+* Complete all steps from "Build Guide: Pi Setup and First Sensor"  
+* Verify your ESP32 node (greenhouse\_node\_1) is online and reporting data in Home Assistant  
+* Verify your Pi is accessible and Home Assistant is running
+
+**Estimated time:** 1-2 hours
+
 ## **1\. Required hardware**
 
 Components from the previous guide are required, plus the remaining items from the Phase 1 Bill of Materials:
@@ -66,7 +73,13 @@ The **Capacitive Soil Moisture Sensor** is an analog sensor, so it needs its own
        pin: GPIO34  
        name: "Greenhouse Soil Moisture"  
        attenuation: 11db  
-       update\_interval: 30s
+       update\_interval: 30s  
+       unit\_of\_measurement: "%"  
+       filters:  
+         \- lambda: return (x / 4095.0) * 100.0;  
+         \- calibrate\_linear:  
+             \- 0.0 \-\> 0  
+             \- 1.0 \-\> 100
 
 4. Click **Save**.
 
@@ -80,7 +93,9 @@ Since the ESP32 is already powered on and connected to the private GREENHOUSE\_I
 4. Select **Wirelessly**.  
 5. ESPHome will compile the new configuration and send it to the ESP32 over the WiFi network. The device will reboot.
 
-After it reboots, Home Assistant will automatically discover the three new entities ("Greenhouse Ambient Light," "Greenhouse Soil Moisture," and the BME280 "Pressure" sensor).
+After it reboots, Home Assistant will automatically discover the new entities ("Greenhouse Ambient Light" and "Greenhouse Soil Moisture"). The BME280 "Pressure" sensor should already be visible from the previous guide.
+
+**Note:** The soil moisture sensor reading will need calibration. The current configuration maps the raw ADC value (0-4095) to a percentage (0-100%). You may need to adjust the calibration values based on your specific sensor and soil type. Dry soil typically reads higher values, while wet soil reads lower values.
 
 ## **3\. Part 2: Install the camera**
 
@@ -95,8 +110,9 @@ This part involves configuring the Raspberry Pi itself.
 4. **Enable the camera:**  
    * Run the configuration tool: sudo raspi-config  
    * Navigate to **Interface Options**.  
-   * Navigate to **Legacy Camera** and select **\<Yes\>** to enable it.  
+   * Navigate to **Camera** (or **Legacy Camera** on older Pi OS versions) and select **\<Yes\>** to enable it.  
    * Select **\<Finish\>** and **\<Yes\>** to reboot the Pi.  
+   * After reboot, verify the camera is detected: `vcgencmd get_camera` (should show `supported=1 detected=1`)  
 5. **Add the camera to Home Assistant:**  
    * Go to the **Home Assistant dashboard** (http://greenhouse-pi.local:8123).  
    * Go to **Settings** \> **Devices & services**.  
@@ -120,3 +136,51 @@ This is the first step of the **UI/UX design workflow (Section 3\)** from the pr
 5. Click **Save**.
 
 A basic dashboard is now configured showing all Phase 1 data: temperature, humidity, pressure, light, soil moisture, and a live camera feed.
+
+**Verification:**  
+* Check that all sensors are reporting data in Home Assistant  
+* Verify the camera feed is displaying correctly  
+* Test sensor values by moving the light sensor or changing soil moisture to confirm readings update
+
+## **5\. Troubleshooting**
+
+### **Sensor issues:**
+* **BH1750 (light sensor) not detected:**  
+  * Verify I2C wiring is correct (shares same I2C bus as BME280)  
+  * Check I2C address in ESPHome logs (should show 0x23 or 0x5C)  
+  * Try changing the address in the YAML from 0x23 to 0x5C
+
+* **Soil moisture sensor reading 0% or 100% constantly:**  
+  * Verify wiring (especially the analog pin connection)  
+  * Check sensor is powered (3.3V, not 5V)  
+  * Calibration may be needed - the sensor may need different calibration values based on your soil type  
+  * Test sensor in air (should read dry) and in water (should read wet)
+
+* **Sensors not appearing in Home Assistant after OTA update:**  
+  * Wait 1-2 minutes for Home Assistant to discover new entities  
+  * Check ESPHome dashboard shows device as "Online"  
+  * Try restarting Home Assistant: `docker restart homeassistant`
+
+### **Camera issues:**
+* **Camera not detected:**  
+  * Verify camera connector is properly seated (check both ends if using ribbon cable extension)  
+  * Check camera is enabled: `sudo raspi-config` \> Interface Options \> Camera  
+  * Verify camera detection: `vcgencmd get_camera`  
+  * Check camera module is compatible with your Pi model
+
+* **Camera not appearing in Home Assistant:**  
+  * Verify the Raspberry Pi Camera integration is installed  
+  * Check Home Assistant logs for camera errors: Settings \> System \> Logs  
+  * Try restarting Home Assistant: `docker restart homeassistant`
+
+* **Camera feed is black or not updating:**  
+  * Verify camera is not blocked or covered  
+  * Check camera permissions in Home Assistant  
+  * Try accessing camera directly via SSH: `raspistill -o test.jpg`
+
+### **Network/OTA update issues:**
+* **OTA update fails:**  
+  * Verify ESP32 is connected to GREENHOUSE\_IOT network  
+  * Check ESP32 has sufficient power (may need higher current USB adapter)  
+  * Try wired update first to verify configuration is correct  
+  * Ensure ESP32 is within WiFi range of the Pi

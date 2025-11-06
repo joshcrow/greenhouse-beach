@@ -8,6 +8,8 @@ This architecture is built on two key decisions:
 1. **Container-based software:** We will run Home Assistant and ESPHome in Docker containers. This provides flexibility and control over the host operating system.  
 2. **Isolated network:** The Raspberry Pi will create its own private WiFi network (GREENHOUSE\_IOT). This makes the system robust, secure, and independent of the home's main WiFi network.
 
+**Estimated time:** 2-3 hours (including initial downloads and setup)
+
 ## **1\. Required hardware**
 
 This list covers the essential hardware required for *this* guide.
@@ -142,7 +144,15 @@ This is the simplest, most reliable setup. Your Pi gets internet via Ethernet an
      dhcp-range=10.0.0.50,10.0.0.150,255.255.255.0,12h
 
    * Save and exit.  
-5. **Set a static IP for the Pi's built-in WiFi:**  
+5. **Configure hostapd daemon:**  
+   * Tell the system where to find the hostapd configuration file:  
+     sudo nano /etc/default/hostapd
+
+   * Find the line that says `#DAEMON_CONF=""` and replace it with:  
+     DAEMON_CONF="/etc/hostapd/hostapd.conf"
+
+   * Save and exit.  
+6. **Set a static IP for the Pi's built-in WiFi:**  
    * Edit the dhcpcd.conf file:  
      sudo nano /etc/dhcpcd.conf
 
@@ -152,11 +162,24 @@ This is the simplest, most reliable setup. Your Pi gets internet via Ethernet an
      nohook wpa\_supplicant
 
    * Save and exit.  
-6. **Start the new network:**  
+7. **Enable and start the services:**  
+   * Enable hostapd and dnsmasq to start automatically on boot:  
+     sudo systemctl enable hostapd  
+     sudo systemctl enable dnsmasq
+
+   * Stop any existing dnsmasq processes that might conflict:  
+     sudo systemctl stop dnsmasq  
+     sudo systemctl stop hostapd
+
+8. **Start the new network:**  
    * Reboot the Pi: sudo reboot  
    * Your SSH session will disconnect. Wait 2-3 minutes.  
    * Log back in: ssh pi@greenhouse-pi.local (You will now be connecting over Ethernet).  
-   * Your GREENHOUSE\_IOT WiFi network should now be visible.
+   * Verify the network is running:  
+     sudo systemctl status hostapd  
+     sudo systemctl status dnsmasq
+
+   * Both services should show "active (running)". Your GREENHOUSE\_IOT WiFi network should now be visible on other devices.
 
 ### **Option B: Dual-Wi-Fi (Wireless) Setup**
 
@@ -198,7 +221,15 @@ The good news: the steps are **identical** to Option A. The commands are all har
      dhcp-range=10.0.0.50,10.0.0.150,255.255.255.0,12h
 
    * Save and exit.  
-5. **Set a static IP for the Pi's built-in WiFi:**  
+5. **Configure hostapd daemon:**  
+   * Tell the system where to find the hostapd configuration file:  
+     sudo nano /etc/default/hostapd
+
+   * Find the line that says `#DAEMON_CONF=""` and replace it with:  
+     DAEMON_CONF="/etc/hostapd/hostapd.conf"
+
+   * Save and exit.  
+6. **Set a static IP for the Pi's built-in WiFi:**  
    * Edit the dhcpcd.conf file:  
      sudo nano /etc/dhcpcd.conf
 
@@ -208,11 +239,24 @@ The good news: the steps are **identical** to Option A. The commands are all har
      nohook wpa\_supplicant
 
    * Save and exit.  
-6. **Start the new network:**  
+7. **Enable and start the services:**  
+   * Enable hostapd and dnsmasq to start automatically on boot:  
+     sudo systemctl enable hostapd  
+     sudo systemctl enable dnsmasq
+
+   * Stop any existing dnsmasq processes that might conflict:  
+     sudo systemctl stop dnsmasq  
+     sudo systemctl stop hostapd
+
+8. **Start the new network:**  
    * Reboot the Pi: sudo reboot  
    * Your SSH session will disconnect. Wait 2-3 minutes.  
    * Log back in: ssh pi@greenhouse-pi.local (You will now be connecting over the USB Wi-Fi adapter).  
-   * Your GREENHOUSE\_IOT WiFi network should now be visible.
+   * Verify the network is running:  
+     sudo systemctl status hostapd  
+     sudo systemctl status dnsmasq
+
+   * Both services should show "active (running)". Your GREENHOUSE\_IOT WiFi network should now be visible on other devices.
 
 ## **6\. Build and program your first sensor**
 
@@ -249,13 +293,16 @@ Use your breadboard and jumper wires to connect the sensor. The BME280 sensor us
    \# Define the sensor attached to the I2C bus  
    sensor:  
      \- platform: bme280  
-       name: "Greenhouse Temperature"  
        temperature:  
+         name: "Greenhouse Temperature"  
          oversampling: 16x  
        pressure:  
+         name: "Greenhouse Pressure"  
          oversampling: 16x  
        humidity:  
+         name: "Greenhouse Humidity"  
          oversampling: 16x  
+       address: 0x76  
        update\_interval: 30s
 
 8. Click **Save**.
@@ -274,4 +321,45 @@ Use your breadboard and jumper wires to connect the sensor. The BME280 sensor us
 1. Go to your **Home Assistant dashboard** (http://greenhouse-pi.local:8123).  
 2. Go to **Settings** \> **Devices & services**.  
 3. ESPHome will have automatically discovered the new device on the network. Click **Configure**.  
-4. Add the device. Your "Greenhouse Temperature" sensor is now in Home Assistant.
+4. Add the device. You should now see three sensors in Home Assistant: "Greenhouse Temperature", "Greenhouse Humidity", and "Greenhouse Pressure".  
+5. Verify the sensors are reporting data by going to **Settings** \> **Entities** and searching for "greenhouse".
+
+## **8\. Troubleshooting**
+
+### **Network issues:**
+* **Can't see GREENHOUSE\_IOT network:**  
+  * Check if hostapd is running: `sudo systemctl status hostapd`  
+  * Check logs: `sudo journalctl -u hostapd -n 50`  
+  * Verify configuration file exists: `sudo cat /etc/hostapd/hostapd.conf`
+
+* **ESP32 can't connect to network:**  
+  * Verify the network SSID and password match exactly (case-sensitive)  
+  * Check ESP32 is within range of the Pi  
+  * Verify the Pi's WiFi network is visible on other devices
+
+* **SSH connection lost after network setup:**  
+  * If using Ethernet (Option A), reconnect via Ethernet cable  
+  * If using USB Wi-Fi adapter (Option B), reconnect using the adapter's network  
+  * Verify Pi is still accessible: `ping greenhouse-pi.local`
+
+### **Docker/Home Assistant issues:**
+* **Home Assistant not accessible:**  
+  * Check if container is running: `docker ps`  
+  * Check container logs: `docker logs homeassistant`  
+  * Verify port 8123 is not blocked
+
+* **ESPHome not accessible:**  
+  * Check if container is running: `docker ps`  
+  * Check container logs: `docker logs esphome`
+
+### **ESP32/Sensor issues:**
+* **ESP32 not discovered in Home Assistant:**  
+  * Verify ESP32 is connected to GREENHOUSE\_IOT network  
+  * Check ESP32 is powered and has a stable connection  
+  * In ESPHome dashboard, verify device shows as "Online"  
+  * Try restarting both Home Assistant and ESP32
+
+* **Sensor not reporting data:**  
+  * Verify wiring connections match the diagram  
+  * Check I2C bus scan in ESPHome logs (should show device addresses)  
+  * Verify sensor is getting power (check voltage at sensor pins)
