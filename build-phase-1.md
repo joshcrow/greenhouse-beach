@@ -1,4 +1,4 @@
-# **Build guide: Pi setup, isolated network, and first sensor (Hybrid Workflow)**
+# **Build guide: Pi setup, isolated network, and first sensor.**
 
 ## **Objective**
 
