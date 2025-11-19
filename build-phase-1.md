@@ -1,365 +1,64 @@
-# **Build guide: Pi setup, isolated network, and first sensor**
-
-## **Objective**
-
-This guide details the initial setup for the greenhouse monitoring project. The goal is to install the core controller, create an isolated wireless network, install the automation software (Home Assistant and ESPHome), and build the first prototype sensor node.  
-This architecture is built on two key decisions:
-
-1. **Container-based software:** We will run Home Assistant and ESPHome in Docker containers. This provides flexibility and control over the host operating system.  
-2. **Isolated network:** The Raspberry Pi will create its own private WiFi network (GREENHOUSE\_IOT). This makes the system robust, secure, and independent of the home's main WiFi network.
-
-**Estimated time:** 2-3 hours (including initial downloads and setup)
-
-## **1\. Required hardware**
-
-This list covers the essential hardware required for *this* guide.
-
-* **Controller:**  
-  * 1x Raspberry Pi 4 (4GB+ model) or Raspberry Pi 5  
-  * 1x 32GB (or larger) A2-rated microSD card  
-  * 1x Official Raspberry Pi USB-C power supply  
-* **Networking (Choose one):**  
-  * 1x Ethernet cable (for wired internet, **recommended**)  
-  * **OR** 1x USB Wi-Fi Adapter (for wireless internet, **advanced**)  
-* **Sensor node:**  
-  * 1x ESP32-WROOM-32 development board (with USB)  
-  * 1x Breadboard (for prototyping)  
-  * 1x Jumper wire kit (M-M, M-F, F-F)  
-  * 1x Micro-USB or USB-C cable (for the ESP32)  
-  * 1x 5V USB power adapter (e.g., phone charger)  
-* **Sensor:**  
-  * 1x BME280 sensor (temperature, humidity, pressure)
-
-## **2\. Set up the 'brain' (Raspberry Pi OS \+ Docker)**
-
-We will install the standard Raspberry Pi operating system and then run Home Assistant inside a container.
-
-1. **Get the imager:** On your Mac, download and install **Raspberry Pi Imager**.  
-2. **Flash the OS:**  
-   * Insert your microSD card into your Mac.  
-   * Open Raspberry Pi Imager.  
-   * Click **Choose OS** \-\> **Raspberry Pi OS (other)** \-\> **Raspberry Pi OS Lite (64-bit)**.  
-   * Click **Choose Storage** and select your microSD card.  
-   * **CRITICAL STEP:** Click the **Gear icon** (or press **Cmd+Shift+X**) to open the Advanced Options.  
-   * Check **Enable SSH** and select **Use password authentication**.  
-   * Set a **username** (e.g., pi) and a secure **password**.  
-   * Set a **hostname** (e.g., greenhouse-pi). Check "Enable".  
-   * **Configure your home Wi-Fi here.** This is necessary for the initial setup and for the Dual-Wi-Fi (Option B) setup.  
-   * Click **Save**.  
-   * Click **Write**.  
-3. **Boot the Pi:**  
-   * Eject the SD card and put it in the Pi.  
-   * **Connect your Internet:**  
-     * **For Option A (Wired):** Plug the Pi into your main router with an **Ethernet cable**.  
-     * **For Option B (Wireless):** Plug your **USB Wi-Fi Adapter** into the Pi.  
-   * Connect the power. The Pi will boot and connect to your home Wi-Fi (either via Ethernet or the USB Wi-Fi adapter).  
-4. **Log in (via Terminal):**  
-   * Wait 2-3 minutes.  
-   * On your Mac, open the **Terminal** app.  
-   * Log into the Pi via SSH (use the hostname you set):  
-     ssh pi@greenhouse-pi.local
-
-   * Enter the password you created in the imager.  
-5. **Install Docker:** Docker is the software that runs containers.  
-   curl \-fsSL \[https://get.docker.com\](https://get.docker.com) \-o get-docker.sh  
-   sudo sh get-docker.sh  
-   sudo usermod \-aG docker pi
-
-   *After this, **log out (exit) and log back in** for the changes to take effect.*
-
-## **3\. Install Home Assistant**
-
-1. **Log in** to your Pi via SSH (if you're not already).  
-2. **Run the Home Assistant container:** This command is a one-time copy-paste. It tells Docker to download the Home Assistant image, run it, give it access to your configuration files, and restart it automatically.  
-   docker run \-d \\  
-     \--name homeassistant \\  
-     \--restart=unless-stopped \\  
-     \-e TZ=America/New\_York \\  
-     \-v /home/pi/ha\_config:/config \\  
-     \--network=host \\  
-     ghcr.io/home-assistant/home-assistant:stable
-
-   *(Note: TZ is set to America/New\_York for the Outer Banks; adjust if needed).*  
-3. **Onboard:**  
-   * Wait 5-10 minutes for the first boot (it's downloading and setting up in the background).  
-   * On your Mac, go to: http://greenhouse-pi.local:8123  
-   * You will see the "Welcome" screen. Create your account.
-
-## **4\. Install ESPHome**
-
-ESPHome will also run as a separate container.
-
-1. **Log in** to your Pi via SSH.  
-2. **Run the ESPHome container:**  
-   docker run \-d \\  
-     \--name esphome \\  
-     \--restart=unless-stopped \\  
-     \-v /home/pi/esphome\_config:/config \\  
-     \--network=host \\  
-     ghcr.io/esphome/esphome:stable
-
-3. **Access ESPHome:** The ESPHome dashboard will now be running on a different port. Go to: http://greenhouse-pi.local:6052
-
-## **5\. Configure the isolated IoT network**
-
-Now that all software is downloaded, we will reconfigure the Pi's **built-in Wi-Fi (wlan0)** to be its own private network.  
-**Choose the option that matches your setup:**
-
-### **Option A: Ethernet (Wired) Setup**
-
-*(Use this if your Pi is connected to the internet with an Ethernet cable).*  
-This is the simplest, most reliable setup. Your Pi gets internet via Ethernet and uses its built-in Wi-Fi for the IoT network.
-
-1. **Log in** to your Pi via SSH (over Ethernet).  
-2. **Install networking tools:**  
-   sudo apt update  
-   sudo apt install hostapd dnsmasq
-
-3. **Configure hostapd** (the Access Point software):  
-   * Create a new configuration file:  
-     sudo nano /etc/hostapd/hostapd.conf
-
-   * Paste this *exact* content into the file. Choose a secure password.  
-     interface=wlan0  
-     driver=nl80211  
-     ssid=GREENHOUSE\_IOT  
-     hw\_mode=g  
-     channel=7  
-     wmm\_enabled=1  
-     macaddr\_acl=0  
-     auth\_algs=1  
-     ignore\_broadcast\_ssid=0  
-     wpa=2  
-     wpa\_passphrase=YourSecurePassword  
-     wpa\_key\_mgmt=WPA-PSK  
-     rsn\_pairwise=CCMP
-
-   * Save and exit (Ctrl+O, Enter, Ctrl+X).  
-4. **Configure dnsmasq** (the DHCP/DNS server):  
-   * Edit the main configuration file:  
-     sudo nano /etc/dnsmasq.conf
-
-   * Paste this at the *end* of the file:  
-     interface=wlan0  
-     dhcp-range=10.0.0.50,10.0.0.150,255.255.255.0,12h
-
-   * Save and exit.  
-5. **Configure hostapd daemon:**  
-   * Tell the system where to find the hostapd configuration file:  
-     sudo nano /etc/default/hostapd
-
-   * Find the line that says `#DAEMON_CONF=""` and replace it with:  
-     DAEMON_CONF="/etc/hostapd/hostapd.conf"
-
-   * Save and exit.  
-6. **Set a static IP for the Pi's built-in WiFi:**  
-   * Edit the dhcpcd.conf file:  
-     sudo nano /etc/dhcpcd.conf
-
-   * Paste this at the *end* of the file. This line is key: nohook wpa\_supplicant tells the Pi to stop using wlan0 for internet.  
-     interface wlan0  
-     static ip\_address=10.0.0.1/24  
-     nohook wpa\_supplicant
-
-   * Save and exit.  
-7. **Enable and start the services:**  
-   * Enable hostapd and dnsmasq to start automatically on boot:  
-     sudo systemctl enable hostapd  
-     sudo systemctl enable dnsmasq
-
-   * Stop any existing dnsmasq processes that might conflict:  
-     sudo systemctl stop dnsmasq  
-     sudo systemctl stop hostapd
-
-8. **Start the new network:**  
-   * Reboot the Pi: sudo reboot  
-   * Your SSH session will disconnect. Wait 2-3 minutes.  
-   * Log back in: ssh pi@greenhouse-pi.local (You will now be connecting over Ethernet).  
-   * Verify the network is running:  
-     sudo systemctl status hostapd  
-     sudo systemctl status dnsmasq
-
-   * Both services should show "active (running)". Your GREENHOUSE\_IOT WiFi network should now be visible on other devices.
-
-### **Option B: Dual-Wi-Fi (Wireless) Setup**
-
-*(Use this if your Pi is connected to the internet with a USB Wi-Fi Adapter).*  
-This setup makes your Pi fully wireless. The **USB Adapter (wlan1)** handles the internet connection, and the **Built-in Wi-Fi (wlan0)** creates the IoT network.  
-The good news: the steps are **identical** to Option A. The commands are all hard-coded to modify wlan0. The nohook wpa\_supplicant command in step 5.5 will force the Pi to stop using wlan0 for internet, and the OS will automatically use the *other* adapter (wlan1, your USB dongle) for its internet connection.
-
-1. **Log in** to your Pi via SSH (over your home Wi-Fi, using the USB adapter).  
-2. **Install networking tools:**  
-   sudo apt update  
-   sudo apt install hostapd dnsmasq
-
-3. **Configure hostapd** (the Access Point software):  
-   * Create a new configuration file:  
-     sudo nano /etc/hostapd/hostapd.conf
-
-   * Paste this *exact* content into the file. Choose a secure password.  
-     interface=wlan0  
-     driver=nl80211  
-     ssid=GREENHOUSE\_IOT  
-     hw\_mode=g  
-     channel=7  
-     wmm\_enabled=1  
-     macaddr\_acl=0  
-     auth\_algs=1  
-     ignore\_broadcast\_ssid=0  
-     wpa=2  
-     wpa\_passphrase=YourSecurePassword  
-     wpa\_key\_mgmt=WPA-PSK  
-     rsn\_pairwise=CCMP
-
-   * Save and exit (Ctrl+O, Enter, Ctrl+X).  
-4. **Configure dnsmasq** (the DHCP/DNS server):  
-   * Edit the main configuration file:  
-     sudo nano /etc/dnsmasq.conf
-
-   * Paste this at the *end* of the file:  
-     interface=wlan0  
-     dhcp-range=10.0.0.50,10.0.0.150,255.255.255.0,12h
-
-   * Save and exit.  
-5. **Configure hostapd daemon:**  
-   * Tell the system where to find the hostapd configuration file:  
-     sudo nano /etc/default/hostapd
-
-   * Find the line that says `#DAEMON_CONF=""` and replace it with:  
-     DAEMON_CONF="/etc/hostapd/hostapd.conf"
-
-   * Save and exit.  
-6. **Set a static IP for the Pi's built-in WiFi:**  
-   * Edit the dhcpcd.conf file:  
-     sudo nano /etc/dhcpcd.conf
-
-   * Paste this at the *end* of the file. This line is key: nohook wpa\_supplicant tells the Pi to stop using wlan0 for internet.  
-     interface wlan0  
-     static ip\_address=10.0.0.1/24  
-     nohook wpa\_supplicant
-
-   * Save and exit.  
-7. **Enable and start the services:**  
-   * Enable hostapd and dnsmasq to start automatically on boot:  
-     sudo systemctl enable hostapd  
-     sudo systemctl enable dnsmasq
-
-   * Stop any existing dnsmasq processes that might conflict:  
-     sudo systemctl stop dnsmasq  
-     sudo systemctl stop hostapd
-
-8. **Start the new network:**  
-   * Reboot the Pi: sudo reboot  
-   * Your SSH session will disconnect. Wait 2-3 minutes.  
-   * Log back in: ssh pi@greenhouse-pi.local (You will now be connecting over the USB Wi-Fi adapter).  
-   * Verify the network is running:  
-     sudo systemctl status hostapd  
-     sudo systemctl status dnsmasq
-
-   * Both services should show "active (running)". Your GREENHOUSE\_IOT WiFi network should now be visible on other devices.
-
-## **6\. Build and program your first sensor**
-
-This is the prototype test. You will wire the BME280 sensor to the ESP32 and use ESPHome to program it.
-
-### **6.a. Hardware assembly (the wiring)**
-
-Use your breadboard and jumper wires to connect the sensor. The BME280 sensor uses the I2C communication protocol, which requires four wires. We are using GPIO 21 and 22, which are the default I2C pins for most ESP32 boards.
-
-* **ESP32 3.3V** \-\> BME280 **VIN** (Power)  
-* **ESP32 GND** \-\> BME280 **GND** (Ground)  
-* **ESP32 GPIO 22** \-\> BME280 **SCL** (Clock)  
-* **ESP32 GPIO 21** \-\> BME280 **SDA** (Data)
-
-### **6.b. Software (the YAML)**
-
-1. Go to the **ESPHome dashboard** at http://greenhouse-pi.local:6052.  
-2. Click the **\+ New device** button.  
-3. Follow the wizard. Give it a name like greenhouse\_node\_1.  
-4. When it asks for your WiFi details, enter the credentials for the **new, isolated network you just created**:  
-   * **SSID:** GREENHOUSE\_IOT  
-   * **Password:** YourSecurePassword  
-5. Select **ESP32** as the device type.  
-6. Click **Edit** on the new node.  
-7. Paste this code at the *end* of the YAML file (the esphome:, wifi:, and api: sections should already be there).  
-   \# ... (existing esphome, wifi, api sections) ...
-
-   \# Enable the I2C bus on the default pins  
-   i2c:  
-     sda: 21  
-     scl: 22  
-     scan: true
-
-   \# Define the sensor attached to the I2C bus  
-   sensor:  
-     \- platform: bme280  
-       temperature:  
-         name: "Greenhouse Temperature"  
-         oversampling: 16x  
-       pressure:  
-         name: "Greenhouse Pressure"  
-         oversampling: 16x  
-       humidity:  
-         name: "Greenhouse Humidity"  
-         oversampling: 16x  
-       address: 0x76  
-       update\_interval: 30s
-
-8. Click **Save**.
-
-### **6.c. Flashing (programming the chip)**
-
-1. Connect your wired-up ESP32 to your Mac using a USB cable.  
-2. In the ESPHome UI (http://greenhouse-pi.local:6052), click **Install** on your new node.  
-3. Select **Plug into this computer**.**Note:** This web-based flashing method only works in **Google Chrome**, **Microsoft Edge**, or **Opera** browsers. It will not work in Firefox or Safari.  
-4. A new window will pop up. Select the USB port your ESP32 is connected to (it may be named CP210x or similar) and click **Connect**.  
-5. ESPHome will compile the code and flash it to the ESP32. This may take a few minutes.  
-6. Once done, disconnect the ESP32 from your Mac and power it with a USB charger. It will automatically connect to your Pi's GREENHOUSE\_IOT network.
-
-## **7\. The result (see your data)**
-
-1. Go to your **Home Assistant dashboard** (http://greenhouse-pi.local:8123).  
-2. Go to **Settings** \> **Devices & services**.  
-3. ESPHome will have automatically discovered the new device on the network. Click **Configure**.  
-4. Add the device. You should now see three sensors in Home Assistant: "Greenhouse Temperature", "Greenhouse Humidity", and "Greenhouse Pressure".  
-5. Verify the sensors are reporting data by going to **Settings** \> **Entities** and searching for "greenhouse".
-
-## **8\. Troubleshooting**
-
-### **Network issues:**
-* **Can't see GREENHOUSE\_IOT network:**  
-  * Check if hostapd is running: `sudo systemctl status hostapd`  
-  * Check logs: `sudo journalctl -u hostapd -n 50`  
-  * Verify configuration file exists: `sudo cat /etc/hostapd/hostapd.conf`
-
-* **ESP32 can't connect to network:**  
-  * Verify the network SSID and password match exactly (case-sensitive)  
-  * Check ESP32 is within range of the Pi  
-  * Verify the Pi's WiFi network is visible on other devices
-
-* **SSH connection lost after network setup:**  
-  * If using Ethernet (Option A), reconnect via Ethernet cable  
-  * If using USB Wi-Fi adapter (Option B), reconnect using the adapter's network  
-  * Verify Pi is still accessible: `ping greenhouse-pi.local`
-
-### **Docker/Home Assistant issues:**
-* **Home Assistant not accessible:**  
-  * Check if container is running: `docker ps`  
-  * Check container logs: `docker logs homeassistant`  
-  * Verify port 8123 is not blocked
-
-* **ESPHome not accessible:**  
-  * Check if container is running: `docker ps`  
-  * Check container logs: `docker logs esphome`
-
-### **ESP32/Sensor issues:**
-* **ESP32 not discovered in Home Assistant:**  
-  * Verify ESP32 is connected to GREENHOUSE\_IOT network  
-  * Check ESP32 is powered and has a stable connection  
-  * In ESPHome dashboard, verify device shows as "Online"  
-  * Try restarting both Home Assistant and ESP32
-
-* **Sensor not reporting data:**  
-  * Verify wiring connections match the diagram  
-  * Check I2C bus scan in ESPHome logs (should show device addresses)  
-  * Verify sensor is getting power (check voltage at sensor pins)
+Build guide: Pi setup, isolated network, and first sensor (Hybrid Workflow)ObjectiveThis guide details the initial setup for the greenhouse monitoring project. The goal is to install the core controller, create an isolated wireless network, and build the first prototype sensor node.The setup:We will run Home Assistant and ESPHome on the Raspberry Pi so it acts as the hub. We will use a dual-WiFi setup:USB Wi-Fi Adapter: Connects the Pi to your home internet (for updates and remote access).Built-in Wi-Fi: Broadcasts a private network (GREENHOUSE_IOT) to keep your sensors isolated.Note: We use your Mac to compile the firmware because it is significantly faster than the Pi.Estimated time: 1.5 - 2 hours1. Required hardwareController:1x Raspberry Pi 4 or 51x 32GB (or larger) A2-rated microSD card1x Official Raspberry Pi USB-C power supplyNetworking:1x USB Wi-Fi Adapter (Specifically the TP-Link TL-WN725N or similar).Sensor node:1x ESP32-WROOM-32 development board1x Breadboard1x Jumper wire kit1x Micro-USB or USB-C cable (data capable)Sensor:1x BME280 sensor2. Set up the Raspberry Pi OS + DockerGet the imager: Download and install Raspberry Pi Imager on your Mac.Flash the OS:Open Raspberry Pi Imager.Choose OS: Raspberry Pi OS (other) -> Raspberry Pi OS Lite (64-bit).Choose Storage: Select your microSD card.CRITICAL: Click the Gear icon (Cmd+Shift+X) for settings:Enable SSH (Use password authentication).Set username (e.g., pi) and password.Set hostname: greenhouse-pi.Configure your home Wi-Fi. (This allows the USB adapter to connect to your home network automatically).Write and verify.Boot the Pi:Insert SD card.Plug in the TP-Link USB Wi-Fi Adapter.Connect power.Log in:Wait 2-3 minutes for boot.Open Terminal on Mac.ssh pi@greenhouse-pi.localInstall Docker (on the Pi):curl -fsSL [https://get.docker.com](https://get.docker.com) -o get-docker.sh
+sudo sh get-docker.sh
+sudo usermod -aG docker pi
+Log out (exit) and log back in for changes to take effect.3. Install Home AssistantRun the container:docker run -d \
+  --name homeassistant \
+  --restart=unless-stopped \
+  -e TZ=America/New_York \
+  -v /home/pi/ha_config:/config \
+  --network=host \
+  ghcr.io/home-assistant/home-assistant:stable
+Onboard: Go to http://greenhouse-pi.local:8123 and create your account.4. Install ESPHome DashboardWe need ESPHome running on the Pi to manage the nodes and handle OTA (Over-the-Air) updates later.Run the container:docker run -d \
+  --name esphome \
+  --restart=unless-stopped \
+  -v /home/pi/esphome_config:/config \
+  --network=host \
+  ghcr.io/esphome/esphome:stable
+Verify: Check http://greenhouse-pi.local:6052.5. Configure the isolated IoT networkWe will configure the Pi's built-in Wi-Fi (wlan0) to act as the Access Point for your sensors, while the USB Adapter (wlan1) handles the internet connection.Install tools:sudo apt update
+sudo apt install hostapd dnsmasq
+Configure hostapd (The Access Point):sudo nano /etc/hostapd/hostapd.confinterface=wlan0
+driver=nl80211
+ssid=GREENHOUSE_IOT
+hw_mode=g
+channel=7
+wmm_enabled=1
+macaddr_acl=0
+auth_algs=1
+ignore_broadcast_ssid=0
+wpa=2
+wpa_passphrase=YourSecurePassword
+wpa_key_mgmt=WPA-PSK
+rsn_pairwise=CCMP
+Configure dnsmasq (The IP Address Assigner):sudo nano /etc/dnsmasq.conf(Add to end):interface=wlan0
+dhcp-range=10.0.0.50,10.0.0.150,255.255.255.0,12h
+Point system to config:sudo nano /etc/default/hostapd(Change DAEMON_CONF line):DAEMON_CONF="/etc/hostapd/hostapd.conf"
+Set Static IP for the built-in WiFi:sudo nano /etc/dhcpcd.conf(Add to end):interface wlan0
+static ip_address=10.0.0.1/24
+nohook wpa_supplicant
+Explanation: The nohook wpa_supplicant line tells the Pi "Do not use the built-in WiFi for internet." The OS will then automatically use your USB adapter (wlan1) for the internet connection you set up in the Imager.Enable and Reboot:sudo systemctl unmask hostapd
+sudo systemctl enable hostapd
+sudo systemctl enable dnsmasq
+sudo reboot
+6. Build the sensor firmware6.a. Hardware assemblyWire the BME280 to the ESP32:3.3V Pin (ESP32) -> VIN (Sensor)GND Pin (ESP32) -> GND (Sensor)GPIO 22 -> SCLGPIO 21 -> SDA6.b. Set up your MacOpen Terminal on your Mac.Install Docker Desktop (if not already installed):brew install --cask docker
+Open the Docker app from your Applications folder and let it start.Create a build folder on your Desktop:mkdir ~/Desktop/esphome-build
+6.c. Generate config on the PiGo to http://greenhouse-pi.local:6052.Click + New Device. Name it greenhouse_node_1.Wi-Fi: Enter the Isolated Network credentials:SSID: GREENHOUSE_IOTPassword: YourSecurePasswordClick Install, then click Skip.Click Edit on the new node card.Paste the sensor code at the bottom of the YAML:# Enable I2C
+i2c:
+  sda: 21
+  scl: 22
+  scan: true
+
+# Sensor configuration
+sensor:
+  - platform: bme280
+    temperature:
+      name: "Greenhouse Temperature"
+    pressure:
+      name: "Greenhouse Pressure"
+    humidity:
+      name: "Greenhouse Humidity"
+    address: 0x76
+    update_interval: 30s
+Save, but do not click Install.Copy all the code from the file editor.6.d. Compile on your MacOpen a text editor on your Mac.Paste the YAML code you just copied.Save the file as greenhouse_node_1.yaml inside the ~/Desktop/esphome-build folder.In your Mac Terminal, run the compile command:cd ~/Desktop/esphome-build
+docker run --rm -v "$PWD":/config -it ghcr.io/esphome/esphome compile greenhouse_node_1.yaml
+(Note: The first time you run this, it will download a large file, which may take a minute. Subsequent runs will take ~15 seconds).6.e. Flash the chipRetrieve the file: Run this command in your Mac Terminal to copy the hidden firmware file to your folder so it's easier to find:cp .esphome/build/greenhouse_node_1/.pioenvs/greenhouse_node_1/firmware-factory.bin ./greenhouse_node_1.bin
+Open Chrome or Edge and go to https://web.esphome.io/.Plug your ESP32 into the Mac.Click Connect -> Select Device -> Install.Select Choose File and upload the greenhouse_node_1.bin file from your esphome-build folder.Click Install.Once finished, unplug the ESP32 and plug it into a wall charger. It will automatically connect to the GREENHOUSE_IOT network.7. The resultGo to http://greenhouse-pi.local:8123 (Home Assistant).Go to Settings > Devices & Services.You will see greenhouse_node_1 discovered. Click Configure.Your sensor data is now live!8. TroubleshootingFlash fails or sticks on "Connecting": Many ESP32 boards have a BOOT button. If the web installer gets stuck on "Connecting...", hold down the BOOT button on the board for 3 seconds, then release it.Mac Docker Error: If the docker run command fails on Mac, ensure the Docker app is running (look for the whale icon in the menu bar).Pi not discovering node: Ensure the ESP32 is powered and within range of the Pi. Check the logs on the Pi dashboard (http://greenhouse-pi.local:6052)—even if the Pi didn't build the firmware, it will show the logs once the device connects to WiFi.
