@@ -1,0 +1,27 @@
+version: "3.8"
+
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./configs/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+
+  storyteller:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - TZ=America/New_York
+      - RESOLUTION_TARGET=1080p
+    volumes:
+      - ./scripts:/app/scripts
+      - ./data:/app/data
+      - ./configs/registry.json:/app/configs/registry.json:ro
+#    devices:
+#      - "/dev/video0:/dev/video0"
+    depends_on:
+      - mosquitto

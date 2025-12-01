@@ -1,0 +1,51 @@
+{
+  "devices": [
+    {
+      "mac_address": "AA:BB:CC:DD:EE:01",
+      "ip_address": "10.0.0.10",
+      "type": "sensor_node",
+      "location": "greenhouse_interior",
+      "topic_root": "greenhouse/node/1",
+      "device_name": "greenhouse_node_1",
+      "sensors": [
+        {
+          "name": "Greenhouse Temperature",
+          "key": "temperature",
+          "unit": "°F",
+          "platform": "bme280",
+          "entity_id": "sensor.greenhouse_temperature",
+          "active": true
+        },
+        {
+          "name": "Greenhouse Humidity",
+          "key": "humidity",
+          "unit": "%",
+          "platform": "bme280",
+          "entity_id": "sensor.greenhouse_humidity",
+          "active": true
+        },
+        {
+          "name": "Greenhouse Pressure",
+          "key": "pressure",
+          "unit": "hPa",
+          "platform": "bme280",
+          "entity_id": "sensor.greenhouse_pressure",
+          "active": true
+        }
+      ],
+      "personality_context": "Witty, Scientific, Optimistic",
+      "active": true
+    },
+    {
+      "mac_address": "AA:BB:CC:DD:EE:02",
+      "ip_address": "10.0.0.20",
+      "type": "camera",
+      "location": "greenhouse_interior",
+      "topic_root": "greenhouse/camera/main",
+      "device_name": "greenhouse_pi_camera",
+      "sensors": [],
+      "personality_context": "Hero image provider for daily dispatch",
+      "active": true
+    }
+  ]
+}
