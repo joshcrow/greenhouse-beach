@@ -46,6 +46,16 @@
       "sensors": [],
       "personality_context": "Hero image provider for daily dispatch",
       "active": true
+    },
+    {
+      "type": "virtual",
+      "device_name": "outside_weather",
+      "friendly_name": "Beach Weather",
+      "mqtt_topic": null,
+      "unit": "F",
+      "ai_context": "Current external conditions for comparison",
+      "personality_context": "The Meteorologist",
+      "active": true
     }
   ]
 }

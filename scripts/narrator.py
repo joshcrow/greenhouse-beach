@@ -4,6 +4,8 @@ from typing import Any, Dict
 
 import google.generativeai as genai
 
+import weather_service
+
 
 def log(message: str) -> None:
     """Simple timestamped logger (aligned with ingestion/curator)."""
@@ -68,7 +70,7 @@ def sanitize_data(sensor_data: Dict[str, Any]) -> Dict[str, Any]:
 def build_prompt(sanitized_data: Dict[str, Any]) -> str:
     """Construct the narrative prompt enforcing persona and safety constraints."""
 
-    persona = "Witty, Scientific, Optimistic"
+    persona = "Scientific, Pithy, Concise"
 
     lines = [
         "You are the 'Greenhouse Gazette' narrator.",
@@ -77,10 +79,17 @@ def build_prompt(sanitized_data: Dict[str, Any]) -> str:
         "- Do not invent sensors that do not exist.",
         "- Only reference the fields that are present in the provided data.",
         "",
+        "Context:",
+        "- Indoor readings are provided under keys like 'temp' and 'humidity'.",
+        "- When present, outdoor weather is provided under keys like 'outdoor_temp',",
+        "  'condition', and 'humidity_out'.",
+        "- Compare inside vs. outside conditions when possible (e.g.,",
+        "  'It's a gloomy rainy day outside, but the greenhouse is thriving...').",
+        "",
         "Here is the latest sanitized sensor snapshot as JSON:",
         str(sanitized_data),
         "",
-        "Write a short status update for the gardener, in 2-3 paragraphs, ",
+        "Write a short status update for the gardener, in 1 to 2 paragraphs, ",
         "explaining the current conditions and any noteworthy trends.",
     ]
 
@@ -103,9 +112,18 @@ def _extract_text(response: Any) -> str | None:
 def generate_update(sensor_data: Dict[str, Any]) -> str:
     """Sanitize data and request a narrative update from Gemini.
 
-    First attempt uses 'gemini-1.5-flash'. If that fails, immediately retry
-    with 'gemini-pro'.
+    First attempt uses 'gemini-2.5-flash'. If that fails, immediately retry
+    with 'gemini-flash-latest'.
     """
+
+    # Optionally augment with external weather data
+    try:
+        weather = weather_service.get_current_weather()
+        if weather:
+            sensor_data = {**sensor_data, **weather}
+            log(f"Augmented sensor data with external weather: {weather}")
+    except Exception as exc:  # noqa: BLE001
+        log(f"Error while fetching external weather: {exc}")
 
     sanitized = sanitize_data(sensor_data)
     prompt = build_prompt(sanitized)
