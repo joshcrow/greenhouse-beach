@@ -1,0 +1,88 @@
+import os
+import time
+from datetime import datetime
+
+import paho.mqtt.client as mqtt
+
+
+BROKER_HOST = os.getenv("MQTT_HOST", "mosquitto")
+BROKER_PORT = int(os.getenv("MQTT_PORT", "1883"))
+TOPIC_FILTER = "greenhouse/+/image"
+
+INCOMING_DIR = "/app/data/incoming"
+
+
+def log(message: str) -> None:
+    """Simple timestamped logger."""
+    ts = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+    print(f"[{ts}] [ingestion] {message}", flush=True)
+
+
+def ensure_incoming_dir() -> None:
+    if not os.path.exists(INCOMING_DIR):
+        os.makedirs(INCOMING_DIR, exist_ok=True)
+        log(f"Created incoming directory at {INCOMING_DIR}")
+
+
+def generate_filename(topic: str) -> str:
+    """Generate a deterministic filename using UTC timestamp and topic-derived device id."""
+    # topic format: greenhouse/{device_id}/image
+    parts = topic.split("/")
+    device_id = parts[1] if len(parts) >= 3 else "unknown"
+    ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    return f"img_{device_id}_{ts}.jpg"
+
+
+def on_connect(client: mqtt.Client, userdata, flags, rc, properties=None):  # type: ignore[override]
+    if rc == 0:
+        log(f"Connected to MQTT broker at {BROKER_HOST}:{BROKER_PORT} (rc={rc})")
+        log(f"Subscribing to topic filter: {TOPIC_FILTER}")
+        client.subscribe(TOPIC_FILTER)
+    else:
+        log(f"MQTT connection failed with rc={rc}")
+
+
+def on_message(client: mqtt.Client, userdata, msg: mqtt.MQTTMessage):  # type: ignore[override]
+    try:
+        ensure_incoming_dir()
+        filename = generate_filename(msg.topic)
+        filepath = os.path.join(INCOMING_DIR, filename)
+
+        # msg.payload is bytes; write directly
+        with open(filepath, "wb") as f:
+            f.write(msg.payload)
+
+        log(f"Saved image from topic '{msg.topic}' to '{filepath}' (size={len(msg.payload)} bytes)")
+    except Exception as exc:  # noqa: BLE001
+        log(f"Error handling message on topic '{msg.topic}': {exc}")
+
+
+def run_client_loop() -> None:
+    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+    client.on_connect = on_connect
+    client.on_message = on_message
+
+    log(f"Attempting MQTT connection to {BROKER_HOST}:{BROKER_PORT}")
+    client.connect(BROKER_HOST, BROKER_PORT, keepalive=60)
+    log("Starting MQTT network loop (loop_forever)")
+    client.loop_forever()
+
+
+def main() -> None:
+    ensure_incoming_dir()
+
+    while True:
+        try:
+            run_client_loop()
+        except KeyboardInterrupt:
+            log("KeyboardInterrupt received; exiting ingestion loop.")
+            break
+        except Exception as exc:  # noqa: BLE001
+            log(f"MQTT client crashed with error: {exc}")
+            log("Sleeping 5 seconds before retrying MQTT connection...")
+            time.sleep(5)
+
+
+if __name__ == "__main__":
+    main()
+
