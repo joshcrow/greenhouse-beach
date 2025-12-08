@@ -197,18 +197,28 @@ def generate_update(sensor_data: Dict[str, Any]) -> tuple[str, str, str, Dict[st
         try:
             # Split into lines to find keys, or simple string partitioning
             # Given the prompt order: SUBJECT -> HEADLINE -> BODY
-            if "SUBJECT:" in clean_text and "HEADLINE:" in clean_text and "BODY:" in clean_text:
+            if "SUBJECT:" in clean_text and "HEADLINE:" in clean_text:
                 # Split between SUBJECT and HEADLINE
                 part1, remainder = clean_text.split("HEADLINE:", 1)
                 subject_part = part1.replace("SUBJECT:", "").strip()
                 
-                # Split between HEADLINE and BODY
-                part2, body_part = remainder.split("BODY:", 1)
-                headline_part = part2.strip()
-                
+                # Split between HEADLINE and BODY (if BODY exists)
+                if "BODY:" in remainder:
+                    part2, body_part = remainder.split("BODY:", 1)
+                    headline_part = part2.strip()
+                    body = body_part.strip()
+                else:
+                    # No BODY marker, assume everything after HEADLINE is the body
+                    # But first line might be the headline text itself
+                    lines = remainder.strip().split('\n', 1)
+                    headline_part = lines[0].strip()
+                    if len(lines) > 1:
+                        body = lines[1].strip()
+                    else:
+                        body = ""
+
                 if subject_part: subject = subject_part
                 if headline_part: headline = headline_part
-                if body_part.strip(): body = body_part.strip()
             else:
                 # Fallback parsing logic
                 log("WARNING: Output format mismatch. Attempting partial parse.")
