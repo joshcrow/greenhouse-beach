@@ -56,6 +56,44 @@
       "ai_context": "Current external conditions for comparison",
       "personality_context": "The Meteorologist",
       "active": true
+    },
+    {
+      "type": "sensor_node",
+      "location": "greenhouse_exterior",
+      "topic_root": "greenhouse/satellite-2",
+      "device_name": "satellite_sensor_2",
+      "sensors": [
+        {
+          "name": "Exterior Temp",
+          "key": "satellite_2_temperature",
+          "unit": "°C",
+          "platform": "esphome",
+          "active": true
+        },
+        {
+          "name": "Exterior Humidity",
+          "key": "satellite_2_humidity",
+          "unit": "%",
+          "platform": "esphome",
+          "active": true
+        },
+        {
+          "name": "Exterior Pressure",
+          "key": "satellite_2_pressure",
+          "unit": "hPa",
+          "platform": "esphome",
+          "active": true
+        },
+        {
+          "name": "Satellite Battery",
+          "key": "satellite_2_battery",
+          "unit": "V",
+          "platform": "esphome",
+          "active": true
+        }
+      ],
+      "personality_context": "The Scout. A rugged exterior observer reporting from the elements.",
+      "active": true
     }
   ]
 }

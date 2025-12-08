@@ -13,13 +13,15 @@ def log(message: str) -> None:
     print(f"[{ts}] [narrator] {message}", flush=True)
 
 
-def init_model(model_name: str = "gemini-2.5-flash") -> genai.GenerativeModel:
+def init_model(model_name: str | None = None) -> genai.GenerativeModel:
     """Initialize Gemini model using GEMINI_API_KEY from the environment."""
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
         log("WARNING: GEMINI_API_KEY is not set; generation calls will fail.")
     genai.configure(api_key=api_key)
-    return genai.GenerativeModel(model_name)
+
+    effective_model = model_name or os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+    return genai.GenerativeModel(effective_model)
 
 
 def sanitize_data(sensor_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -73,24 +75,35 @@ def build_prompt(sanitized_data: Dict[str, Any]) -> str:
     persona = "Scientific, Pithy, Concise"
 
     lines = [
-        "You are the 'Greenhouse Gazette' narrator.",
+        "You are the narrator.",
         f"Persona: {persona}.",
         "System safety rules:",
         "- Do not invent sensors that do not exist.",
         "- Only reference the fields that are present in the provided data.",
+        "- Do not use emojis in the narrative text.",
         "",
         "Context:",
         "- Indoor readings are provided under keys like 'temp' and 'humidity'.",
-        "- When present, outdoor weather is provided under keys like 'outdoor_temp',",
-        "  'condition', and 'humidity_out'.",
-        "- Compare inside vs. outside conditions when possible (e.g.,",
-        "  'It's a gloomy rainy day outside, but the greenhouse is thriving...').",
+        "- Today's weather forecast includes 'high_temp', 'low_temp', 'condition', and 'daily_wind_mph'.",
+        "  Focus on these daily ranges rather than point-in-time readings.",
+        "  This helps the gardener plan for the day (heat management, ventilation, etc.).",
+        "- Tomorrow's forecast is available (tomorrow_high, tomorrow_low, tomorrow_condition).",
+        "  Use it to provide helpful lookahead context when relevant.",
+        "- Compare indoor conditions with today's outdoor forecast when useful.",
         "",
         "Here is the latest sanitized sensor snapshot as JSON:",
         str(sanitized_data),
         "",
-        "Write a short status update for the gardener, in 1 to 2 paragraphs, ",
+        "Write a short status update for the gardener, in two short paragraphs telling the highlights, ",
         "explaining the current conditions and any noteworthy trends.",
+        "Focus on the 'feel' of the environment rather than listing every number. Be conversational.",
+        "Use simple, clear language. Avoid complex vocabulary. Weather terms are fine, but keep it casual.",
+        "When mentioning temperatures, use the abbreviated format: 75ºF (not '75 degrees Fahrenheit').",
+        "",
+        "Output MUST follow this exact format:",
+        "SUBJECT: <Engaging conversational subject line, 8-10 words. DO NOT use colons or 'Topic: Phrase' patterns.>",
+        "HEADLINE: <Conversational, summary headline, up to 16 words>",
+        "BODY: <The narrative text, with a blank line between the two paragraphs>",
     ]
 
     return "\n".join(lines)
@@ -109,11 +122,11 @@ def _extract_text(response: Any) -> str | None:
     return None
 
 
-def generate_update(sensor_data: Dict[str, Any]) -> str:
+def generate_update(sensor_data: Dict[str, Any]) -> tuple[str, str, str, Dict[str, Any]]:
     """Sanitize data and request a narrative update from Gemini.
 
-    First attempt uses 'gemini-2.5-flash'. If that fails, immediately retry
-    with 'gemini-flash-latest'.
+    Returns:
+        tuple: (subject, headline, narrative_text, augmented_sensor_data)
     """
 
     # Optionally augment with external weather data
@@ -126,34 +139,89 @@ def generate_update(sensor_data: Dict[str, Any]) -> str:
         log(f"Error while fetching external weather: {exc}")
 
     sanitized = sanitize_data(sensor_data)
+
+    # Remove current outdoor readings (prefer daily high/low for morning context)
+    # Current temp/humidity at 7am is less useful than the day's range
+    if "outdoor_temp" in sanitized:
+        del sanitized["outdoor_temp"]
+    if "humidity_out" in sanitized:
+        del sanitized["humidity_out"]
+    if "wind_mph" in sanitized:
+        del sanitized["wind_mph"]
+    if "wind_deg" in sanitized:
+        del sanitized["wind_deg"]
+    if "wind_direction" in sanitized:
+        del sanitized["wind_direction"]
+    if "wind_arrow" in sanitized:
+        del sanitized["wind_arrow"]
+
     prompt = build_prompt(sanitized)
 
     log(f"Generating narrative update for data: {sanitized}")
 
-    # First attempt: gemini-2.5-flash
+    raw_text = None
+
+    # First attempt: primary Gemini model from configuration
     try:
-        model = init_model("gemini-2.5-flash")
+        model = init_model()
         response = model.generate_content(prompt)
-        text = _extract_text(response)
-        if text:
-            return text
-        log("WARNING: Gemini (gemini-2.5-flash) response had no text; will try fallback model.")
+        raw_text = _extract_text(response)
+        if not raw_text:
+            log("WARNING: Primary Gemini model response had no text; will try fallback model.")
     except Exception as exc:  # noqa: BLE001
         log(f"Error during Gemini generation with gemini-2.5-flash: {exc}")
 
-    # Fallback attempt: gemini-flash-latest
-    try:
-        log("Attempting fallback generation with model 'gemini-flash-latest'.")
-        model = init_model("gemini-flash-latest")
-        response = model.generate_content(prompt)
-        text = _extract_text(response)
-        if text:
-            return text
-        log("WARNING: Gemini (gemini-pro) response had no text; returning fallback message.")
-    except Exception as exc:  # noqa: BLE001
-        log(f"Error during Gemini generation with gemini-pro: {exc}")
+    # Fallback attempt: gemini-flash-latest if first failed
+    if not raw_text:
+        try:
+            log("Attempting fallback generation with model 'gemini-flash-latest'.")
+            model = init_model("gemini-flash-latest")
+            response = model.generate_content(prompt)
+            raw_text = _extract_text(response)
+            if not raw_text:
+                log("WARNING: Gemini (gemini-flash-latest) response had no text; returning fallback message.")
+        except Exception as exc:  # noqa: BLE001
+            log(f"Error during Gemini generation with gemini-flash-latest: {exc}")
 
-    return "The narrator encountered an error while generating today's update."
+    # Parse the response
+    subject = "Greenhouse Update"
+    headline = "Greenhouse Update"
+    body = "The narrator encountered an error while generating today's update."
+
+    if raw_text:
+        # Clean markdown bolding
+        clean_text = raw_text.replace("**SUBJECT:**", "SUBJECT:").replace("**HEADLINE:**", "HEADLINE:").replace("**BODY:**", "BODY:")
+        
+        # We need to parse SUBJECT, HEADLINE, and BODY
+        # A robust way is to split by keys
+        try:
+            # Split into lines to find keys, or simple string partitioning
+            # Given the prompt order: SUBJECT -> HEADLINE -> BODY
+            if "SUBJECT:" in clean_text and "HEADLINE:" in clean_text and "BODY:" in clean_text:
+                # Split between SUBJECT and HEADLINE
+                part1, remainder = clean_text.split("HEADLINE:", 1)
+                subject_part = part1.replace("SUBJECT:", "").strip()
+                
+                # Split between HEADLINE and BODY
+                part2, body_part = remainder.split("BODY:", 1)
+                headline_part = part2.strip()
+                
+                if subject_part: subject = subject_part
+                if headline_part: headline = headline_part
+                if body_part.strip(): body = body_part.strip()
+            else:
+                # Fallback parsing logic
+                log("WARNING: Output format mismatch. Attempting partial parse.")
+                # If only BODY is missing, etc.
+                # For safety, if parsing fails, treat whole text as body if it doesn't look like keys
+                if "BODY:" in clean_text:
+                     _, body = clean_text.split("BODY:", 1)
+                     body = body.strip()
+        except Exception as e:
+            log(f"Error parsing narrative response: {e}")
+            body = raw_text  # Fallback to raw text
+
+    return subject, headline, body, sensor_data
 
 
 if __name__ == "__main__":
@@ -170,7 +238,9 @@ if __name__ == "__main__":
     except Exception as exc:  # noqa: BLE001
         log(f"Error while listing models: {exc}")
 
-    summary = generate_update(test_data)
+    _, _, summary, augmented = generate_update(test_data)
     print("\n--- Generated Update ---\n")
     print(summary)
+    print("\n--- Augmented Data ---\n")
+    print(augmented)
 
