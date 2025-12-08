@@ -48,9 +48,13 @@ def on_message(client: mqtt.Client, userdata, msg: mqtt.MQTTMessage):  # type: i
         filename = generate_filename(msg.topic)
         filepath = os.path.join(INCOMING_DIR, filename)
 
-        # msg.payload is bytes; write directly
-        with open(filepath, "wb") as f:
+        # Write to a temporary file first to avoid partial reads by curator
+        temp_filepath = filepath + ".tmp"
+        with open(temp_filepath, "wb") as f:
             f.write(msg.payload)
+        
+        # Atomic rename to final filename
+        os.rename(temp_filepath, filepath)
 
         log(f"Saved image from topic '{msg.topic}' to '{filepath}' (size={len(msg.payload)} bytes)")
     except Exception as exc:  # noqa: BLE001

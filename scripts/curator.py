@@ -27,7 +27,15 @@ def list_candidate_files() -> list[str]:
         return []
 
     entries: list[str] = []
+    valid_exts = {".jpg", ".jpeg", ".png"}
     for name in os.listdir(INCOMING_DIR):
+        if name.endswith(".tmp"):
+            continue
+            
+        ext = os.path.splitext(name)[1].lower()
+        if ext not in valid_exts:
+            continue
+
         full_path = os.path.join(INCOMING_DIR, name)
         if os.path.isfile(full_path):
             entries.append(full_path)

@@ -1,0 +1,311 @@
+This is the **Master Implementation Guide** for the new Satellite Sensor (Node E/F) within the Project Chlorophyll ecosystem. It combines the hardware fabrication with the software integration into a single, linear workflow.
+
+**Status:** Ready for Deployment
+**Role:** Exterior Satellite (Solar/Battery)
+**Connectivity:** Dual-Stack (Resilient to Home Assistant outages)
+
+---
+
+### PART 1: HARDWARE FABRICATION
+**Objective:** Assemble the FireBeetle ESP32-E, BME280, and Solar components into a waterproof, deployable unit.
+
+#### 1. Bill of Materials
+*   **Controller:** FireBeetle 2 ESP32-E (DFR0654)
+*   **Battery:** Li-Ion 3.7V 2.5Ah (Flat pack)
+*   **Enclosure:** Gray Box 4.53" x 2.56" (Waterproof)
+*   **Sensor:** BME280 (I2C)
+*   **Power:** 6V 1W Solar Panel
+*   **Misc:** PG7 Cable Glands, Dielectric Grease.
+
+#### 2. Board Preparation (Soldering)
+**CRITICAL:** Solder wires to the **BOTTOM (flat)** side of the FireBeetle. This is required for the lid to close properly.
+
+1.  **Solar Panel Input:**
+    *   Locate the large gold pads at the bottom edge (near USB).
+    *   **Solar Red (+):** Solder to **VIN**.
+    *   **Solar Black (-):** Solder to **GND**.
+2.  **BME280 Sensor:**
+    *   Solder wires to the pins on the right edge (looking at the bottom).
+    *   **Sensor VCC:** Solder to **3V3**.
+    *   **Sensor GND:** Solder to **GND**.
+    *   **Sensor SCL:** Solder to **SCL (Pin 22)**.
+    *   **Sensor SDA:** Solder to **SDA (Pin 21)**.
+3.  **Low Power Check:**
+    *   Do **not** modify the hardware. We will disable the blue LED (Pin 2/D9) in software to save power.
+
+#### 3. Enclosure & Assembly
+1.  **Drilling:** Drill two 12.5mm (0.5") holes in the bottom face of the box. Install PG7 glands.
+2.  **Routing:**
+    *   Pass Solar cable through Gland #1.
+    *   Pass Sensor cable through Gland #2.
+3.  **Battery Install:**
+    *   Rotate battery 90°. Secure to the "floor" of the box with foam tape.
+    *   **Safety:** Place a layer of electrical tape/foam on top of the battery to prevent shorts against the ESP32.
+4.  **Final Connection:**
+    *   Plug the battery JST connector into the white port on the ESP32.
+    *   Rest the ESP32 (components down) on top of the battery stack.
+    *   Tighten glands and seal the lid.
+
+---
+
+### PART 2: FIRMWARE PREPARATION
+**Objective:** Configure the software to survive network outages and communicate with "The Storyteller" directly.
+
+#### 1. Generate Security Key
+Since this is a hardened system, we need a unique API encryption key. Open your terminal (on Mac/Linux/Pi) and run:
+
+```bash
+openssl rand -base64 32
+```
+*Copy the output string. You will paste it into the YAML below.*
+
+#### 2. Create the YAML Configuration
+Create a file named `satellite-sensor-2.yaml` in ESPHome. Copy the configuration below exactly.
+
+**Action:** Replace `PASTE_YOUR_OPENSSL_KEY_HERE` with the key you just generated.
+
+```yaml
+esphome:
+  name: satellite-sensor-2
+  friendly_name: "Greenhouse Exterior Satellite"
+  on_boot:
+    priority: -10
+    then:
+      # 1. LED OFF: Save power immediately (Blue LED on Pin 2)
+      - output.turn_off: led_builtin
+      
+      # 2. RESILIENT WAIT:
+      # Waits up to 30s for WiFi AND (API OR MQTT).
+      # This ensures the sensor works even if Home Assistant is down.
+      - wait_until:
+          timeout: 30s
+          condition:
+            and:
+              - wifi.connected:
+              - or:
+                - api.connected:
+                - mqtt.connected:
+      
+      # 3. SYNC BUFFER: Brief pause for handshakes
+      - delay: 2s
+      
+      # 4. LOGIC FORK (Dual Maintenance Check)
+      # Checks both HA and MQTT for a "Stay Awake" command
+      - if:
+          condition:
+            or:
+              - binary_sensor.is_on: maintenance_mode_ha
+              - binary_sensor.is_on: maintenance_mode_mqtt
+          then:
+            - logger.log: "MAINTENANCE MODE: ON. Staying awake."
+            - deep_sleep.prevent: deep_sleep_1
+          else:
+            - logger.log: "MAINTENANCE MODE: OFF. Measuring..."
+            
+            # Force sensor readings immediately
+            - component.update: bme280_sensor
+            - component.update: battery_voltage
+            
+            - logger.log: "Sending data..."
+            - delay: 2s # Critical: Allows packets to clear the buffer
+            - deep_sleep.enter: deep_sleep_1
+
+esp32:
+  board: firebeetle32
+  framework:
+    type: arduino
+
+# Keep DEBUG enabled for initial deployment
+logger:
+  level: DEBUG
+
+# ---------------------------------------------------------
+# 1. HOME ASSISTANT (Native API)
+# ---------------------------------------------------------
+api:
+  encryption:
+    key: "PASTE_YOUR_OPENSSL_KEY_HERE"
+  
+  # CRITICAL: If HA is down, don't reboot. Just keep going.
+  reboot_timeout: 0s 
+
+# ---------------------------------------------------------
+# 2. MQTT (For 'The Storyteller' Node B)
+# ---------------------------------------------------------
+mqtt:
+  # IP of Node B (Storyteller) or Node A (Broker Host)
+  broker: 192.168.1.50 
+  port: 1883
+  username: "greenhouse"
+  password: "super-secret-change-me"
+  topic_prefix: "greenhouse/satellite-2"
+  
+  # CRITICAL: Prevents Home Assistant from creating duplicate entities.
+  # MQTT is exclusively for the Python Storyteller engine.
+  discovery: false
+
+  # CRITICAL: If MQTT is down, don't reboot.
+  reboot_timeout: 0s 
+
+  birth_message:
+    topic: "greenhouse/satellite-2/status"
+    payload: "online"
+  will_message:
+    topic: "greenhouse/satellite-2/status"
+    payload: "offline"
+
+ota:
+  - platform: esphome
+    password: "ChangeMeToSomethingSecure"
+
+wifi:
+  # CRITICAL: Disabling power save fixes "zombie" connection issues on ESP32
+  power_save_mode: none
+  fast_connect: false
+
+  networks:
+    # 1. Primary Network
+    - ssid: "GREENHOUSE_IOT"
+      password: "YOUR_IOT_NETWORK_PASSWORD"
+      priority: 10
+    
+    # 2. Fallback Network
+    - ssid: "beachFi"
+      password: "YOUR_DEV_NETWORK_PASSWORD"
+      priority: 5
+
+  # Broadcasts this AP if both networks fail
+  ap:
+    ssid: "Satellite-2 Rescue"
+    password: "YOUR_RESCUE_AP_PASSWORD"
+
+i2c:
+  sda: 21
+  scl: 22
+  scan: true
+
+output:
+  - platform: gpio
+    pin: 2
+    id: led_builtin
+    inverted: false
+
+sensor:
+  - platform: bme280_i2c
+    id: bme280_sensor
+    # Common addresses are 0x76 or 0x77.
+    address: 0x76 
+    update_interval: never
+    temperature:
+      name: "Satellite 2 Temperature"
+    pressure:
+      name: "Satellite 2 Pressure"
+    humidity:
+      name: "Satellite 2 Humidity"
+
+  # FireBeetle Battery Monitoring
+  - platform: adc
+    pin: 36 # A0 on FireBeetle
+    id: battery_voltage
+    name: "Satellite 2 Battery"
+    update_interval: never
+    attenuation: 11db
+    filters:
+      - multiply: 2.0 # Hardware voltage divider correction
+
+# Maintenance Switches (Dual Control)
+binary_sensor:
+  # Controlled via Home Assistant Dashboard
+  - platform: homeassistant
+    id: maintenance_mode_ha
+    entity_id: input_boolean.greenhouse_satellite_2_maintenance
+    internal: true 
+
+  # Controlled via MQTT (Command Line / Script)
+  - platform: mqtt
+    id: maintenance_mode_mqtt
+    name: "Maintenance Mode MQTT"
+    state_topic: "greenhouse/satellite-2/maintenance/state"
+    payload_on: "ON"
+    payload_off: "OFF"
+    initial_mode: OFF 
+    internal: true
+
+deep_sleep:
+  id: deep_sleep_1
+  run_duration: 60s 
+  sleep_duration: 15min
+```
+
+**Step 3:** Connect the FireBeetle via USB and **Flash** the firmware.
+
+---
+
+### PART 3: INTEGRATION
+**Objective:** Connect the new data stream to the "Storyteller" engine on Node B.
+
+#### 1. Update the Storyteller Registry
+We must tell the AI that this new device exists.
+
+1.  SSH into Node B (`ssh user@192.168.1.50`).
+2.  Edit the registry:
+    ```bash
+    nano /opt/greenhouse/configs/registry.json
+    ```
+3.  Add the following entry inside the `devices` block (ensure commas are correct!):
+
+```json
+    "satellite_2_temp": {
+      "type": "sensor",
+      "friendly_name": "Exterior Satellite",
+      "mqtt_topic": "greenhouse/satellite-2/sensor/satellite_2_temperature/state",
+      "unit": "°C",
+      "ai_context": "Ambient exterior temperature",
+      "personality": "The Scout"
+    },
+    "satellite_2_battery": {
+      "type": "sensor",
+      "friendly_name": "Satellite Battery",
+      "mqtt_topic": "greenhouse/satellite-2/sensor/satellite_2_battery/state",
+      "unit": "V",
+      "ai_context": "Power reserves for the remote scout",
+      "personality": "Survival Systems"
+    }
+```
+
+---
+
+### PART 4: VERIFICATION & CONTROL
+**Objective:** Verify operation while Home Assistant is Offline.
+
+#### 1. Monitor Data Flow
+Run this on Node B (or Node A) to see the data arriving:
+```bash
+docker exec -it mosquitto mosquitto_sub -t "greenhouse/satellite-2/#" -v
+```
+*You should see temperature and battery readings arrive, followed by an "offline" status when it sleeps.*
+
+#### 2. Emergency "Stay Awake" (Maintenance Mode)
+Since Home Assistant is down, use this MQTT command to keep the device awake for debugging:
+```bash
+docker exec mosquitto mosquitto_pub -u greenhouse -P super-secret-change-me \
+-t "greenhouse/satellite-2/maintenance/state" -m "ON" -r
+```
+
+#### 3. Resume Sleep Mode
+**IMPORTANT:** Run this when done, or the battery will die.
+```bash
+docker exec mosquitto mosquitto_pub -u greenhouse -P super-secret-change-me \
+-t "greenhouse/satellite-2/maintenance/state" -m "OFF" -r
+```
+
+---
+
+### PART 5: FINAL DEPLOYMENT
+1.  **Mount:** Place the unit outside.
+    *   **Solar Panel:** Facing South at ~45°.
+    *   **Box:** **MUST BE SHADED.** (Under the panel or eaves).
+2.  **Home Assistant Recovery:**
+    *   When HA comes back online, create a "Toggle Helper" named `Greenhouse Satellite 2 Maintenance`.
+    *   Entity ID: `input_boolean.greenhouse_satellite_2_maintenance`.
+    *   This will allow you to control maintenance mode from the dashboard in the future.
