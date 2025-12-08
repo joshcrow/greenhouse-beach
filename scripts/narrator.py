@@ -226,7 +226,14 @@ def generate_update(sensor_data: Dict[str, Any]) -> tuple[str, str, str, Dict[st
 
 if __name__ == "__main__":
     # Simple test run with dummy data
-    test_data = {"temp": 72, "humidity": 45}
+    test_data = {
+        "temp": 72,
+        "humidity": 45,
+        "satellite_2_temperature": 42,
+        "satellite_2_humidity": 80,
+        "satellite_2_pressure": 1012,
+        "satellite_2_battery": 4.1,
+    }
     log(f"Running narrator test with data: {test_data}")
 
     # List models visible to this API key for debugging
