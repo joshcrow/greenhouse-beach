@@ -212,14 +212,17 @@ def generate_update(sensor_data: Dict[str, Any]) -> tuple[str, str, str, Dict[st
             else:
                 # Fallback parsing logic
                 log("WARNING: Output format mismatch. Attempting partial parse.")
-                # If only BODY is missing, etc.
-                # For safety, if parsing fails, treat whole text as body if it doesn't look like keys
+                # If we at least have a BODY marker, use that section
                 if "BODY:" in clean_text:
-                     _, body = clean_text.split("BODY:", 1)
-                     body = body.strip()
+                    _, body_part = clean_text.split("BODY:", 1)
+                    body = body_part.strip() or body
+                else:
+                    # No structured markers; treat entire text as body
+                    body = clean_text.strip() or body
         except Exception as e:
             log(f"Error parsing narrative response: {e}")
-            body = raw_text  # Fallback to raw text
+            # On any parsing error, fall back to the raw model text
+            body = raw_text  # type: ignore[assignment]
 
     return subject, headline, body, sensor_data
 

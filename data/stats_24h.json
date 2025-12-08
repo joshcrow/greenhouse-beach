@@ -1,0 +1,10 @@
+{
+  "metrics": {
+    "satellite_humidity_max": 40.5,
+    "satellite_humidity_min": 40.0,
+    "satellite_temp_max": 22.0,
+    "satellite_temp_min": 21.8
+  },
+  "window_end": "2025-12-08T06:07:22.851903Z",
+  "window_start": "2025-12-07T06:07:22.851903Z"
+}
