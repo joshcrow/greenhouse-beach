@@ -1,14 +1,18 @@
 import glob
 import html
+import json
 import os
 import ssl
 from datetime import datetime
 from email.message import EmailMessage
 from email.utils import formatdate, make_msgid
 from typing import Any, Dict, Optional, Tuple
+from urllib.error import HTTPError, URLError
+from urllib.request import urlopen
 
 import narrator
 import smtplib
+import stats
 
 
 ARCHIVE_ROOT = "/app/data/archive"
@@ -43,8 +47,56 @@ def load_image_bytes(path: str) -> bytes:
         return f.read()
 
 
+def load_latest_sensor_snapshot() -> Dict[str, Any]:
+    """Load the latest sensor snapshot for email generation.
+
+    MVP implementation:
+    - First, try a Storyteller API status endpoint (STATUS_URL or default).
+    - If that fails, try a local JSON file (STATUS_PATH, default /app/data/status.json).
+    - If all else fails, return an empty dict so downstream code can still run.
+    """
+
+    # Attempt 1: HTTP status endpoint
+    status_url = os.getenv("STATUS_URL", "http://storyteller_api:5000/status.json")
+    try:
+        with urlopen(status_url, timeout=5) as resp:
+            payload = resp.read()
+            data = json.loads(payload.decode("utf-8"))
+            if isinstance(data, dict) and isinstance(data.get("sensors"), dict):
+                return data["sensors"]
+            if isinstance(data, dict):
+                return data
+    except (HTTPError, URLError, TimeoutError, json.JSONDecodeError, OSError) as exc:  # noqa: PERF203
+        log(f"Failed to fetch sensor snapshot from {status_url}: {exc}")
+    except Exception as exc:  # noqa: BLE001
+        log(f"Unexpected error while fetching sensor snapshot from {status_url}: {exc}")
+
+    # Attempt 2: Local JSON status file
+    status_path = os.getenv("STATUS_PATH", "/app/data/status.json")
+    try:
+        if os.path.exists(status_path):
+            with open(status_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if isinstance(data, dict) and isinstance(data.get("sensors"), dict):
+                return data["sensors"]
+            if isinstance(data, dict):
+                return data
+    except (json.JSONDecodeError, OSError) as exc:
+        log(f"Failed to load sensor snapshot from {status_path}: {exc}")
+
+    # Fallback: empty dict (narrator + template will handle missing fields gracefully)
+    log("WARNING: Using fallback minimal sensor_data; real snapshot unavailable.")
+    return {}
+
+
 def build_email(sensor_data: Dict[str, Any]) -> Tuple[EmailMessage, Optional[str]]:
     """Construct the email message and return it along with the image path (if any)."""
+
+    # Convert satellite temperature from Celsius to Fahrenheit BEFORE narrator
+    # so AI generates correct narrative
+    sat_temp_c = sensor_data.get("satellite_2_temperature")
+    if sat_temp_c is not None:
+        sensor_data["satellite_2_temperature"] = round(sat_temp_c * 9/5 + 32, 1)
 
     # Narrative content and augmented data (includes weather)
     try:
@@ -108,9 +160,68 @@ def build_email(sensor_data: Dict[str, Any]) -> Tuple[EmailMessage, Optional[str
     moon_phase = sensor_data.get("moon_phase")
     moon_icon = sensor_data.get("moon_icon") or ""
 
-    def fmt(value):
-        """Format value for display, returning N/A for None."""
-        return "N/A" if value is None else str(value)
+    # Satellite sensor vitals (already converted to Fahrenheit above)
+    sat_temp = sensor_data.get("satellite_2_temperature")
+    sat_humidity = sensor_data.get("satellite_2_humidity")
+
+    # 24-hour stats (min/max) for vitals
+    stats_24h = stats.get_24h_stats(datetime.utcnow())
+    indoor_temp_min = stats_24h.get("indoor_temp_min")
+    indoor_temp_max = stats_24h.get("indoor_temp_max")
+    indoor_humidity_min = stats_24h.get("indoor_humidity_min")
+    indoor_humidity_max = stats_24h.get("indoor_humidity_max")
+
+    # Convert satellite temps from Celsius to Fahrenheit and round to 1 decimal
+    sat_temp_min_c = stats_24h.get("satellite_temp_min")
+    sat_temp_max_c = stats_24h.get("satellite_temp_max")
+    sat_temp_min = round(sat_temp_min_c * 9/5 + 32, 1) if sat_temp_min_c is not None else None
+    sat_temp_max = round(sat_temp_max_c * 9/5 + 32, 1) if sat_temp_max_c is not None else None
+    sat_humidity_min = stats_24h.get("satellite_humidity_min")
+    sat_humidity_max = stats_24h.get("satellite_humidity_max")
+
+    def fmt(value, decimals=1):
+        """Format value for display, returning N/A for None. Rounds numbers to specified decimals."""
+        if value is None:
+            return "N/A"
+        try:
+            return f"{float(value):.{decimals}f}"
+        except (ValueError, TypeError):
+            return str(value)
+    
+    def fmt_temp_high_low(high_val, low_val):
+        """Format high/low temps with red/blue color styling."""
+        if high_val is None and low_val is None:
+            return "N/A"
+        high_str = f'<span style="color:#dc2626;" class="dark-text-high">{fmt(high_val)}°</span>' if high_val is not None else "N/A"
+        low_str = f'<span style="color:#2563eb;" class="dark-text-low">{fmt(low_val)}°</span>' if low_val is not None else "N/A"
+        return f"{high_str} / {low_str}"
+    
+    def get_condition_emoji(condition):
+        """Map weather condition to emoji."""
+        if not condition:
+            return ""
+        condition_lower = str(condition).lower()
+        emoji_map = {
+            "clear": "☀️",
+            "sunny": "☀️",
+            "clouds": "☁️",
+            "cloudy": "☁️",
+            "partly cloudy": "⛅",
+            "rain": "🌧️",
+            "rainy": "🌧️",
+            "drizzle": "🌦️",
+            "thunderstorm": "⛈️",
+            "storm": "⛈️",
+            "snow": "❄️",
+            "snowy": "❄️",
+            "mist": "🌫️",
+            "fog": "🌫️",
+            "haze": "🌫️",
+        }
+        for key, emoji in emoji_map.items():
+            if key in condition_lower:
+                return emoji
+        return ""
 
     def fmt_moon_phase(phase_value):
         """Format moon phase as descriptive text."""
@@ -154,10 +265,10 @@ def build_email(sensor_data: Dict[str, Any]) -> Tuple[EmailMessage, Optional[str
 
     # Date subheadline
     date_subheadline = datetime.now().strftime("%A, %B %d, %Y")
-    
+
     # Escape HTML in body text to prevent injection
     body_text_escaped = html.escape(body_text)
-    
+
     # Convert paragraph breaks (double newlines) to HTML breaks (single for tighter spacing)
     body_text_escaped = body_text_escaped.replace('\n\n', '<br>')
 
@@ -173,6 +284,55 @@ def build_email(sensor_data: Dict[str, Any]) -> Tuple[EmailMessage, Optional[str
                 </td>
             </tr>
         </table>
+        """
+
+    # Build 24-hour vitals section only if we have at least one metric
+    has_24h_stats = any(
+        m is not None
+        for m in (
+            indoor_temp_min,
+            indoor_temp_max,
+            indoor_humidity_min,
+            indoor_humidity_max,
+            sat_temp_min,
+            sat_temp_max,
+            sat_humidity_min,
+            sat_humidity_max,
+        )
+    )
+
+    vitals_24h_section = ""
+    if has_24h_stats:
+        vitals_24h_section = f"""
+                    <!-- CARD 2B: 24h VITALS -->
+                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: separate; border-spacing: 0; border: 2px solid #588157; border-radius: 12px; overflow: hidden;" class="dark-border dark-bg-card">
+                        <tr>
+                            <td style="padding: 16px;">
+                                <div class="dark-text-accent" style="font-size:13px; color:#588157; margin-bottom:12px; font-weight:600; text-transform: uppercase; letter-spacing: 0.5px;">
+                                    24-hour High / Low
+                                </div>
+                                <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="font-size:14px; border-collapse: collapse;">
+                                    <tr>
+                                        <th class="dark-text-secondary dark-border-table" style="text-align:left; padding:12px 0; border-bottom:1px solid #588157; color:#4b5563; font-weight: normal; mso-line-height-rule: exactly;">Location</th>
+                                        <th class="dark-text-secondary dark-border-table" style="text-align:left; padding:12px 0; border-bottom:1px solid #588157; color:#4b5563; font-weight: normal; mso-line-height-rule: exactly;">Temp (°F) High / Low</th>
+                                        <th class="dark-text-secondary dark-border-table" style="text-align:left; padding:12px 0; border-bottom:1px solid #588157; color:#4b5563; font-weight: normal; mso-line-height-rule: exactly;">Humidity (%) High / Low</th>
+                                    </tr>
+                                    {''.join([
+                                        f'''<tr>
+                                        <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #588157; color:#1e1e1e;">Indoor</td>
+                                        <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #588157; color:#1e1e1e;">{fmt_temp_high_low(indoor_temp_max, indoor_temp_min)}</td>
+                                        <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #588157; color:#1e1e1e;">{fmt(indoor_humidity_max)}% / {fmt(indoor_humidity_min)}%</td>
+                                    </tr>''' if any(x is not None for x in [indoor_temp_min, indoor_temp_max, indoor_humidity_min, indoor_humidity_max]) else '',
+                                        f'''<tr>
+                                        <td class="dark-text-primary" style="padding:12px 0; color:#1e1e1e;">Satellite</td>
+                                        <td class="dark-text-primary" style="padding:12px 0; color:#1e1e1e;">{fmt_temp_high_low(sat_temp_max, sat_temp_min)}</td>
+                                        <td class="dark-text-primary" style="padding:12px 0; color:#1e1e1e;">{fmt(sat_humidity_max)}% / {fmt(sat_humidity_min)}%</td>
+                                    </tr>''' if any(x is not None for x in [sat_temp_min, sat_temp_max, sat_humidity_min, sat_humidity_max]) else ''
+                                    ])}
+                                </table>
+                            </td>
+                        </tr>
+                    </table>
         """
 
     # HTML body with light/dark mode support
@@ -219,9 +379,9 @@ def build_email(sensor_data: Dict[str, Any]) -> Tuple[EmailMessage, Optional[str
             .dark-text-high {{ color: #f87171 !important; }}  /* Lighter red for dark mode */
             .dark-text-low {{ color: #60a5fa !important; }}   /* Lighter blue for dark mode */
             
-            /* Accents: Earthier Green (#a3b18a) */
-            .dark-text-accent {{ color: #a3b18a !important; }}
-            .dark-border {{ border-color: #a3b18a !important; }}
+            /* Accents: Main Green (#588157) */
+            .dark-text-accent {{ color: #588157 !important; }}
+            .dark-border {{ border-color: #588157 !important; }}
             
             /* Cards: Explicitly match body color in dark mode (No visual fill) */
             .dark-bg-card {{ background-color: #171717 !important; }}
@@ -234,8 +394,8 @@ def build_email(sensor_data: Dict[str, Any]) -> Tuple[EmailMessage, Optional[str
             u + .body .dark-text-muted {{ color: #a3a3a3 !important; }}
             u + .body .dark-text-high {{ color: #f87171 !important; }}
             u + .body .dark-text-low {{ color: #60a5fa !important; }}
-            u + .body .dark-text-accent {{ color: #a3b18a !important; }}
-            u + .body .dark-border {{ border-color: #a3b18a !important; }}
+            u + .body .dark-text-accent {{ color: #588157 !important; }}
+            u + .body .dark-border {{ border-color: #588157 !important; }}
         }}
     </style>
     <!--[if mso]>
@@ -295,30 +455,42 @@ def build_email(sensor_data: Dict[str, Any]) -> Tuple[EmailMessage, Optional[str
                     <!-- SPACER: 24px -->
                     <div style="height: 24px; line-height: 24px; font-size: 24px; mso-line-height-rule: exactly;">&nbsp;</div>
 
-                    <!-- CARD 2: SENSORS -->
+                    {vitals_24h_section}
+
+                    <!-- SPACER: 24px -->
+                    <div style="height: 24px; line-height: 24px; font-size: 24px; mso-line-height-rule: exactly;">&nbsp;</div>
+
+                    <!-- CARD 2: SENSORS (Current + 24h High/Low) -->
                     <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: separate; border-spacing: 0; border: 2px solid #588157; border-radius: 12px; overflow: hidden;" class="dark-border dark-bg-card">
                         <tr>
                             <td style="padding: 16px;">
                                 <div class="dark-text-accent" style="font-size:13px; color:#588157; margin-bottom:12px; font-weight:600; text-transform: uppercase; letter-spacing: 0.5px;">
-                                    Sensors
+                                    Sensors (Current)
                                 </div>
                                 <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="font-size:14px; border-collapse: collapse;">
                                     <tr>
                                         <!-- Note: TH tags in Apple Mail are bold by default. Explicitly setting font-weight: normal -->
-                                        <th class="dark-text-secondary dark-border-table" style="text-align:left; padding:12px 0; border-bottom:1px solid #d1d5db; color:#4b5563; font-weight: normal; mso-line-height-rule: exactly;">Location</th>
-                                        <th class="dark-text-secondary dark-border-table" style="text-align:left; padding:12px 0; border-bottom:1px solid #d1d5db; color:#4b5563; font-weight: normal; mso-line-height-rule: exactly;">Temp (°F)</th>
-                                        <th class="dark-text-secondary dark-border-table" style="text-align:left; padding:12px 0; border-bottom:1px solid #d1d5db; color:#4b5563; font-weight: normal; mso-line-height-rule: exactly;">Humidity (%)</th>
+                                        <th class="dark-text-secondary dark-border-table" style="text-align:left; padding:12px 0; border-bottom:1px solid #588157; color:#4b5563; font-weight: normal; mso-line-height-rule: exactly;">Location</th>
+                                        <th class="dark-text-secondary dark-border-table" style="text-align:left; padding:12px 0; border-bottom:1px solid #588157; color:#4b5563; font-weight: normal; mso-line-height-rule: exactly;">Temp (°F)</th>
+                                        <th class="dark-text-secondary dark-border-table" style="text-align:left; padding:12px 0; border-bottom:1px solid #588157; color:#4b5563; font-weight: normal; mso-line-height-rule: exactly;">Humidity (%)</th>
                                     </tr>
-                                    <tr>
-                                        <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #d1d5db; color:#1e1e1e;">Indoor</td>
-                                        <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #d1d5db; color:#1e1e1e;">{fmt(indoor_temp)}</td>
-                                        <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #d1d5db; color:#1e1e1e;">{fmt(indoor_humidity)}</td>
-                                    </tr>
-                                    <tr>
-                                        <td class="dark-text-primary" style="padding:12px 0; color:#1e1e1e;">Outdoor</td>
-                                        <td class="dark-text-primary" style="padding:12px 0; color:#1e1e1e;">{fmt(outdoor_temp)}</td>
-                                        <td class="dark-text-primary" style="padding:12px 0; color:#1e1e1e;">{fmt(outdoor_humidity)}</td>
-                                    </tr>
+                                    {''.join([
+                                        f'''<tr>
+                                        <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #588157; color:#1e1e1e;">Indoor</td>
+                                        <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #588157; color:#1e1e1e;">{fmt(indoor_temp)}°</td>
+                                        <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #588157; color:#1e1e1e;">{fmt(indoor_humidity)}%</td>
+                                    </tr>''' if indoor_temp is not None or indoor_humidity is not None else '',
+                                        f'''<tr>
+                                        <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #588157; color:#1e1e1e;">Outdoor</td>
+                                        <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #588157; color:#1e1e1e;">{fmt(outdoor_temp)}°</td>
+                                        <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #588157; color:#1e1e1e;">{fmt(outdoor_humidity)}%</td>
+                                    </tr>''' if outdoor_temp is not None or outdoor_humidity is not None else '',
+                                        f'''<tr>
+                                        <td class="dark-text-primary" style="padding:12px 0; color:#1e1e1e;">Satellite</td>
+                                        <td class="dark-text-primary" style="padding:12px 0; color:#1e1e1e;">{fmt(sat_temp)}°</td>
+                                        <td class="dark-text-primary" style="padding:12px 0; color:#1e1e1e;">{fmt(sat_humidity)}%</td>
+                                    </tr>''' if sat_temp is not None or sat_humidity is not None else ''
+                                    ])}
                                 </table>
                             </td>
                         </tr>
@@ -337,7 +509,7 @@ def build_email(sensor_data: Dict[str, Any]) -> Tuple[EmailMessage, Optional[str
                                 <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="font-size:14px; border-collapse: collapse;">
                                     <tr>
                                         <td class="dark-text-secondary dark-border" style="padding: 12px 0; border-bottom:1px solid #588157; color:#4b5563; width: 40%; vertical-align:middle; mso-line-height-rule: exactly;">Condition</td>
-                                        <td class="dark-text-primary dark-border" style="padding: 12px 0; border-bottom:1px solid #588157; color:#1e1e1e; text-align: right; vertical-align:middle; mso-line-height-rule: exactly;">{fmt(outdoor_condition)}</td>
+                                        <td class="dark-text-primary dark-border" style="padding: 12px 0; border-bottom:1px solid #588157; color:#1e1e1e; text-align: right; vertical-align:middle; mso-line-height-rule: exactly;">{get_condition_emoji(outdoor_condition)} {fmt(outdoor_condition)}</td>
                                     </tr>
                                     <tr>
                                         <td class="dark-text-secondary dark-border" style="padding: 12px 0; border-bottom:1px solid #588157; color:#4b5563; vertical-align:middle; mso-line-height-rule: exactly;">High / Low</td>
@@ -424,9 +596,9 @@ def send_email(msg: EmailMessage) -> None:
 
 
 def run_once() -> None:
-    """Run a one-off generation and delivery with dummy sensor data."""
+    """Run a one-off generation and delivery using latest sensor data."""
 
-    sensor_data = {"temp": 75, "humidity": 50}
+    sensor_data = load_latest_sensor_snapshot()
     log(f"Preparing email with sensor data: {sensor_data}")
     msg, image_path = build_email(sensor_data)
     if image_path:
