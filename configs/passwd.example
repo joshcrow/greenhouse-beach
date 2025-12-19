@@ -1,0 +1,8 @@
+# MQTT Password File
+# Generate with: docker exec greenhouse-beach-mosquitto-1 mosquitto_passwd -c /mosquitto/config/passwd greenhouse
+# 
+# This file should contain hashed passwords, NOT plaintext!
+# To create:
+# 1. docker exec -it greenhouse-beach-mosquitto-1 mosquitto_passwd -c /mosquitto/config/passwd greenhouse
+# 2. Enter your password when prompted
+# 3. Restart mosquitto: docker compose restart mosquitto

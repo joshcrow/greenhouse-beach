@@ -260,7 +260,7 @@ def build_weekly_email(summary: Dict[str, Any]) -> Tuple[EmailMessage, Optional[
         start_dt = dt.strptime(week_start, "%Y-%m-%d")
         end_dt = dt.strptime(week_end, "%Y-%m-%d")
         date_range = f"{start_dt.strftime('%b %d')} – {end_dt.strftime('%b %d, %Y')}"
-    except:
+    except (ValueError, TypeError):
         date_range = f"{week_start} to {week_end}"
     
     # Hero image HTML (same as daily)
