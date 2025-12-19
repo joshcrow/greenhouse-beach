@@ -269,12 +269,12 @@ def build_email(sensor_data: Dict[str, Any]) -> Tuple[EmailMessage, Optional[str
         """Format wind display, handling calm conditions."""
         if wind_mph is None:
             return "N/A"
-        speed = float(wind_mph)
-        if speed < 1.0:
+        speed = round(float(wind_mph))
+        if speed < 1:
             return "Calm"
         direction = wind_direction or "N/A"
         arrow = wind_arrow or ""
-        return f"{arrow} {direction} {speed:.1f} mph"
+        return f"{arrow} {direction} {speed} mph"
     
     def fmt_temp_range():
         """Format high/low temp range with color styling."""
@@ -287,8 +287,11 @@ def build_email(sensor_data: Dict[str, Any]) -> Tuple[EmailMessage, Optional[str
     # Date subheadline
     date_subheadline = datetime.now().strftime("%A, %B %d, %Y")
 
-    # Escape HTML in body text to prevent injection
+    # Allow only safe HTML tags (<b>, <i>, <br>) in body text, escape everything else
+    # First escape all HTML, then restore safe tags
     body_text_escaped = html.escape(body_text)
+    body_text_escaped = body_text_escaped.replace('&lt;b&gt;', '<b>').replace('&lt;/b&gt;', '</b>')
+    body_text_escaped = body_text_escaped.replace('&lt;i&gt;', '<i>').replace('&lt;/i&gt;', '</i>')
 
     # Convert paragraph breaks (double newlines) to HTML breaks (single for tighter spacing)
     body_text_escaped = body_text_escaped.replace('\n\n', '<br>')
