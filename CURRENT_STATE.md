@@ -1,48 +1,128 @@
 # Project Chlorophyll: Current System State
-**Status:** Pre-Deployment / Ready for Installation
-**Last Updated:** Dec 19, 2025
 
-## Active Architecture
-* **Hardware:** Raspberry Pi 5 (running Bookworm Lite).
-* **Storage:** SD Card (NVMe migration pending).
-* **Services (Docker):**
-    1.  `mosquitto` (Port 1883) - MQTT broker accepting external connections.
-    2.  `storyteller` (Python container running 4 parallel processes).
+**Status:** ✅ Operational (via Tailscale)  
+**Last Updated:** Dec 19, 2025 @ 11:10 AM EST
 
-## Running Processes (Storyteller Container)
-1.  `ingestion.py` - Listens for images on `greenhouse/+/image`
-2.  `curator.py` - Processes and archives incoming images
-3.  `scheduler.py` - Triggers Daily Dispatch at 07:00 local time
-4.  `status_daemon.py` - Maintains `status.json` and `stats_24h.json` from MQTT sensor data
+---
 
-## Critical Configuration Overrides
-1.  **Hardware Bypass:** Camera device mapping is **COMMENTED OUT** - images come via MQTT from Greenhouse Pi.
-2.  **MQTT Patch:** Uses `mqtt.CallbackAPIVersion.VERSION2` for Paho 2.x compatibility.
-3.  **Model Selection:** `gemini-2.5-flash` primary, `gemini-flash-latest` fallback.
-4.  **Weather API:** OpenWeatherMap **One Call 3.0** (`/data/3.0/onecall`).
-5.  **Temp Conversion:** Satellite temps converted from °C to °F in `publisher.py`.
+## 🖥️ Storyteller Pi (This Machine)
 
-## Verification Status
-* [x] **MQTT Ingestion:** Active. Receiving satellite sensor data.
-* [x] **Satellite Sensor:** FireBeetle ESP32-E publishing every 15 min.
-* [x] **Status Daemon:** Writing sensor snapshots to `status.json`.
-* [x] **24h Stats:** Tracking min/max for temp and humidity.
-* [x] **Gemini Narrative:** Authenticated and generating daily updates.
-* [x] **Weather Integration:** One Call 3.0 working with valid API key.
-* [x] **Email Publishing:** SMTP working via Gmail App Password.
-* [x] **Scheduler:** Firing Daily Dispatch at 07:00 EST.
+| Property | Value |
+|----------|-------|
+| **Hostname** | `greenhouse-storyteller` |
+| **Location** | Josh's home network (192.168.1.151) |
+| **Tailscale IP** | `100.94.172.114` |
+| **Storage** | SD Card (NVMe migration pending) |
+| **Docker** | 2 containers running |
 
-## Deployment Preparation Status
-* [x] **DEPLOYMENT.md:** Architecture and installation guide created.
-* [x] **gateway_nat_setup.sh:** NAT/iptables script for Greenhouse Pi.
-* [x] **camera_mqtt_bridge.py:** Captures HA camera → MQTT.
-* [x] **camera-mqtt-bridge.service:** Systemd unit file.
-* [x] **mosquitto.conf:** Updated to accept external connections.
-* [x] **registry.json:** Updated with production network topology.
+### Docker Services
+| Container | Status | Purpose |
+|-----------|--------|---------|
+| `greenhouse-beach-mosquitto-1` | ✅ Running | MQTT broker (port 1883) |
+| `greenhouse-beach-storyteller-1` | ✅ Running | 4 Python processes |
 
-## Pending for On-Site Installation
-1.  **Set Storyteller static IP** on beachFi network.
-2.  **Run gateway_nat_setup.sh** on Greenhouse Pi with Storyteller IP.
-3.  **Deploy camera_mqtt_bridge.py** as systemd service on Greenhouse Pi.
-4.  **Flash satellite sensor** with GREENHOUSE_IOT WiFi credentials.
-5.  **Verify end-to-end** data flow and email delivery.
+### Storyteller Processes
+| Process | Topic/Schedule | Status |
+|---------|----------------|--------|
+| `ingestion.py` | `greenhouse/+/image` | ✅ Receiving camera images |
+| `curator.py` | Archive queue | ✅ Processing to `data/archive/` |
+| `scheduler.py` | 07:00 EST daily | ✅ Triggering Daily Dispatch |
+| `status_daemon.py` | `greenhouse/+/sensor/+/state` | ✅ Writing `status.json` |
+
+---
+
+## 🌿 Greenhouse Pi (Mom's House)
+
+| Property | Value |
+|----------|-------|
+| **Hostname** | `greenhouse-pi` |
+| **Location** | Mom's house (beachFi network) |
+| **Tailscale IP** | `100.110.161.42` |
+| **SSH** | Key auth configured ✅ |
+
+### Services Running
+| Service | Interval | Status |
+|---------|----------|--------|
+| `camera-mqtt-bridge` | 60 min | ✅ Publishing to Storyteller |
+| `sensor-mqtt-bridge` | 5 min | ✅ Publishing HA sensors |
+| Home Assistant | Always | ✅ Camera streaming |
+
+---
+
+## 📊 Active Sensors
+
+| Sensor | Location | Last Value | Status |
+|--------|----------|------------|--------|
+| `interior_temp` | Greenhouse inside | 60.8°F | ✅ |
+| `interior_humidity` | Greenhouse inside | 77.6% | ✅ |
+| `exterior_temp` | Greenhouse outside | 72.9°F | ✅ |
+| `exterior_humidity` | Greenhouse outside | 73.1% | ✅ |
+| `satellite-2` | Josh's house (temp) | 67.3°F | ✅ |
+| `sensor1_greenhouse` | Broken hardware | — | ❌ Offline |
+
+---
+
+## ⚙️ Configuration Overrides
+
+1. **Camera:** Hardware device mapping COMMENTED OUT - images via MQTT bridge
+2. **MQTT:** Using `CallbackAPIVersion.VERSION2` for Paho 2.x
+3. **AI Model:** `gemini-2.5-flash` primary, `gemini-flash-latest` fallback
+4. **Weather:** OpenWeatherMap One Call 3.0 API
+5. **Temps:** Auto-convert Celsius to Fahrenheit when < 50
+6. **Sensor Keys:** Zone-prefixed format (`interior_temp`, `exterior_temp`)
+
+---
+
+## ✅ Verified Working
+
+- [x] **Tailscale mesh** - Storyteller ↔ Greenhouse Pi ↔ MacBook
+- [x] **Camera pipeline** - HA camera → MQTT → archive
+- [x] **HA sensor bridge** - Interior + exterior sensors → MQTT
+- [x] **Multi-zone email** - Interior, Exterior, Satellite rows
+- [x] **Offline sensor handling** - Rows hidden when `None`
+- [x] **Weather integration** - OpenWeatherMap One Call 3.0
+- [x] **AI narrative** - Gemini 2.5 Flash generating updates
+- [x] **Email dispatch** - Gmail SMTP with App Password
+- [x] **Hero image** - Latest archived image embedded in email
+
+---
+
+## 📋 Pending Tasks
+
+### This Weekend (On-Site at Mom's)
+- [ ] Move Storyteller Pi to beachFi network
+- [ ] Set static IP (192.168.1.50)
+- [ ] Update bridge configs: `sed -i 's/100.94.172.114/192.168.1.50/' /opt/greenhouse/*.env`
+- [ ] Run NAT setup: `sudo /opt/greenhouse/gateway_nat_setup.sh 192.168.1.50`
+- [ ] Relocate satellite sensor to greenhouse
+- [ ] Charge FireBeetle battery (currently ~2.5V - critical!)
+
+### Future
+- [ ] Fix sensor #1 hardware
+- [ ] Add more microclimate sensors
+- [ ] NVMe migration
+- [ ] Web dashboard
+
+---
+
+## 🔧 Quick Commands
+
+```bash
+# Check Storyteller status
+docker compose logs -f --tail 50
+
+# Trigger test email
+docker exec greenhouse-beach-storyteller-1 python scripts/publisher.py
+
+# Check sensor data
+cat data/status.json | jq
+
+# SSH to Greenhouse Pi (no password needed)
+ssh joshcrow@100.110.161.42
+
+# Trigger sensor bridge manually
+ssh joshcrow@100.110.161.42 "cd /opt/greenhouse && export \$(cat camera_mqtt_bridge.env | grep -v '^#' | xargs) && python3 ha_sensor_bridge.py"
+
+# Check Greenhouse Pi services
+ssh joshcrow@100.110.161.42 "systemctl status camera-mqtt-bridge sensor-mqtt-bridge --no-pager"
+```
