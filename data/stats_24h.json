@@ -1,11 +1,11 @@
 {
   "metrics": {
-    "exterior_humidity_max": 80.0,
+    "exterior_humidity_max": 80.6,
     "exterior_humidity_min": 79.6,
     "exterior_pressure_max": 14.58,
     "exterior_pressure_min": 14.57,
     "exterior_temp_max": 63.4,
-    "exterior_temp_min": 63.3,
+    "exterior_temp_min": 62.6,
     "interior_humidity_max": 77.6,
     "interior_humidity_min": 77.6,
     "interior_pressure_max": 14.78,
@@ -21,6 +21,6 @@
     "satellite-2_satellite_2_temperature_max": 19.0,
     "satellite-2_satellite_2_temperature_min": 19.0
   },
-  "window_end": "2025-12-19T19:28:59.073910Z",
-  "window_start": "2025-12-18T19:28:59.073910Z"
+  "window_end": "2025-12-19T19:34:06.563643Z",
+  "window_start": "2025-12-18T19:34:06.563643Z"
 }

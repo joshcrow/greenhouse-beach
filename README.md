@@ -141,6 +141,11 @@ greenhouse-beach/
 │   ├── incoming/           # Temporary image storage
 │   └── archive/            # Archived images (YYYY/MM/DD/)
 │
+├── esphome/                # ESP32 sensor configurations
+│   ├── sensors/            # Active device configs
+│   ├── templates/          # Copy to create new sensors
+│   └── secrets.yaml        # WiFi/MQTT credentials
+│
 └── docs/
     ├── DEPLOYMENT.md       # Installation guide
     ├── MASTER_DOCS.md      # Full system specification
@@ -286,6 +291,7 @@ ssh user@greenhouse-pi "python3 /opt/greenhouse/camera_mqtt_bridge.py --test"
 | [DEPLOYMENT.md](DEPLOYMENT.md) | Step-by-step initial setup |
 | [MASTER_DOCS.md](MASTER_DOCS.md) | Full system specification and requirements |
 | [CURRENT_STATE.md](CURRENT_STATE.md) | Live system status and verification |
+| [esphome/README.md](esphome/README.md) | **ESPHome sensor configs & templates** |
 | [ESP32-solar-guide.md](ESP32-solar-guide.md) | Solar-powered sensor build guide |
 
 ---

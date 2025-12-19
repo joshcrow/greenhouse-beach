@@ -1,0 +1,207 @@
+# =============================================================================
+# BATTERY SENSOR TEMPLATE
+# =============================================================================
+# Copy this file to ../sensors/satellite-sensor-N.yaml and customize.
+#
+# Hardware Required:
+#   - FireBeetle 2 ESP32-E (or compatible)
+#   - BME280 sensor (I2C)
+#   - 3.7V LiPo battery (1000-2000mAh recommended)
+#   - Solar panel (optional, 5V 1W+)
+#
+# Customization Checklist:
+#   [ ] Change esphome.name (must be unique, lowercase, hyphens only)
+#   [ ] Change esphome.friendly_name
+#   [ ] Generate new API key: esphome compile --only-generate
+#   [ ] Update MQTT topic_prefix
+#   [ ] Update sensor names
+#   [ ] Update maintenance entity_id
+#   [ ] Update AP ssid for rescue mode
+#
+# =============================================================================
+
+substitutions:
+  # ===== CHANGE THESE =====
+  device_name: satellite-sensor-N      # Unique device name (lowercase, hyphens)
+  friendly_name: "Satellite N"         # Human-readable name
+  sensor_prefix: "Satellite N"         # Prefix for sensor names
+  mqtt_prefix: "greenhouse/satellite-N"
+  maintenance_entity: input_boolean.greenhouse_satellite_N_maintenance
+  rescue_ap_name: "Satellite-N Rescue"
+  
+  # ===== USUALLY KEEP THESE =====
+  sleep_duration: "15min"
+  run_duration: "60s"
+
+
+esphome:
+  name: ${device_name}
+  friendly_name: ${friendly_name}
+  on_boot:
+    priority: -10
+    then:
+      - output.turn_off: led_builtin
+      - wait_until:
+          timeout: 30s
+          condition:
+            and:
+              - wifi.connected:
+              - or:
+                - api.connected:
+                - mqtt.connected:
+      - delay: 2s
+      - if:
+          condition:
+            or:
+              - binary_sensor.is_on: maintenance_mode_ha
+              - binary_sensor.is_on: maintenance_mode_mqtt
+          then:
+            - logger.log: "MAINTENANCE MODE: ON. Staying awake."
+            - deep_sleep.prevent: deep_sleep_1
+          else:
+            - logger.log: "Normal operation. Measuring and sleeping..."
+            - component.update: bme280_sensor
+            - component.update: battery_voltage
+            - delay: 2s 
+            - deep_sleep.enter: deep_sleep_1
+
+
+esp32:
+  board: firebeetle32
+  framework:
+    type: arduino
+
+
+logger:
+  level: DEBUG
+
+
+# =============================================================================
+# CONNECTIVITY
+# =============================================================================
+
+api:
+  encryption:
+    # GENERATE NEW KEY: esphome compile --only-generate
+    key: "GENERATE_NEW_KEY_HERE"
+  reboot_timeout: 0s 
+
+
+mqtt:
+  # PRODUCTION: Greenhouse Pi (NATs to Storyteller)
+  broker: 10.0.0.1
+  port: 1883
+  username: "greenhouse"
+  password: "super-secret-change-me"
+  topic_prefix: ${mqtt_prefix}
+  discovery: false
+  reboot_timeout: 0s 
+  
+  birth_message:
+    topic: "${mqtt_prefix}/status"
+    payload: "online"
+  will_message:
+    topic: "${mqtt_prefix}/status"
+    payload: "offline"
+
+
+ota:
+  - platform: esphome
+    password: "ChangeMeToSomethingSecure"
+
+
+wifi:
+  power_save_mode: none
+  fast_connect: false
+  networks:
+    # Production Network (Mom's greenhouse)
+    - ssid: "GREENHOUSE_IOT"
+      password: "YOUR_IOT_NETWORK_PASSWORD"
+      priority: 10
+    
+    # Development Network (Josh's house)
+    - ssid: "beachFi"
+      password: "YOUR_DEV_NETWORK_PASSWORD"
+      priority: 5
+  
+  ap:
+    ssid: ${rescue_ap_name}
+    password: "YOUR_RESCUE_AP_PASSWORD"
+
+
+# =============================================================================
+# HARDWARE
+# =============================================================================
+
+i2c:
+  sda: 21
+  scl: 22
+  scan: true
+
+
+output:
+  - platform: gpio
+    pin: 2
+    id: led_builtin
+    inverted: false
+
+
+# =============================================================================
+# SENSORS
+# =============================================================================
+
+sensor:
+  - platform: bme280_i2c
+    id: bme280_sensor
+    address: 0x76 
+    update_interval: never
+    temperature:
+      name: "${sensor_prefix} Temperature"
+    pressure:
+      name: "${sensor_prefix} Pressure"
+    humidity:
+      name: "${sensor_prefix} Humidity"
+
+  - platform: adc
+    pin: 36
+    id: battery_voltage
+    name: "${sensor_prefix} Battery"
+    update_interval: never
+    attenuation: 11db
+    filters:
+      - multiply: 2.0  # FireBeetle voltage divider
+
+
+# =============================================================================
+# MAINTENANCE MODE
+# =============================================================================
+
+text_sensor:
+  - platform: mqtt_subscribe
+    id: mqtt_maintenance_text
+    topic: "${mqtt_prefix}/maintenance/state"
+    internal: true
+
+
+binary_sensor:
+  - platform: homeassistant
+    id: maintenance_mode_ha
+    entity_id: ${maintenance_entity}
+    internal: true 
+
+  - platform: template
+    id: maintenance_mode_mqtt
+    name: "Maintenance Mode MQTT"
+    lambda: |-
+      return id(mqtt_maintenance_text).state == "ON";
+    internal: true
+
+
+# =============================================================================
+# DEEP SLEEP
+# =============================================================================
+
+deep_sleep:
+  id: deep_sleep_1
+  run_duration: ${run_duration}
+  sleep_duration: ${sleep_duration}
