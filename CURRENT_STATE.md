@@ -1,7 +1,7 @@
 # Project Chlorophyll: Current System State
 
 **Status:** ✅ Operational (via Tailscale)  
-**Last Updated:** Dec 19, 2025 @ 11:35 AM EST
+**Last Updated:** Dec 19, 2025 @ 11:48 AM EST
 
 ---
 
@@ -88,9 +88,12 @@
 - [x] **Bold alerts** - `<b>` tags render in email body
 - [x] **Integer display** - All temps/humidity/wind rounded (no decimals)
 - [x] **Urgency subjects** - Dynamic subject lines based on conditions
+- [x] **Battery column** - Color-coded battery status in sensor table
+- [x] **Battery alerts** - AI mentions battery only when critical (<3.4V)
 - [x] **Email dispatch** - Gmail SMTP with App Password
 - [x] **Hero image** - Latest archived image embedded in email
 - [x] **7AM scheduler** - Running and ready for tomorrow
+- [x] **Weekly digest** - Sundays at 8AM with weekly trends
 
 ---
 
