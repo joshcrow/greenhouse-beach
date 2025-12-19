@@ -106,6 +106,19 @@ def build_email(sensor_data: Dict[str, Any]) -> Tuple[EmailMessage, Optional[str
                 sensor_data[key] = round(float(sensor_data[key]))
             except (ValueError, TypeError):
                 pass
+    
+    # Convert satellite battery to actual voltage (ADC uses 1/2 divider) for AI context
+    for key in ["satellite-2_satellite_2_battery", "satellite_2_battery"]:
+        if key in sensor_data and sensor_data[key] is not None:
+            try:
+                raw = float(sensor_data[key])
+                actual_voltage = round(raw * 2, 1)
+                sensor_data[f"{key}_actual_voltage"] = actual_voltage
+                # Flag if critical for AI to mention
+                if actual_voltage < 3.4:
+                    sensor_data["satellite_battery_critical"] = True
+            except (ValueError, TypeError):
+                pass
 
     # Narrative content and augmented data (includes weather)
     try:
@@ -181,6 +194,10 @@ def build_email(sensor_data: Dict[str, Any]) -> Tuple[EmailMessage, Optional[str
     sat_temp = sensor_data.get("satellite-2_satellite_2_temperature") or sensor_data.get("satellite_2_temperature")
     sat_humidity = sensor_data.get("satellite-2_satellite_2_humidity") or sensor_data.get("satellite_2_humidity")
     
+    # Satellite battery (ADC reading uses 1/2 voltage divider, so multiply by 2 for actual voltage)
+    sat_battery_raw = sensor_data.get("satellite-2_satellite_2_battery") or sensor_data.get("satellite_2_battery")
+    sat_battery = round(sat_battery_raw * 2, 1) if sat_battery_raw is not None else None
+    
     # Convert satellite temp if it's in Celsius (from old format)
     if sat_temp is not None and sat_temp < 50:  # Likely Celsius if under 50
         sat_temp = round(sat_temp * 9/5 + 32)
@@ -208,6 +225,30 @@ def build_email(sensor_data: Dict[str, Any]) -> Tuple[EmailMessage, Optional[str
             return str(round(float(value)))
         except (ValueError, TypeError):
             return str(value)
+    
+    def fmt_battery(voltage):
+        """Format battery voltage with color coding based on level.
+        
+        Battery levels (LiPo):
+        - 4.2V = Full (100%)
+        - 3.7V = Nominal (50%)
+        - 3.4V = Low (20%) - yellow warning
+        - 3.0V = Critical (5%) - red alert
+        - <3.0V = Dead - red, needs immediate charge
+        """
+        if voltage is None:
+            return "—"
+        v = float(voltage)
+        if v >= 3.7:
+            color = "#16a34a"  # Green - good
+            icon = "🔋"
+        elif v >= 3.4:
+            color = "#ca8a04"  # Yellow - low
+            icon = "🪫"
+        else:
+            color = "#dc2626"  # Red - critical
+            icon = "🪫"
+        return f'<span style="color:{color};">{icon} {v:.1f}V</span>'
     
     def fmt_temp_high_low(high_val, low_val):
         """Format high/low temps with red/blue color styling."""
@@ -495,24 +536,28 @@ def build_email(sensor_data: Dict[str, Any]) -> Tuple[EmailMessage, Optional[str
                                     <tr>
                                         <!-- Note: TH tags in Apple Mail are bold by default. Explicitly setting font-weight: normal -->
                                         <th class="dark-text-secondary dark-border-table" style="text-align:left; padding:12px 0; border-bottom:1px solid #588157; color:#4b5563; font-weight: normal; mso-line-height-rule: exactly;">Location</th>
-                                        <th class="dark-text-secondary dark-border-table" style="text-align:left; padding:12px 0; border-bottom:1px solid #588157; color:#4b5563; font-weight: normal; mso-line-height-rule: exactly;">Temp (°F)</th>
-                                        <th class="dark-text-secondary dark-border-table" style="text-align:left; padding:12px 0; border-bottom:1px solid #588157; color:#4b5563; font-weight: normal; mso-line-height-rule: exactly;">Humidity (%)</th>
+                                        <th class="dark-text-secondary dark-border-table" style="text-align:left; padding:12px 0; border-bottom:1px solid #588157; color:#4b5563; font-weight: normal; mso-line-height-rule: exactly;">Temp</th>
+                                        <th class="dark-text-secondary dark-border-table" style="text-align:left; padding:12px 0; border-bottom:1px solid #588157; color:#4b5563; font-weight: normal; mso-line-height-rule: exactly;">Humidity</th>
+                                        <th class="dark-text-secondary dark-border-table" style="text-align:left; padding:12px 0; border-bottom:1px solid #588157; color:#4b5563; font-weight: normal; mso-line-height-rule: exactly;">Battery</th>
                                     </tr>
                                     {''.join([
                                         f'''<tr>
                                         <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #588157; color:#1e1e1e;">Interior</td>
                                         <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #588157; color:#1e1e1e;">{fmt(indoor_temp)}°</td>
                                         <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #588157; color:#1e1e1e;">{fmt(indoor_humidity)}%</td>
+                                        <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #588157; color:#1e1e1e;">—</td>
                                     </tr>''' if indoor_temp is not None or indoor_humidity is not None else '',
                                         f'''<tr>
                                         <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #588157; color:#1e1e1e;">Exterior</td>
                                         <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #588157; color:#1e1e1e;">{fmt(exterior_temp)}°</td>
                                         <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #588157; color:#1e1e1e;">{fmt(exterior_humidity)}%</td>
+                                        <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #588157; color:#1e1e1e;">—</td>
                                     </tr>''' if exterior_temp is not None or exterior_humidity is not None else '',
                                         f'''<tr>
                                         <td class="dark-text-primary" style="padding:12px 0; color:#1e1e1e;">Satellite</td>
                                         <td class="dark-text-primary" style="padding:12px 0; color:#1e1e1e;">{fmt(sat_temp)}°</td>
                                         <td class="dark-text-primary" style="padding:12px 0; color:#1e1e1e;">{fmt(sat_humidity)}%</td>
+                                        <td class="dark-text-primary" style="padding:12px 0; color:#1e1e1e;">{fmt_battery(sat_battery)}</td>
                                     </tr>''' if sat_temp is not None or sat_humidity is not None else ''
                                     ])}
                                 </table>
