@@ -1,8 +1,33 @@
 # Project Chlorophyll: Current System State
 
 **Status:** ✅ Operational (via Tailscale) — Ready for Deployment  
-**Last Updated:** Dec 19, 2025 @ 5:11 PM EST  
+**Last Updated:** Dec 19, 2025 @ 6:40 PM EST  
 **Next Milestone:** Deploy FireBeetle at Mom's greenhouse (Dec 20)
+
+---
+
+## 🚀 CI/CD Pipeline (NEW)
+
+| Component | Status |
+|-----------|--------|
+| **GitHub Repo** | [joshcrow/greenhouse-beach](https://github.com/joshcrow/greenhouse-beach) |
+| **Docker Hub** | [jcrow333/greenhouse-storyteller](https://hub.docker.com/r/jcrow333/greenhouse-storyteller) |
+| **CI/CD** | GitHub Actions ✅ |
+| **Tests** | 104 passed, 10 skipped (41% coverage) |
+
+### Development Workflow
+```bash
+# 1. Edit code locally
+# 2. Test: pytest
+# 3. Push: git push
+# 4. GitHub Actions runs tests → builds Docker → pushes to Hub
+```
+
+### Deploy to Pi (Fast!)
+```bash
+docker pull jcrow333/greenhouse-storyteller:latest
+docker compose up -d
+```
 
 ---
 
@@ -132,21 +157,25 @@
 ## 🔧 Quick Commands
 
 ```bash
-# Check Storyteller status
-docker compose logs -f --tail 50
+# === CI/CD & Testing ===
+pytest                                    # Run tests locally
+pytest tests/test_publisher.py           # Run specific test
+docker compose run --rm test             # Run tests in Docker
+gh run list                              # Check CI status
 
-# Trigger test email
-docker exec greenhouse-beach-storyteller-1 python scripts/publisher.py
+# === Docker Operations ===
+docker compose logs -f --tail 50         # Check Storyteller logs
+docker compose up -d                     # Start production
+docker compose --profile dev up          # Dev mode (hot-reload)
+docker pull jcrow333/greenhouse-storyteller:latest  # Pull latest image
 
-# Check sensor data
-cat data/status.json | jq
+# === Manual Actions ===
+docker exec greenhouse-storyteller python scripts/publisher.py  # Test email
+cat data/status.json | jq                # Check sensor data
 
-# SSH to Greenhouse Pi (no password needed)
+# === SSH to Greenhouse Pi ===
 ssh joshcrow@100.110.161.42
 
-# Trigger sensor bridge manually
-ssh joshcrow@100.110.161.42 "cd /opt/greenhouse && export \$(cat camera_mqtt_bridge.env | grep -v '^#' | xargs) && python3 ha_sensor_bridge.py"
-
-# Check Greenhouse Pi services
-ssh joshcrow@100.110.161.42 "systemctl status camera-mqtt-bridge sensor-mqtt-bridge --no-pager"
+# === Greenhouse Pi Services ===
+ssh joshcrow@100.110.161.42 "systemctl status camera-mqtt-bridge ha-sensor-bridge --no-pager"
 ```

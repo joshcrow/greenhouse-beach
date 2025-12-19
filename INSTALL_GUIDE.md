@@ -75,12 +75,16 @@ ip addr show wlan0 | grep "inet "
 ```bash
 cd ~/greenhouse-beach
 
-# Pull latest code (if using git)
+# Pull latest code
 git pull
 
-# Build and start
-docker compose build --no-cache
+# OPTION A: Fast Deploy (recommended) - Pull pre-built image from Docker Hub
+docker pull jcrow333/greenhouse-storyteller:latest
 docker compose up -d
+
+# OPTION B: Build locally (slower, ~10 min on Pi)
+# docker compose build --no-cache
+# docker compose up -d
 
 # Verify containers running
 docker ps
