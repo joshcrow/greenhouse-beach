@@ -140,10 +140,14 @@ i2c:
 
 
 output:
+  # Blue LED (GPIO 2) - User controllable, disabled on boot to save power
   - platform: gpio
     pin: 2
     id: led_builtin
     inverted: false
+  # NOTE: The GREEN LED is the charging indicator (CHG) - hardwired to the
+  # charging IC and CANNOT be disabled via software. Cover with black tape
+  # or nail polish to reduce light pollution.
 
 
 # =============================================================================
