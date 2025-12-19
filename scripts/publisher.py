@@ -14,9 +14,16 @@ from urllib.request import urlopen
 import narrator
 import smtplib
 import stats
+import timelapse
+import weekly_digest
 
 
 ARCHIVE_ROOT = "/app/data/archive"
+
+
+def is_weekly_edition() -> bool:
+    """Check if today is Sunday (Weekly Edition day)."""
+    return datetime.now().weekday() == 6
 
 
 def log(message: str) -> None:
@@ -136,20 +143,48 @@ def build_email(sensor_data: Dict[str, Any]) -> Tuple[EmailMessage, Optional[str
     subject = re.sub(r'<[^>]+>', '', subject)  # Remove HTML tags
     subject = re.sub(r'\*+', '', subject)  # Remove markdown bold/italic
     subject = subject.strip()
+    
+    # Check if this is Weekly Edition (Sunday)
+    weekly_mode = is_weekly_edition()
+    weekly_summary = None
+    
+    if weekly_mode:
+        log("Weekly Edition: Including weekly summary and timelapse")
+        subject = f"📊 Weekly Edition: {subject}"
+        # Get weekly summary stats
+        weekly_data = weekly_digest.load_weekly_stats()
+        if weekly_data.get("days"):
+            weekly_summary = weekly_digest.compute_weekly_summary(weekly_data)
+            log(f"Weekly summary: {weekly_summary}")
 
-    # Hero image
-    image_path = find_latest_image()
+    # Hero image/timelapse
     image_bytes: Optional[bytes] = None
     image_cid: Optional[str] = None
-
-    if image_path:
-        try:
-            image_bytes = load_image_bytes(image_path)
-            image_cid = make_msgid(domain="greenhouse")[1:-1]  # strip <>
-        except Exception as exc:  # noqa: BLE001
-            log(f"Failed to load image '{image_path}': {exc}")
-            image_bytes = None
-            image_cid = None
+    image_type = "jpeg"  # Default to jpeg, may change to gif for timelapse
+    
+    if weekly_mode:
+        # Create timelapse GIF for weekly edition
+        log("Creating weekly timelapse GIF...")
+        image_bytes = timelapse.create_weekly_timelapse()
+        if image_bytes:
+            image_cid = make_msgid(domain="greenhouse")[1:-1]
+            image_type = "gif"
+            log(f"Timelapse created: {len(image_bytes)} bytes")
+        else:
+            log("Timelapse creation failed, falling back to static image")
+    
+    # Fall back to static image if no timelapse or not weekly
+    if image_bytes is None:
+        image_path = find_latest_image()
+        if image_path:
+            try:
+                image_bytes = load_image_bytes(image_path)
+                image_cid = make_msgid(domain="greenhouse")[1:-1]
+                image_type = "jpeg"
+            except Exception as exc:  # noqa: BLE001
+                log(f"Failed to load image '{image_path}': {exc}")
+                image_bytes = None
+                image_cid = None
 
     # Envelope fields from environment
     smtp_from = os.getenv("SMTP_FROM", "greenhouse@example.com")
@@ -406,6 +441,46 @@ def build_email(sensor_data: Dict[str, Any]) -> Tuple[EmailMessage, Optional[str
                     </table>
         """
 
+    # Build Weekly Summary section for Sunday emails
+    weekly_summary_section = ""
+    if weekly_mode and weekly_summary:
+        ws = weekly_summary
+        weekly_summary_section = f"""
+                    <!-- SPACER: 24px -->
+                    <div style="height: 24px; line-height: 24px; font-size: 24px; mso-line-height-rule: exactly;">&nbsp;</div>
+
+                    <!-- CARD: WEEKLY SUMMARY -->
+                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: separate; border-spacing: 0; border: 2px solid #588157; border-radius: 12px; overflow: hidden;" class="dark-border dark-bg-card">
+                        <tr>
+                            <td style="padding: 16px;">
+                                <div class="dark-text-accent" style="font-size:13px; color:#588157; margin-bottom:12px; font-weight:600; text-transform: uppercase; letter-spacing: 0.5px;">
+                                    📊 This Week's Summary
+                                </div>
+                                <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="font-size:14px; border-collapse: collapse;">
+                                    <tr>
+                                        <th class="dark-text-secondary dark-border-table" style="text-align:left; padding:12px 0; border-bottom:1px solid #588157; color:#4b5563; font-weight: normal;">Metric</th>
+                                        <th class="dark-text-secondary dark-border-table" style="text-align:left; padding:12px 0; border-bottom:1px solid #588157; color:#4b5563; font-weight: normal;">Week Range</th>
+                                        <th class="dark-text-secondary dark-border-table" style="text-align:left; padding:12px 0; border-bottom:1px solid #588157; color:#4b5563; font-weight: normal;">Average</th>
+                                    </tr>
+                                    <tr>
+                                        <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #588157; color:#1e1e1e;">Temperature</td>
+                                        <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #588157; color:#1e1e1e;">{fmt(ws.get('temp_min'))}° – {fmt(ws.get('temp_max'))}°</td>
+                                        <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #588157; color:#1e1e1e;">{fmt(ws.get('temp_avg'))}°</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="dark-text-primary" style="padding:12px 0; color:#1e1e1e;">Humidity</td>
+                                        <td class="dark-text-primary" style="padding:12px 0; color:#1e1e1e;">{fmt(ws.get('humidity_min'))}% – {fmt(ws.get('humidity_max'))}%</td>
+                                        <td class="dark-text-primary" style="padding:12px 0; color:#1e1e1e;">{fmt(ws.get('humidity_avg'))}%</td>
+                                    </tr>
+                                </table>
+                                <p class="dark-text-muted" style="color: #9ca3af; font-size: 12px; margin-top: 12px; margin-bottom: 0; text-align: center;">
+                                    Based on {ws.get('days_recorded', 0)} days of data
+                                </p>
+                            </td>
+                        </tr>
+                    </table>
+        """
+
     # HTML body with light/dark mode support
     html_body = f"""<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en">
@@ -528,6 +603,8 @@ def build_email(sensor_data: Dict[str, Any]) -> Tuple[EmailMessage, Optional[str
 
                     {vitals_24h_section}
 
+                    {weekly_summary_section}
+
                     <!-- SPACER: 24px -->
                     <div style="height: 24px; line-height: 24px; font-size: 24px; mso-line-height-rule: exactly;">&nbsp;</div>
 
@@ -627,22 +704,24 @@ def build_email(sensor_data: Dict[str, Any]) -> Tuple[EmailMessage, Optional[str
 
     msg.add_alternative(html_body, subtype="html")
 
-    # Attach image as inline related part if available
+    # Attach image/timelapse as inline related part if available
     if image_bytes and image_cid:
         try:
             # The HTML part is the last part after set_content + add_alternative
             html_part = msg.get_payload()[-1]
+            filename = "timelapse.gif" if image_type == "gif" else "greenhouse.jpg"
             html_part.add_related(
                 image_bytes,
                 maintype="image",
-                subtype="jpeg",
+                subtype=image_type,
                 cid=f"<{image_cid}>",
-                filename=os.path.basename(image_path),
+                filename=filename,
             )
+            log(f"Attached {image_type} image: {len(image_bytes)} bytes")
         except Exception as exc:  # noqa: BLE001
             log(f"Failed to attach inline image: {exc}")
 
-    return msg, image_path
+    return msg, weekly_mode
 
 
 def send_email(msg: EmailMessage) -> None:
@@ -675,15 +754,22 @@ def run_once() -> None:
 
     sensor_data = load_latest_sensor_snapshot()
     log(f"Preparing email with sensor data: {sensor_data}")
-    msg, image_path = build_email(sensor_data)
-    if image_path:
-        log(f"Email will include hero image: {image_path}")
+    msg, weekly_mode = build_email(sensor_data)
+    
+    if weekly_mode:
+        log("Sending Weekly Edition with timelapse...")
     else:
-        log("Email will be text-only (no hero image found).")
+        log("Sending daily email...")
 
     send_email(msg)
 
 
 if __name__ == "__main__":
+    import sys
+    # Allow --weekly flag to force weekly edition mode for testing
+    if "--weekly" in sys.argv:
+        # Monkey-patch is_weekly_edition to return True
+        is_weekly_edition = lambda: True
+        log("TESTING: Forcing Weekly Edition mode")
     run_once()
 

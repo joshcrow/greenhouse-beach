@@ -17,7 +17,8 @@ RUN pip install --no-cache-dir \
     requests \
     google-generativeai \
     schedule \
-    python-dotenv
+    python-dotenv \
+    Pillow
 
 # Copy application code and configs
 COPY scripts /app/scripts
