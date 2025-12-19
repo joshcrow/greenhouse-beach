@@ -263,69 +263,117 @@ def build_weekly_email(summary: Dict[str, Any]) -> Tuple[EmailMessage, Optional[
     except:
         date_range = f"{week_start} to {week_end}"
     
-    # Hero image HTML
+    # Hero image HTML (same as daily)
     hero_html = ""
     if image_cid:
         hero_html = f'''
-        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom: 24px;">
-            <tr>
-                <td>
-                    <img src="cid:{image_cid}" alt="Greenhouse this week" style="display:block; width:100%; height:auto; border-radius: 8px;">
-                </td>
-            </tr>
-        </table>
-        '''
-    
-    html_body = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    </head>
-    <body style="font-family: Georgia, 'Times New Roman', serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #fafafa;">
-        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: separate; border-spacing: 0; border: 2px solid #588157; border-radius: 12px; overflow: hidden; background: white;">
-            <tr>
-                <td style="padding: 24px;">
-                    <!-- Header -->
-                    <h1 style="font-family: Georgia, serif; color: #588157; font-size: 28px; margin: 0 0 4px 0; font-weight: normal; font-style: italic;">{headline}</h1>
-                    <p style="color: #6b7280; font-size: 14px; margin: 0 0 20px 0;">{date_range}</p>
-                    
-                    {hero_html}
-                    
-                    <!-- Narrative -->
-                    <div style="font-size: 16px; line-height: 1.7; color: #1e1e1e; margin-bottom: 24px;">
-                        {body_escaped}
-                    </div>
-                    
-                    <!-- Stats Table -->
-                    <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="font-size: 14px; border-collapse: collapse;">
+                    <!-- HERO IMAGE -->
+                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: separate; border-spacing: 0; border-radius: 12px; overflow: hidden;">
                         <tr>
-                            <th style="text-align:left; padding: 12px 0; border-bottom: 1px solid #588157; color: #6b7280; font-weight: normal;">Metric</th>
-                            <th style="text-align:left; padding: 12px 0; border-bottom: 1px solid #588157; color: #6b7280; font-weight: normal;">Range</th>
-                            <th style="text-align:left; padding: 12px 0; border-bottom: 1px solid #588157; color: #6b7280; font-weight: normal;">Avg</th>
-                        </tr>
-                        <tr>
-                            <td style="padding: 12px 0; border-bottom: 1px solid #e5e7eb; color: #1e1e1e;">Temperature</td>
-                            <td style="padding: 12px 0; border-bottom: 1px solid #e5e7eb; color: #1e1e1e;">{temp_range}</td>
-                            <td style="padding: 12px 0; border-bottom: 1px solid #e5e7eb; color: #1e1e1e;">{fmt(summary.get('temp_avg'))}°</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 12px 0; color: #1e1e1e;">Humidity</td>
-                            <td style="padding: 12px 0; color: #1e1e1e;">{humidity_range}</td>
-                            <td style="padding: 12px 0; color: #1e1e1e;">{fmt(summary.get('humidity_avg'))}%</td>
+                            <td>
+                                <img src="cid:{image_cid}" alt="Greenhouse this week" style="display:block; width:100%; height:auto; border-radius: 12px;">
+                            </td>
                         </tr>
                     </table>
                     
-                    <p style="color: #9ca3af; font-size: 12px; margin-top: 20px; text-align: center;">
+                    <!-- SPACER -->
+                    <div style="height: 24px; line-height: 24px; font-size: 24px;">&nbsp;</div>
+        '''
+    
+    html_body = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light dark">
+    <style>
+        body {{ margin: 0; padding: 0; background-color: #ffffff; font-family: Arial, sans-serif; }}
+        @media (prefers-color-scheme: dark) {{
+            body {{ background-color: #171717 !important; color: #f5f5f5 !important; }}
+            .dark-bg {{ background-color: #171717 !important; }}
+            .dark-text {{ color: #f5f5f5 !important; }}
+            .dark-text-muted {{ color: #a3a3a3 !important; }}
+            .dark-accent {{ color: #588157 !important; }}
+            .dark-border {{ border-color: #588157 !important; }}
+        }}
+    </style>
+</head>
+<body style="margin:0; padding:0; background-color:#ffffff; font-family: Arial, sans-serif;">
+    <center style="width:100%; background-color:#ffffff;" class="dark-bg">
+        <table role="presentation" align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width:600px; margin:0 auto;">
+            <tr>
+                <td style="padding: 20px;">
+                    
+                    <!-- HEADER -->
+                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                        <tr>
+                            <td class="dark-accent" style="padding-bottom: 4px; font-size:24px; font-weight: bold; color:#588157;">
+                                {headline}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="dark-text-muted" style="padding-bottom: 24px; font-size:13px; color:#6b7280;">
+                                Week of {date_range}
+                            </td>
+                        </tr>
+                    </table>
+
+                    <!-- NARRATIVE -->
+                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-radius: 12px; overflow: hidden;">
+                        <tr>
+                            <td style="padding: 0;">
+                                <p class="dark-text" style="margin:0; line-height:1.6; color:#1e1e1e; font-size: 16px;">
+                                    {body_escaped}
+                                </p>
+                            </td>
+                        </tr>
+                    </table>
+
+                    <!-- SPACER -->
+                    <div style="height: 24px; line-height: 24px; font-size: 24px;">&nbsp;</div>
+
+                    {hero_html}
+
+                    <!-- DATA CARD: Weekly Summary -->
+                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: separate; border-spacing: 0; border: 2px solid #588157; border-radius: 12px; overflow: hidden;" class="dark-border dark-bg">
+                        <tr>
+                            <td style="padding: 16px;">
+                                <div class="dark-accent" style="font-size:13px; color:#588157; margin-bottom:12px; font-weight:600; text-transform: uppercase; letter-spacing: 0.5px;">
+                                    Weekly Summary
+                                </div>
+                                <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="font-size:14px; border-collapse: collapse;">
+                                    <tr>
+                                        <th class="dark-text-muted" style="text-align:left; padding:12px 0; border-bottom:1px solid #588157; color:#4b5563; font-weight: normal;">Metric</th>
+                                        <th class="dark-text-muted" style="text-align:left; padding:12px 0; border-bottom:1px solid #588157; color:#4b5563; font-weight: normal;">Range</th>
+                                        <th class="dark-text-muted" style="text-align:left; padding:12px 0; border-bottom:1px solid #588157; color:#4b5563; font-weight: normal;">Average</th>
+                                    </tr>
+                                    <tr>
+                                        <td class="dark-text" style="padding:12px 0; border-bottom:1px solid #588157; color:#1e1e1e;">Temperature</td>
+                                        <td class="dark-text" style="padding:12px 0; border-bottom:1px solid #588157; color:#1e1e1e;">{temp_range}</td>
+                                        <td class="dark-text" style="padding:12px 0; border-bottom:1px solid #588157; color:#1e1e1e;">{fmt(summary.get('temp_avg'))}°</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="dark-text" style="padding:12px 0; color:#1e1e1e;">Humidity</td>
+                                        <td class="dark-text" style="padding:12px 0; color:#1e1e1e;">{humidity_range}</td>
+                                        <td class="dark-text" style="padding:12px 0; color:#1e1e1e;">{fmt(summary.get('humidity_avg'))}%</td>
+                                    </tr>
+                                </table>
+                            </td>
+                        </tr>
+                    </table>
+                    
+                    <!-- FOOTER -->
+                    <p class="dark-text-muted" style="color: #9ca3af; font-size: 12px; margin-top: 20px; text-align: center;">
                         Based on {summary.get('days_recorded', 0)} days of data
                     </p>
+                    
                 </td>
             </tr>
         </table>
-    </body>
-    </html>
-    """
+    </center>
+</body>
+</html>
+"""
     
     msg.add_alternative(html_body, subtype="html")
     

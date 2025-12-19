@@ -1,7 +1,7 @@
 # Project Chlorophyll: Current System State
 
 **Status:** ✅ Operational (via Tailscale)  
-**Last Updated:** Dec 19, 2025 @ 11:48 AM EST
+**Last Updated:** Dec 19, 2025 @ 12:55 PM EST
 
 ---
 
@@ -93,7 +93,8 @@
 - [x] **Email dispatch** - Gmail SMTP with App Password
 - [x] **Hero image** - Latest archived image embedded in email
 - [x] **7AM scheduler** - Running and ready for tomorrow
-- [x] **Weekly digest** - Sundays at 8AM with weekly trends
+- [x] **Weekly digest** - Sundays at 8AM with weekly trends (matching daily style)
+- [x] **Golden hour capture** - Seasonal timing for optimal photos (Dec: 3:45 PM)
 
 ---
 

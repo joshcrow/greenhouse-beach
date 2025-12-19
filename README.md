@@ -12,13 +12,17 @@ Transform passive greenhouse monitoring into an active, narrative-driven experie
 
 ## 📬 What You Get
 
-Every morning at 7:00 AM, you receive an email like this:
-
-- **AI-Generated Narrative** – Witty, scientific commentary on your greenhouse conditions
-- **Hero Image** – The best photo from your greenhouse camera
-- **Sensor Dashboard** – Interior, exterior, and satellite sensor readings
+**Daily Email (7:00 AM)**
+- **AI-Generated Narrative** – Witty, scientific commentary on conditions
+- **Hero Image** – Photo captured at golden hour (optimal lighting)
+- **Sensor Dashboard** – Interior, exterior, and satellite readings with battery status
 - **Weather Forecast** – Today's conditions and tomorrow's outlook
 - **24-Hour Stats** – High/low temperature and humidity trends
+
+**Weekly Digest (Sundays 8:00 AM)**
+- **Week Summary** – AI-generated overview of the week's conditions
+- **Trend Analysis** – Temperature and humidity ranges
+- **Hero Image** – Best photo from the week
 
 ---
 
@@ -119,7 +123,9 @@ greenhouse-beach/
 │   ├── status_daemon.py    # Sensor data aggregation + 24h stats
 │   ├── narrator.py         # Gemini AI narrative generation
 │   ├── publisher.py        # HTML email composition + SMTP
-│   ├── scheduler.py        # 7:00 AM daily dispatch trigger
+│   ├── scheduler.py        # Daily (7AM) + weekly (Sunday 8AM) dispatch
+│   ├── weekly_digest.py    # Weekly summary email generation
+│   ├── golden_hour.py      # Seasonal sunset calculations
 │   ├── weather_service.py  # OpenWeatherMap integration
 │   ├── stats.py            # 24-hour min/max calculations
 │   │
@@ -207,11 +213,17 @@ Define your sensors, cameras, and network topology:
 3. Camera bridge captures:
    Home Assistant camera → MQTT → ingestion.py → archive/
 
-4. Scheduler triggers at 7:00 AM:
-   scheduler.py → publisher.run_once()
+4. Golden hour capture (seasonal timing):
+   Camera bridge captures at optimal lighting (~4PM Dec, ~7PM June)
 
-5. Publisher builds email:
+5. Scheduler triggers at 7:00 AM:
+   scheduler.py → publisher.run_once() + weekly_digest.record_daily_snapshot()
+
+6. Publisher builds email:
    status.json + weather API + Gemini AI → HTML email → SMTP
+
+7. Weekly digest (Sundays 8:00 AM):
+   weekly_digest.py aggregates week's data → summary email
 ```
 
 ---
@@ -279,7 +291,8 @@ ssh user@greenhouse-pi "python3 /opt/greenhouse/camera_mqtt_bridge.py --test"
 ## 🛣️ Roadmap
 
 - [ ] Microclimate analysis with multiple sensor zones
-- [ ] Weekly summary digest
+- [x] Weekly summary digest ✓
+- [x] Golden hour photo capture ✓
 - [ ] Web dashboard (real-time sensor view)
 - [ ] Object detection for plant health
 - [ ] Timelapse video generation

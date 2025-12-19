@@ -1,9 +1,6 @@
 {
   "sensors": {
-    "satellite_2_battery": 0.33,
-    "satellite_2_humidity": 41.9,
-    "satellite_2_pressure": 1013.4,
-    "satellite_2_temperature": 20.6
+    "satellite-2_satellite_2_battery": 0.42
   },
-  "updated_at": "2025-12-08T06:08:56.400866Z"
+  "updated_at": "2025-12-19T17:55:09.434463Z"
 }
