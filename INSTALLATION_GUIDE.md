@@ -14,43 +14,29 @@
 - [ ] Laptop with SSH access configured
 
 ### Pre-Work Completed (Before Leaving Home)
-- [ ] beachFi WiFi credentials added to Storyteller
-- [ ] Tailscale installed and logged in on Storyteller
-- [ ] Static IP configuration prepared
-- [ ] Bridge config updates scripted
-- [ ] ESPHome satellite config updated with GREENHOUSE_IOT credentials
+- [x] BeachFi WiFi credentials added to Storyteller ✅
+- [x] Tailscale installed and logged in on Storyteller ✅
+- [x] Static IP configuration script prepared ✅
+- [x] Bridge config update script prepared ✅
+- [x] ESPHome satellite config has dual-network support ✅
+- [ ] Flash satellite with production MQTT broker (10.0.0.1)
 
 ---
 
 ## 🏠 Part 1: Pre-Work (Do This NOW at Home)
 
-### 1.1 Add beachFi WiFi to Storyteller Pi
+### 1.1 Add BeachFi WiFi to Storyteller Pi ✅ DONE
 
-SSH into Storyteller and add your mom's WiFi network:
+**Status:** Completed on Dec 19, 2025
 
 ```bash
-# SSH into Storyteller Pi
-ssh joshcrow@greenhouse-storyteller
-
-# Add beachFi network (will auto-connect when in range)
-sudo nmcli device wifi connect "beachFi" password "YOUR_WIFI_PASSWORD" hidden no
-
 # Verify it's saved
-nmcli connection show
+nmcli connection show | grep wifi
+# BeachFi             e53d806e-2859-4aa0-9397-e6fd6fec24ec  wifi  --
+# preconfigured       c1a774fe-0ca0-4a31-a70a-500e0208cc41  wifi  wlan0
 ```
 
-**Alternative: Pre-configure wpa_supplicant** (if using wpa_supplicant instead of NetworkManager):
-```bash
-sudo nano /etc/wpa_supplicant/wpa_supplicant.conf
-```
-Add:
-```
-network={
-    ssid="beachFi"
-    psk="YOUR_WIFI_PASSWORD"
-    priority=10
-}
-```
+BeachFi will auto-connect with priority 10 when in range.
 
 ### 1.2 Verify Tailscale is Ready
 
@@ -125,40 +111,43 @@ EOF
 chmod +x ~/update_bridge_configs.sh
 ```
 
-### 1.5 Update Satellite Sensor ESPHome Config
+### 1.5 Update Satellite Sensor ESPHome Config ✅ MOSTLY DONE
 
-The satellite sensor needs to connect to the **GREENHOUSE_IOT** network (10.0.0.x) hosted by Greenhouse Pi, NOT beachFi.
-
-Update your ESPHome config for the satellite:
+Your satellite config already has **dual-network support**:
 
 ```yaml
+# Current config (satellite-sensor-2.yaml) - ALREADY SET UP:
 wifi:
-  ssid: "GREENHOUSE_IOT"
-  password: "your_greenhouse_iot_password"
-  
-  # Static IP on the IoT network
-  manual_ip:
-    static_ip: 10.0.0.20
-    gateway: 10.0.0.1
-    subnet: 255.255.255.0
-    dns1: 8.8.8.8
-
-  # Fallback AP for debugging
+  networks:
+    - ssid: "GREENHOUSE_IOT"      # Mom's (Production) - Priority 10
+      password: "YOUR_IOT_NETWORK_PASSWORD"
+    - ssid: "beachFi"             # Your house (Dev) - Priority 5
+      password: "YOUR_DEV_NETWORK_PASSWORD"
   ap:
-    ssid: "Satellite-Fallback"
-    password: "fallback123"
+    ssid: "Satellite-2 Rescue"
+    password: "YOUR_RESCUE_AP_PASSWORD"
+```
 
-# MQTT pointing to Storyteller (via NAT)
+**⚠️ ONE CHANGE NEEDED:** Update MQTT broker for production.
+
+Current (works at your house):
+```yaml
 mqtt:
-  broker: 10.0.0.1  # Greenhouse Pi routes to Storyteller
-  port: 1883
-  topic_prefix: greenhouse/satellite-2
+  broker: 192.168.1.151   # Your home Storyteller IP
 ```
 
-Flash the satellite with updated config before leaving:
-```bash
-esphome run satellite-2.yaml
+For production at Mom's, change to:
+```yaml
+mqtt:
+  broker: 10.0.0.1        # Greenhouse Pi (NATs to Storyteller)
 ```
+
+**Flash when ready:**
+```bash
+esphome run satellite-sensor-2.yaml
+```
+
+> **Note:** The satellite will fail MQTT at your house after this change, but will work at Mom's. You can keep the dev config until you're ready to deploy.
 
 ### 1.6 Test Local Network Simulation (Optional)
 
@@ -506,6 +495,163 @@ ssh greenhouse-pi "python3 /opt/greenhouse/camera_mqtt_bridge.py --test"
 | MQTT | 1883 | Mosquitto on Storyteller |
 | SSH | 22 | Via Tailscale |
 | Home Assistant | 8123 | On Greenhouse Pi |
+
+---
+
+## 💻 Part 6: Remote Development Guide (Windsurf/VSCode)
+
+Once the system is deployed at Mom's, here's how to continue development from home.
+
+### 6.1 SSH Access via Tailscale
+
+Both Pis are accessible from anywhere via Tailscale:
+
+```bash
+# Storyteller Pi (runs the email system)
+ssh joshcrow@100.94.172.114
+
+# Greenhouse Pi (runs camera/sensors)
+ssh joshcrow@100.110.161.42
+```
+
+### 6.2 Windsurf/VSCode Remote Development
+
+**Option A: SSH Remote Extension (Recommended)**
+
+1. Install "Remote - SSH" extension in Windsurf/VSCode
+2. Add hosts to `~/.ssh/config`:
+   ```
+   Host storyteller
+       HostName 100.94.172.114
+       User joshcrow
+       
+   Host greenhouse-pi
+       HostName 100.110.161.42
+       User joshcrow
+   ```
+3. Connect: `Cmd+Shift+P` → "Remote-SSH: Connect to Host" → `storyteller`
+4. Open folder: `/home/joshcrow/greenhouse-beach`
+
+**Option B: SFTP Mount (for quick edits)**
+
+```bash
+# Mount Storyteller's project folder locally
+sshfs joshcrow@100.94.172.114:/home/joshcrow/greenhouse-beach ~/mnt/storyteller
+```
+
+### 6.3 Common Development Tasks
+
+**View logs in real-time:**
+```bash
+ssh storyteller "docker compose -f greenhouse-beach/docker-compose.yml logs -f --tail 50"
+```
+
+**Test email without waiting for 7AM:**
+```bash
+ssh storyteller "docker exec greenhouse-beach-storyteller-1 python scripts/publisher.py"
+```
+
+**Test weekly edition:**
+```bash
+ssh storyteller "docker exec greenhouse-beach-storyteller-1 python scripts/publisher.py --weekly"
+```
+
+**Check sensor data:**
+```bash
+ssh storyteller "docker exec greenhouse-beach-storyteller-1 cat /app/data/status.json | python3 -m json.tool"
+```
+
+**Watch MQTT traffic:**
+```bash
+ssh storyteller "docker exec greenhouse-beach-mosquitto-1 mosquitto_sub -t 'greenhouse/#' -v"
+```
+
+**Pull code updates and rebuild:**
+```bash
+ssh storyteller "cd greenhouse-beach && git pull && docker compose build && docker compose up -d"
+```
+
+### 6.4 Updating Satellite Sensor Remotely
+
+The satellite can be OTA-updated via Home Assistant or ESPHome CLI:
+
+```bash
+# From your local machine (if ESPHome is installed)
+esphome run satellite-sensor-2.yaml --device 10.0.0.20
+
+# Or via Home Assistant's ESPHome dashboard
+# Navigate to: http://100.110.161.42:8123 → ESPHome → Update
+```
+
+### 6.5 Network Topology Reference
+
+```
+YOUR HOME                           MOM'S HOUSE
+─────────                           ───────────
+   │                                     │
+   │ Tailscale VPN                       │
+   │ (100.x.x.x)                         │
+   │                                     │
+   ▼                                     ▼
+┌─────────┐                      ┌──────────────┐
+│ MacBook │◄────── Internet ────►│   BeachFi    │
+│ Air     │                      │   Router     │
+└─────────┘                      └──────┬───────┘
+                                        │
+                         ┌──────────────┼──────────────┐
+                         │              │              │
+                   ┌─────┴─────┐  ┌─────┴─────┐       │
+                   │Storyteller│  │Greenhouse │       │
+                   │   Pi 5    │  │   Pi 4    │       │
+                   │.1.50      │  │.1.X       │       │
+                   │           │  │           │       │
+                   │ MQTT:1883 │  │ HA:8123   │       │
+                   │ Docker    │  │ hostapd   │       │
+                   └───────────┘  └─────┬─────┘       │
+                                        │             │
+                                  GREENHOUSE_IOT      │
+                                   (10.0.0.0/24)      │
+                                        │             │
+                                  ┌─────┴─────┐       │
+                                  │ Satellite │       │
+                                  │  Sensor   │       │
+                                  │ 10.0.0.20 │       │
+                                  └───────────┘       │
+```
+
+### 6.6 Debugging Checklist
+
+If something breaks remotely:
+
+1. **Can you reach the Pi?**
+   ```bash
+   ping 100.94.172.114
+   ```
+
+2. **Is Docker running?**
+   ```bash
+   ssh storyteller "docker ps"
+   ```
+
+3. **Are sensors sending data?**
+   ```bash
+   ssh storyteller "docker exec greenhouse-beach-mosquitto-1 mosquitto_sub -t '#' -v -C 5"
+   ```
+
+4. **Check container logs:**
+   ```bash
+   ssh storyteller "docker logs greenhouse-beach-storyteller-1 --tail 100"
+   ```
+
+5. **Is the internet working?**
+   ```bash
+   ssh storyteller "ping -c 3 google.com"
+   ```
+
+6. **Restart everything:**
+   ```bash
+   ssh storyteller "cd greenhouse-beach && docker compose restart"
+   ```
 
 ---
 

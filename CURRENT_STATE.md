@@ -103,12 +103,12 @@
 ## 📋 Pending Tasks
 
 ### Pre-Work (Do NOW Before Leaving)
-- [ ] Add beachFi WiFi credentials to Storyteller
-- [ ] Verify Tailscale is enabled and auto-starts
-- [ ] Charge satellite battery to full (currently 0.84V - DEAD)
-- [ ] Update satellite ESPHome config with GREENHOUSE_IOT credentials
-- [ ] Flash satellite with new config
-- [ ] Create helper scripts (set_static_ip.sh, update_bridge_configs.sh)
+- [x] Add BeachFi WiFi credentials to Storyteller ✅
+- [x] Verify Tailscale is enabled and auto-starts ✅
+- [x] Satellite ESPHome has dual-network support ✅
+- [x] Helper scripts created (set_static_ip.sh, update_bridge_configs.sh) ✅
+- [ ] Charge satellite battery to full (currently charging)
+- [ ] Flash satellite with production MQTT broker (10.0.0.1)
 
 ### On-Site Installation (At Mom's)
 - [ ] Connect Storyteller to beachFi network
