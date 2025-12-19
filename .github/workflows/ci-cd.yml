@@ -199,6 +199,7 @@ jobs:
           context: .
           target: test
           push: false
+          load: true  # Load into local Docker daemon for testing
           tags: ${{ env.DOCKER_IMAGE }}:test
           cache-from: type=gha
           cache-to: type=gha,mode=max
