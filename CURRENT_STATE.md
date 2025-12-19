@@ -1,7 +1,7 @@
 # Project Chlorophyll: Current System State
 
 **Status:** ✅ Operational (via Tailscale)  
-**Last Updated:** Dec 19, 2025 @ 11:10 AM EST
+**Last Updated:** Dec 19, 2025 @ 11:35 AM EST
 
 ---
 
@@ -53,12 +53,15 @@
 
 | Sensor | Location | Last Value | Status |
 |--------|----------|------------|--------|
-| `interior_temp` | Greenhouse inside | 60.8°F | ✅ |
-| `interior_humidity` | Greenhouse inside | 77.6% | ✅ |
-| `exterior_temp` | Greenhouse outside | 72.9°F | ✅ |
-| `exterior_humidity` | Greenhouse outside | 73.1% | ✅ |
-| `satellite-2` | Josh's house (temp) | 67.3°F | ✅ |
+| `interior_temp` | Greenhouse inside | 61°F | ✅ |
+| `interior_humidity` | Greenhouse inside | 78% | ✅ |
+| `exterior_temp` | Greenhouse outside | 72°F | ✅ |
+| `exterior_humidity` | Greenhouse outside | 74% | ✅ |
+| `satellite-2` | Josh's house (temp) | 66°F | ✅ |
+| `satellite-2_battery` | Josh's house | 0.84V | ⚠️ **CRITICAL** |
 | `sensor1_greenhouse` | Broken hardware | — | ❌ Offline |
+
+> ⚠️ **Satellite battery is dead!** Reading 0.42V (actual 0.84V with divider). Charge immediately.
 
 ---
 
@@ -81,9 +84,13 @@
 - [x] **Multi-zone email** - Interior, Exterior, Satellite rows
 - [x] **Offline sensor handling** - Rows hidden when `None`
 - [x] **Weather integration** - OpenWeatherMap One Call 3.0
-- [x] **AI narrative** - Gemini 2.5 Flash generating updates
+- [x] **AI narrative** - Gemini 2.5 Flash with punchy prose
+- [x] **Bold alerts** - `<b>` tags render in email body
+- [x] **Integer display** - All temps/humidity/wind rounded (no decimals)
+- [x] **Urgency subjects** - Dynamic subject lines based on conditions
 - [x] **Email dispatch** - Gmail SMTP with App Password
 - [x] **Hero image** - Latest archived image embedded in email
+- [x] **7AM scheduler** - Running and ready for tomorrow
 
 ---
 
