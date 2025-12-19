@@ -200,13 +200,21 @@ ssh joshcrow@greenhouse-pi "~/update_bridge_configs.sh"
 ```bash
 ssh joshcrow@greenhouse-pi
 
-# Update configs
+# Update configs with Storyteller IP
 sudo sed -i 's/MQTT_HOST=.*/MQTT_HOST=192.168.1.50/' /opt/greenhouse/ha_sensor_bridge.env
 sudo sed -i 's/MQTT_HOST=.*/MQTT_HOST=192.168.1.50/' /opt/greenhouse/camera_mqtt_bridge.env
+
+# ⚠️ REQUIRED: Add MQTT authentication (Mosquitto now requires auth)
+echo "MQTT_USERNAME=greenhouse" | sudo tee -a /opt/greenhouse/ha_sensor_bridge.env
+echo "MQTT_PASSWORD=YOUR_MQTT_PASSWORD" | sudo tee -a /opt/greenhouse/ha_sensor_bridge.env
+echo "MQTT_USERNAME=greenhouse" | sudo tee -a /opt/greenhouse/camera_mqtt_bridge.env
+echo "MQTT_PASSWORD=YOUR_MQTT_PASSWORD" | sudo tee -a /opt/greenhouse/camera_mqtt_bridge.env
 
 # Restart bridges
 sudo systemctl restart ha-sensor-bridge camera-mqtt-bridge
 ```
+
+> **Note:** Replace `YOUR_MQTT_PASSWORD` with the actual MQTT password from your `.env` file on Storyteller.
 
 ### 2.4 Configure NAT Routing on Greenhouse Pi
 
