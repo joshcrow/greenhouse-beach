@@ -1,7 +1,8 @@
 # Project Chlorophyll: Current System State
 
-**Status:** ✅ Operational (via Tailscale)  
-**Last Updated:** Dec 19, 2025 @ 12:55 PM EST
+**Status:** ✅ Operational (via Tailscale) — Pre-Installation Phase  
+**Last Updated:** Dec 19, 2025 @ 2:20 PM EST  
+**Next Milestone:** On-site installation at Mom's house
 
 ---
 
@@ -93,25 +94,35 @@
 - [x] **Email dispatch** - Gmail SMTP with App Password
 - [x] **Hero image** - Latest archived image embedded in email
 - [x] **7AM scheduler** - Running and ready for tomorrow
-- [x] **Weekly digest** - Sundays at 8AM with weekly trends (matching daily style)
+- [x] **Weekly Edition** - Sunday daily email includes weekly summary + timelapse GIF
+- [x] **Timelapse generation** - Animated GIF from week's archived images
 - [x] **Golden hour capture** - Seasonal timing for optimal photos (Dec: 3:45 PM)
 
 ---
 
 ## 📋 Pending Tasks
 
-### This Weekend (On-Site at Mom's)
-- [ ] Move Storyteller Pi to beachFi network
+### Pre-Work (Do NOW Before Leaving)
+- [ ] Add beachFi WiFi credentials to Storyteller
+- [ ] Verify Tailscale is enabled and auto-starts
+- [ ] Charge satellite battery to full (currently 0.84V - DEAD)
+- [ ] Update satellite ESPHome config with GREENHOUSE_IOT credentials
+- [ ] Flash satellite with new config
+- [ ] Create helper scripts (set_static_ip.sh, update_bridge_configs.sh)
+
+### On-Site Installation (At Mom's)
+- [ ] Connect Storyteller to beachFi network
 - [ ] Set static IP (192.168.1.50)
-- [ ] Update bridge configs: `sed -i 's/100.94.172.114/192.168.1.50/' /opt/greenhouse/*.env`
-- [ ] Run NAT setup: `sudo /opt/greenhouse/gateway_nat_setup.sh 192.168.1.50`
-- [ ] Relocate satellite sensor to greenhouse
-- [ ] Charge FireBeetle battery (currently ~2.5V - critical!)
+- [ ] Update Greenhouse Pi bridge configs
+- [ ] Configure NAT routing on Greenhouse Pi
+- [ ] Deploy satellite sensor to greenhouse
+- [ ] Run full test plan (see INSTALLATION_GUIDE.md)
+- [ ] Verify remote access works from phone hotspot
 
 ### Future
 - [ ] Fix sensor #1 hardware
 - [ ] Add more microclimate sensors
-- [ ] NVMe migration
+- [ ] NVMe migration (will dramatically speed up Docker builds)
 - [ ] Web dashboard
 
 ---

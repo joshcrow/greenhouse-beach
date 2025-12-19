@@ -19,10 +19,11 @@ Transform passive greenhouse monitoring into an active, narrative-driven experie
 - **Weather Forecast** – Today's conditions and tomorrow's outlook
 - **24-Hour Stats** – High/low temperature and humidity trends
 
-**Weekly Digest (Sundays 8:00 AM)**
-- **Week Summary** – AI-generated overview of the week's conditions
-- **Trend Analysis** – Temperature and humidity ranges
-- **Hero Image** – Best photo from the week
+**Weekly Edition (Sundays 7:00 AM)**
+- Everything from the daily email, plus:
+- **Week Summary** – Temperature and humidity ranges with averages
+- **Timelapse GIF** – Animated loop of all photos from the past week
+- **📊 Weekly Edition** – Subject line clearly marked
 
 ---
 
@@ -281,7 +282,8 @@ ssh user@greenhouse-pi "python3 /opt/greenhouse/camera_mqtt_bridge.py --test"
 
 | Document | Purpose |
 |----------|---------|
-| [DEPLOYMENT.md](DEPLOYMENT.md) | Step-by-step installation guide |
+| [INSTALLATION_GUIDE.md](INSTALLATION_GUIDE.md) | **On-site deployment guide with test plan** |
+| [DEPLOYMENT.md](DEPLOYMENT.md) | Step-by-step initial setup |
 | [MASTER_DOCS.md](MASTER_DOCS.md) | Full system specification and requirements |
 | [CURRENT_STATE.md](CURRENT_STATE.md) | Live system status and verification |
 | [ESP32-solar-guide.md](ESP32-solar-guide.md) | Solar-powered sensor build guide |
@@ -291,11 +293,12 @@ ssh user@greenhouse-pi "python3 /opt/greenhouse/camera_mqtt_bridge.py --test"
 ## 🛣️ Roadmap
 
 - [ ] Microclimate analysis with multiple sensor zones
-- [x] Weekly summary digest ✓
+- [x] Weekly Edition with timelapse ✓
 - [x] Golden hour photo capture ✓
+- [x] Timelapse GIF generation ✓
 - [ ] Web dashboard (real-time sensor view)
 - [ ] Object detection for plant health
-- [ ] Timelapse video generation
+- [ ] Full timelapse video export
 
 ---
 
