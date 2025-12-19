@@ -68,16 +68,22 @@ def process_file(path: str) -> None:
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         mean_brightness = float(gray.mean())
 
-        # Threshold check
-        if mean_brightness < 25.0:
-            log(f"Rejected: Luminance {mean_brightness:.2f} too low for '{path}', deleting.")
+        # Threshold check - widened to preserve dawn/dusk golden hour photos
+        # 10 = nearly pitch black (keep for forensic/security value)
+        # 250 = severely overexposed
+        if mean_brightness < 10.0:
+            log(f"Rejected: Luminance {mean_brightness:.2f} too low (pitch black) for '{path}', deleting.")
             os.remove(path)
             return
 
-        if mean_brightness > 242.0:
-            log(f"Rejected: Luminance {mean_brightness:.2f} too high for '{path}', deleting.")
+        if mean_brightness > 250.0:
+            log(f"Rejected: Luminance {mean_brightness:.2f} too high (overexposed) for '{path}', deleting.")
             os.remove(path)
             return
+        
+        # Log warning for dim images but still archive them
+        if mean_brightness < 30.0:
+            log(f"Note: Low-light image '{path}' (luminance {mean_brightness:.2f}) - archiving anyway.")
 
         # Passed luminance gates -> archive
         dest = archive_path_for(path)

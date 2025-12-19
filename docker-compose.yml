@@ -1,28 +1,116 @@
-version: "3.8"
+# =============================================================================
+# GREENHOUSE GAZETTE - Docker Compose Configuration
+# =============================================================================
+# Usage:
+#   Production:   docker compose up -d
+#   Development:  docker compose --profile dev up
+#   Run Tests:    docker compose run --rm test
+# =============================================================================
 
 services:
+  # ---------------------------------------------------------------------------
+  # MQTT Broker (Mosquitto)
+  # ---------------------------------------------------------------------------
   mosquitto:
     image: eclipse-mosquitto:2
+    container_name: greenhouse-mosquitto
     restart: unless-stopped
     ports:
       - "1883:1883"
     volumes:
       - ./configs/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./configs/passwd:/mosquitto/config/passwd:ro
+      - mosquitto_data:/mosquitto/data
+    healthcheck:
+      test: ["CMD", "mosquitto_sub", "-t", "$$SYS/#", "-C", "1", "-i", "healthcheck", "-W", "3"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
+  # ---------------------------------------------------------------------------
+  # Storyteller Service (Production)
+  # ---------------------------------------------------------------------------
   storyteller:
-    build: .
+    build:
+      context: .
+      target: production
+    container_name: greenhouse-storyteller
     restart: unless-stopped
     env_file:
       - .env
     environment:
-      - TZ=America/New_York
+      - TZ=${TZ:-America/New_York}
       - RESOLUTION_TARGET=1080p
-      - GEMINI_MODEL=gemini-2.5-flash
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
+      - MQTT_HOST=mosquitto
+      - MQTT_PORT=1883
     volumes:
-      - ./scripts:/app/scripts
       - ./data:/app/data
       - ./configs/registry.json:/app/configs/registry.json:ro
-#    devices:
-#      - "/dev/video0:/dev/video0"
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ---------------------------------------------------------------------------
+  # Test Runner (on-demand)
+  # ---------------------------------------------------------------------------
+  test:
+    build:
+      context: .
+      target: test
+    container_name: greenhouse-test
+    profiles:
+      - test
+    environment:
+      - MQTT_HOST=mosquitto
+      - MQTT_PORT=1883
+      - GEMINI_API_KEY=test-key
+      - OPENWEATHER_API_KEY=test-key
+    volumes:
+      - ./scripts:/app/scripts:ro
+      - ./tests:/app/tests:ro
+      - ./pytest.ini:/app/pytest.ini:ro
     depends_on:
       - mosquitto
+
+  # ---------------------------------------------------------------------------
+  # Development Service (hot-reload)
+  # ---------------------------------------------------------------------------
+  storyteller-dev:
+    build:
+      context: .
+      target: production
+    container_name: greenhouse-storyteller-dev
+    profiles:
+      - dev
+    env_file:
+      - .env
+    environment:
+      - TZ=${TZ:-America/New_York}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
+      - MQTT_HOST=mosquitto
+      - MQTT_PORT=1883
+      - PYTHONDONTWRITEBYTECODE=1
+    volumes:
+      # Mount source for hot-reload during development
+      - ./scripts:/app/scripts
+      - ./data:/app/data
+      - ./configs:/app/configs:ro
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    # Override entrypoint for development iteration
+    command: ["python", "-u", "scripts/publisher.py"]
+
+# =============================================================================
+# Named Volumes
+# =============================================================================
+volumes:
+  mosquitto_data:
+    name: greenhouse_mosquitto_data

@@ -60,7 +60,7 @@ def publish_to_mqtt(broker_host: str, broker_port: int, topic: str, value: str,
     """Publish a single value to MQTT."""
     try:
         import paho.mqtt.client as mqtt
-        client = mqtt.Client()
+        client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
         if username and password:
             client.username_pw_set(username, password)
         client.connect(broker_host, broker_port, keepalive=30)

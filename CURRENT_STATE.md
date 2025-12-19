@@ -124,7 +124,7 @@
 ### Future
 - [ ] Fix sensor #1 hardware
 - [ ] Add more microclimate sensors
-- [ ] NVMe migration (will dramatically speed up Docker builds)
+- [x] NVMe migration (will dramatically speed up Docker builds) ✅
 - [ ] Web dashboard
 
 ---

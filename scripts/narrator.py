@@ -34,37 +34,52 @@ def sanitize_data(sensor_data: Dict[str, Any]) -> Dict[str, Any]:
 
     sanitized: Dict[str, Any] = dict(sensor_data)
 
-    # Temperature
-    if "temp" in sanitized:
-        try:
-            value = float(sanitized["temp"])
-            if value < -10.0 or value > 130.0:
-                log(
-                    f"WARNING: Temperature value out of bounds ({value}); "
-                    "replacing with None."
-                )
-                sanitized["temp"] = None
-            else:
-                sanitized["temp"] = value
-        except (TypeError, ValueError):
-            log("WARNING: Temperature value not numeric; replacing with None.")
-            sanitized["temp"] = None
+    # Temperature keys to sanitize (all variants used in the system)
+    temp_keys = [
+        "temp", "interior_temp", "exterior_temp", "outdoor_temp",
+        "satellite_2_temperature", "satellite-2_satellite_2_temperature",
+        "high_temp", "low_temp", "tomorrow_high", "tomorrow_low",
+    ]
+    
+    # Humidity keys to sanitize
+    humidity_keys = [
+        "humidity", "interior_humidity", "exterior_humidity", "humidity_out",
+        "satellite_2_humidity", "satellite-2_satellite_2_humidity",
+    ]
 
-    # Humidity
-    if "humidity" in sanitized:
-        try:
-            value = float(sanitized["humidity"])
-            if value < 0.0 or value > 100.0:
-                log(
-                    f"WARNING: Humidity value out of bounds ({value}); "
-                    "replacing with None."
-                )
-                sanitized["humidity"] = None
-            else:
-                sanitized["humidity"] = value
-        except (TypeError, ValueError):
-            log("WARNING: Humidity value not numeric; replacing with None.")
-            sanitized["humidity"] = None
+    # Sanitize all temperature values
+    for key in temp_keys:
+        if key in sanitized and sanitized[key] is not None:
+            try:
+                value = float(sanitized[key])
+                if value < -10.0 or value > 130.0:
+                    log(
+                        f"WARNING: {key} value out of bounds ({value}); "
+                        "replacing with None."
+                    )
+                    sanitized[key] = None
+                else:
+                    sanitized[key] = value
+            except (TypeError, ValueError):
+                log(f"WARNING: {key} value not numeric; replacing with None.")
+                sanitized[key] = None
+
+    # Sanitize all humidity values
+    for key in humidity_keys:
+        if key in sanitized and sanitized[key] is not None:
+            try:
+                value = float(sanitized[key])
+                if value < 0.0 or value > 100.0:
+                    log(
+                        f"WARNING: {key} value out of bounds ({value}); "
+                        "replacing with None."
+                    )
+                    sanitized[key] = None
+                else:
+                    sanitized[key] = value
+            except (TypeError, ValueError):
+                log(f"WARNING: {key} value not numeric; replacing with None.")
+                sanitized[key] = None
 
     return sanitized
 

@@ -64,20 +64,6 @@ def get_golden_hour() -> Optional[datetime]:
     return golden
 
 
-def get_golden_hour_schedule() -> str:
-    """Get the golden hour time as HH:MM for scheduler.
-    
-    Falls back to 4:00 PM if API unavailable.
-    """
-    golden = get_golden_hour()
-    if golden:
-        return golden.strftime("%H:%M")
-    
-    # Fallback: 4:00 PM is usually good for winter golden hour
-    log("Using fallback golden hour: 16:00")
-    return "16:00"
-
-
 def should_capture_now(tolerance_minutes: int = 30) -> bool:
     """Check if current time is within golden hour window."""
     golden = get_golden_hour()

@@ -416,11 +416,15 @@ def send_weekly_digest() -> bool:
             server.send_message(msg)
         log("Weekly digest sent successfully!")
         
-        # Clear weekly stats after sending
+        # Clear weekly stats ONLY after successful send
         save_weekly_stats({"days": [], "week_start": None})
+        log("Weekly stats cleared for next week.")
         return True
+    except smtplib.SMTPException as e:
+        log(f"SMTP error sending weekly digest (stats preserved): {e}")
+        return False
     except Exception as e:
-        log(f"Error sending weekly digest: {e}")
+        log(f"Error sending weekly digest (stats preserved): {e}")
         return False
 
 

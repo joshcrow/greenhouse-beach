@@ -1,0 +1,51 @@
+# =============================================================================
+# Docker Build Context Exclusions
+# =============================================================================
+# These files/directories are excluded from the Docker build context
+# to speed up builds and reduce image size.
+# =============================================================================
+
+# Git
+.git
+.gitignore
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Data directories (mounted as volumes)
+data/
+*.json
+
+# Documentation
+*.md
+docs/
+LICENSE
+
+# Development
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+coverage_html/
+.coverage
+htmlcov/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ESPHome (not needed in container)
+esphome/
+
+# Build artifacts
+*.log
+*.tmp
+
+# OS files
+.DS_Store
+Thumbs.db

@@ -232,6 +232,7 @@ def build_email(sensor_data: Dict[str, Any]) -> Tuple[EmailMessage, Optional[str
 
     # Satellite sensor vitals (support both old and new key formats)
     # New format: satellite-2_satellite_2_temperature, Old: satellite_2_temperature
+    # NOTE: Temperature already converted to °F in build_email() lines 105-108
     sat_temp = sensor_data.get("satellite-2_satellite_2_temperature") or sensor_data.get("satellite_2_temperature")
     sat_humidity = sensor_data.get("satellite-2_satellite_2_humidity") or sensor_data.get("satellite_2_humidity")
     
@@ -239,24 +240,24 @@ def build_email(sensor_data: Dict[str, Any]) -> Tuple[EmailMessage, Optional[str
     sat_battery_raw = sensor_data.get("satellite-2_satellite_2_battery") or sensor_data.get("satellite_2_battery")
     sat_battery = round(sat_battery_raw * 2, 1) if sat_battery_raw is not None else None
     
-    # Convert satellite temp if it's in Celsius (from old format)
-    if sat_temp is not None and sat_temp < 50:  # Likely Celsius if under 50
-        sat_temp = round(sat_temp * 9/5 + 32)
+    # NOTE: Do NOT convert satellite temp here - already done earlier in build_email()
 
     # 24-hour stats (min/max) for vitals
+    # Keys match status_daemon.py format: {device}_{sensor}_min/max
     stats_24h = stats.get_24h_stats(datetime.utcnow())
-    indoor_temp_min = stats_24h.get("indoor_temp_min")
-    indoor_temp_max = stats_24h.get("indoor_temp_max")
-    indoor_humidity_min = stats_24h.get("indoor_humidity_min")
-    indoor_humidity_max = stats_24h.get("indoor_humidity_max")
+    indoor_temp_min = stats_24h.get("interior_temp_min")
+    indoor_temp_max = stats_24h.get("interior_temp_max")
+    indoor_humidity_min = stats_24h.get("interior_humidity_min")
+    indoor_humidity_max = stats_24h.get("interior_humidity_max")
 
-    # Convert satellite temps from Celsius to Fahrenheit and round to integers
-    sat_temp_min_c = stats_24h.get("satellite_temp_min")
-    sat_temp_max_c = stats_24h.get("satellite_temp_max")
+    # Satellite 24h stats - keys from status_daemon format: satellite-2_{sensor}_min/max
+    # Temperature comes in Celsius from ESPHome, convert to Fahrenheit
+    sat_temp_min_c = stats_24h.get("satellite-2_satellite_2_temperature_min")
+    sat_temp_max_c = stats_24h.get("satellite-2_satellite_2_temperature_max")
     sat_temp_min = round(sat_temp_min_c * 9/5 + 32) if sat_temp_min_c is not None else None
     sat_temp_max = round(sat_temp_max_c * 9/5 + 32) if sat_temp_max_c is not None else None
-    sat_humidity_min = stats_24h.get("satellite_humidity_min")
-    sat_humidity_max = stats_24h.get("satellite_humidity_max")
+    sat_humidity_min = stats_24h.get("satellite-2_satellite_2_humidity_min")
+    sat_humidity_max = stats_24h.get("satellite-2_satellite_2_humidity_max")
 
     def fmt(value):
         """Format value for display as integer, returning N/A for None."""
@@ -766,10 +767,17 @@ def run_once() -> None:
 
 if __name__ == "__main__":
     import sys
+    
     # Allow --weekly flag to force weekly edition mode for testing
-    if "--weekly" in sys.argv:
-        # Monkey-patch is_weekly_edition to return True
-        is_weekly_edition = lambda: True
+    _force_weekly_mode = "--weekly" in sys.argv
+    
+    if _force_weekly_mode:
+        # Override the module-level function properly
+        _original_is_weekly = is_weekly_edition
+        def is_weekly_edition() -> bool:
+            return True
+        globals()['is_weekly_edition'] = is_weekly_edition
         log("TESTING: Forcing Weekly Edition mode")
+    
     run_once()
 

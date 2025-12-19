@@ -17,6 +17,7 @@ TOPIC_FILTER = "greenhouse/+/sensor/+/state"
 
 STATUS_PATH = os.getenv("STATUS_PATH", "/app/data/status.json")
 STATS_24H_PATH = os.getenv("STATS_24H_PATH", "/app/data/stats_24h.json")
+HISTORY_CACHE_PATH = os.getenv("HISTORY_CACHE_PATH", "/app/data/history_cache.json")
 
 # Minimum interval between disk writes (seconds)
 WRITE_INTERVAL_SECONDS = int(os.getenv("STATUS_WRITE_INTERVAL", "60"))
@@ -31,6 +32,63 @@ def log(message: str) -> None:
 latest_values: Dict[str, Any] = {}
 history: Dict[str, List[Tuple[datetime, float]]] = defaultdict(list)
 last_write: datetime = datetime.min
+
+
+def _load_history_cache() -> None:
+    """Load history from disk cache on startup to survive restarts."""
+    global history, latest_values
+    
+    if not os.path.exists(HISTORY_CACHE_PATH):
+        return
+    
+    try:
+        with open(HISTORY_CACHE_PATH, "r", encoding="utf-8") as f:
+            cache = json.load(f)
+        
+        # Restore latest values
+        if "latest_values" in cache:
+            latest_values.update(cache["latest_values"])
+        
+        # Restore history (convert ISO strings back to datetime)
+        if "history" in cache:
+            now = datetime.utcnow()
+            window_start = now - timedelta(hours=24)
+            for key, samples in cache["history"].items():
+                for ts_str, val in samples:
+                    try:
+                        ts = datetime.fromisoformat(ts_str.replace("Z", "+00:00")).replace(tzinfo=None)
+                        # Only restore samples within last 24h
+                        if ts >= window_start:
+                            history[key].append((ts, float(val)))
+                    except (ValueError, TypeError):
+                        continue
+        
+        log(f"Restored history cache: {len(latest_values)} values, {sum(len(v) for v in history.values())} samples")
+    except Exception as exc:  # noqa: BLE001
+        log(f"Failed to load history cache: {exc}")
+
+
+def _save_history_cache() -> None:
+    """Persist history to disk for crash recovery."""
+    try:
+        # Convert datetime objects to ISO strings for JSON serialization
+        history_serializable = {}
+        for key, samples in history.items():
+            history_serializable[key] = [
+                (ts.isoformat() + "Z", val) for ts, val in samples
+            ]
+        
+        cache = {
+            "latest_values": latest_values,
+            "history": history_serializable,
+            "saved_at": datetime.utcnow().isoformat() + "Z",
+        }
+        
+        os.makedirs(os.path.dirname(HISTORY_CACHE_PATH), exist_ok=True)
+        with open(HISTORY_CACHE_PATH, "w", encoding="utf-8") as f:
+            json.dump(cache, f)
+    except Exception as exc:  # noqa: BLE001
+        log(f"Failed to save history cache: {exc}")
 
 
 def _parse_payload(payload: bytes) -> Any:
@@ -117,6 +175,9 @@ def _write_files_if_due(now: datetime) -> None:
     except Exception as exc:  # noqa: BLE001
         log(f"Error writing 24h stats to {STATS_24H_PATH}: {exc}")
 
+    # Save history cache for crash recovery
+    _save_history_cache()
+
     last_write = now
 
 
@@ -171,14 +232,19 @@ def run_client_loop() -> None:
 
 
 def main() -> None:
+    # Load any cached history from previous run
+    _load_history_cache()
+    
     while True:
         try:
             run_client_loop()
         except KeyboardInterrupt:
-            log("KeyboardInterrupt received; exiting status daemon loop.")
+            log("KeyboardInterrupt received; saving cache and exiting...")
+            _save_history_cache()
             break
         except Exception as exc:  # noqa: BLE001
             log(f"Status daemon MQTT loop crashed with error: {exc}")
+            _save_history_cache()  # Save before retry
             log("Sleeping 5 seconds before retrying MQTT connection...")
             time.sleep(5)
 
