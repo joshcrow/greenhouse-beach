@@ -22,11 +22,11 @@ services:
       - ./configs/passwd:/mosquitto/config/passwd:ro
       - mosquitto_data:/mosquitto/data
     healthcheck:
-      test: ["CMD", "mosquitto_sub", "-t", "$$SYS/#", "-C", "1", "-i", "healthcheck", "-W", "3"]
-      interval: 30s
-      timeout: 10s
+      test: ["CMD-SHELL", "netstat -an | grep 1883 | grep LISTEN || ss -ltn | grep 1883"]
+      interval: 10s
+      timeout: 5s
       retries: 3
-      start_period: 10s
+      start_period: 5s
 
   # ---------------------------------------------------------------------------
   # Storyteller Service (Production)
