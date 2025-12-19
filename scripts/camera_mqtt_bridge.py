@@ -238,11 +238,7 @@ def run_daemon(config: dict, interval_minutes: int = 60) -> None:
 
 
 def load_config() -> dict:
-    """Load configuration from environment variables.
-
-    Returns:
-        Configuration dictionary
-    """
+    """Load configuration from environment variables."""
     return {
         # Home Assistant settings
         "ha_url": os.getenv("HA_URL", "http://localhost:8123"),
@@ -256,7 +252,40 @@ def load_config() -> dict:
         "mqtt_password": os.getenv("MQTT_PASSWORD"),
         # Daemon settings
         "capture_interval": int(os.getenv("CAPTURE_INTERVAL_MINUTES", "60")),
+        # Golden hour capture times (comma-separated HH:MM, e.g., "16:00,06:30")
+        "golden_hour_times": os.getenv("GOLDEN_HOUR_TIMES", ""),
     }
+
+
+# Seasonal golden hour times (1 hour before sunset for Outer Banks ~36°N)
+SEASONAL_GOLDEN_HOURS = {
+    1: "16:00", 2: "16:30", 3: "17:15", 4: "18:45", 5: "19:15", 6: "19:30",
+    7: "19:30", 8: "19:00", 9: "18:15", 10: "17:30", 11: "15:45", 12: "15:45",
+}
+
+
+def get_golden_hour_for_month() -> str:
+    """Get the golden hour time for the current month."""
+    return SEASONAL_GOLDEN_HOURS.get(datetime.now().month, "16:30")
+
+
+def is_golden_hour_time(config: dict) -> bool:
+    """Check if current time matches any golden hour capture time."""
+    now = datetime.now()
+    current_time = now.strftime("%H:%M")
+    
+    # Check configured times
+    gh_times = config.get("golden_hour_times", "")
+    if gh_times:
+        times = [t.strip() for t in gh_times.split(",")]
+    else:
+        # Use seasonal default
+        times = [get_golden_hour_for_month()]
+    
+    for t in times:
+        if current_time == t:
+            return True
+    return False
 
 
 def main():

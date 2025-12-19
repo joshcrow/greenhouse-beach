@@ -5,6 +5,7 @@ import schedule
 
 import publisher
 import weekly_digest
+import golden_hour
 
 
 def log(message: str) -> None:
@@ -47,8 +48,14 @@ def main() -> None:
 
     # Weekly Digest: Sunday at 08:00 (after a week of daily snapshots)
     schedule.every().sunday.at("08:00").do(safe_weekly_digest)
+    
+    # Golden hour photo capture (seasonal timing)
+    # Note: This logs the optimal time; actual capture happens on Greenhouse Pi
+    gh_time = golden_hour.get_seasonal_golden_hour()
+    log(f"Golden hour for this month: {gh_time}")
+    log("Camera bridge on Greenhouse Pi handles captures")
 
-    log("Registered: Daily Dispatch @ 07:00, Weekly Digest @ Sunday 08:00")
+    log(f"Registered: Daily @ 07:00, Weekly @ Sunday 08:00, Golden Hour @ {gh_time}")
 
     while True:
         try:

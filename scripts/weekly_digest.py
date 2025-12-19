@@ -129,29 +129,25 @@ def compute_weekly_summary(weekly: Dict[str, Any]) -> Dict[str, Any]:
 def build_weekly_prompt(summary: Dict[str, Any]) -> str:
     """Build AI prompt for weekly narrative."""
     lines = [
-        "You are generating a WEEKLY DIGEST for a greenhouse newsletter.",
-        "This is a summary of the past week, not a daily update.",
+        "Generate a WEEKLY DIGEST for a greenhouse newsletter.",
         "",
         "RULES:",
-        "- Summarize the week's conditions in 2-3 short paragraphs.",
-        "- Highlight any notable events or trends:",
-        "  * Temperature extremes (coldest/hottest days)",
-        "  * Any concerning patterns (consistently high humidity, etc.)",
-        "  * Overall health of the growing environment",
-        "- Use <b>bold</b> for key insights.",
-        "- Be encouraging and forward-looking.",
-        "- Do not use emojis.",
+        "- Be concise. ONE short paragraph only (3-4 sentences max).",
+        "- Mention the temperature range and any notable patterns.",
+        "- Use <b>bold</b> for ONE key insight only.",
+        "- End with a forward-looking statement for next week.",
+        "- No emojis. No number lists.",
         "",
-        "WEEKLY DATA:",
+        "DATA:",
         str(summary),
         "",
-        "OUTPUT FORMAT:",
+        "OUTPUT (follow exactly):",
         "",
-        "SUBJECT: <Weekly summary subject, e.g., 'This Week: Stable Temps, High Humidity'>",
+        "SUBJECT: <Plain text, 5-7 words, e.g., 'Stable Week with Mild Temps'>",
         "",
-        "HEADLINE: <Summary headline, 8-12 words>",
+        "HEADLINE: <8-10 words>",
         "",
-        "BODY: <2-3 paragraphs summarizing the week and looking ahead>",
+        "BODY: <ONE paragraph, 3-4 sentences>",
     ]
     return "\n".join(lines)
 
@@ -193,14 +189,46 @@ def generate_weekly_narrative(summary: Dict[str, Any]) -> Tuple[str, str, str]:
     return "Greenhouse Weekly Digest", "Your Week in Review", "Weekly summary unavailable."
 
 
-def build_weekly_email(summary: Dict[str, Any]) -> EmailMessage:
-    """Build the weekly digest email."""
+def find_latest_image() -> Optional[str]:
+    """Find the latest image from the archive."""
+    import glob
+    archive_root = "/app/data/archive"
+    pattern = os.path.join(archive_root, "**", "*.jpg")
+    images = glob.glob(pattern, recursive=True)
+    if not images:
+        return None
+    return max(images, key=os.path.getmtime)
+
+
+def build_weekly_email(summary: Dict[str, Any]) -> Tuple[EmailMessage, Optional[str]]:
+    """Build the weekly digest email with hero image."""
     import html
+    import re
+    from email.utils import make_msgid
     
     subject, headline, body_text = generate_weekly_narrative(summary)
     
+    # Clean subject line
+    subject = re.sub(r'<[^>]+>', '', subject)
+    subject = re.sub(r'\*+', '', subject)
+    subject = subject.strip()
+    
     smtp_from = os.getenv("SMTP_FROM", "Greenhouse Gazette")
     smtp_to = os.getenv("SMTP_TO", "")
+    
+    # Find hero image
+    image_path = find_latest_image()
+    image_cid = None
+    image_bytes = None
+    
+    if image_path and os.path.exists(image_path):
+        try:
+            with open(image_path, "rb") as f:
+                image_bytes = f.read()
+            image_cid = make_msgid(domain="greenhouse")[1:-1]
+            log(f"Weekly digest will include hero image: {image_path}")
+        except Exception as e:
+            log(f"Error loading image: {e}")
     
     msg = EmailMessage()
     msg["From"] = smtp_from
@@ -214,7 +242,7 @@ def build_weekly_email(summary: Dict[str, Any]) -> EmailMessage:
     # Escape body but allow safe tags
     body_escaped = html.escape(body_text)
     body_escaped = body_escaped.replace('&lt;b&gt;', '<b>').replace('&lt;/b&gt;', '</b>')
-    body_escaped = body_escaped.replace('\n\n', '<br><br>')
+    body_escaped = body_escaped.replace('\n\n', '<br>')
     
     # Format stats for display
     def fmt(val):
@@ -223,7 +251,30 @@ def build_weekly_email(summary: Dict[str, Any]) -> EmailMessage:
     temp_range = f"{fmt(summary.get('temp_min'))}° – {fmt(summary.get('temp_max'))}°" if summary.get('temp_min') else "N/A"
     humidity_range = f"{fmt(summary.get('humidity_min'))}% – {fmt(summary.get('humidity_max'))}%" if summary.get('humidity_min') else "N/A"
     
-    date_range = f"{summary.get('week_start', 'N/A')} to {summary.get('week_end', 'N/A')}"
+    week_start = summary.get('week_start', '')
+    week_end = summary.get('week_end', '')
+    
+    # Format dates nicely
+    try:
+        from datetime import datetime as dt
+        start_dt = dt.strptime(week_start, "%Y-%m-%d")
+        end_dt = dt.strptime(week_end, "%Y-%m-%d")
+        date_range = f"{start_dt.strftime('%b %d')} – {end_dt.strftime('%b %d, %Y')}"
+    except:
+        date_range = f"{week_start} to {week_end}"
+    
+    # Hero image HTML
+    hero_html = ""
+    if image_cid:
+        hero_html = f'''
+        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom: 24px;">
+            <tr>
+                <td>
+                    <img src="cid:{image_cid}" alt="Greenhouse this week" style="display:block; width:100%; height:auto; border-radius: 8px;">
+                </td>
+            </tr>
+        </table>
+        '''
     
     html_body = f"""
     <!DOCTYPE html>
@@ -232,43 +283,59 @@ def build_weekly_email(summary: Dict[str, Any]) -> EmailMessage:
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
     </head>
-    <body style="font-family: Georgia, serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #f9f9f9;">
-        <div style="background: white; border-radius: 12px; padding: 24px; border: 2px solid #588157;">
-            <h1 style="color: #588157; font-size: 24px; margin: 0 0 8px 0;">{headline}</h1>
-            <p style="color: #666; font-size: 14px; margin: 0 0 24px 0;">Week of {date_range}</p>
-            
-            <div style="font-size: 16px; line-height: 1.6; color: #333; margin-bottom: 24px;">
-                {body_escaped}
-            </div>
-            
-            <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
-                <tr style="background: #588157; color: white;">
-                    <th style="padding: 12px; text-align: left;">Metric</th>
-                    <th style="padding: 12px; text-align: left;">Weekly Range</th>
-                    <th style="padding: 12px; text-align: left;">Average</th>
-                </tr>
-                <tr style="border-bottom: 1px solid #ddd;">
-                    <td style="padding: 12px;">Temperature</td>
-                    <td style="padding: 12px;">{temp_range}</td>
-                    <td style="padding: 12px;">{fmt(summary.get('temp_avg'))}°</td>
-                </tr>
-                <tr>
-                    <td style="padding: 12px;">Humidity</td>
-                    <td style="padding: 12px;">{humidity_range}</td>
-                    <td style="padding: 12px;">{fmt(summary.get('humidity_avg'))}%</td>
-                </tr>
-            </table>
-            
-            <p style="color: #888; font-size: 12px; margin-top: 24px; text-align: center;">
-                Based on {summary.get('days_recorded', 0)} days of data
-            </p>
-        </div>
+    <body style="font-family: Georgia, 'Times New Roman', serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #fafafa;">
+        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: separate; border-spacing: 0; border: 2px solid #588157; border-radius: 12px; overflow: hidden; background: white;">
+            <tr>
+                <td style="padding: 24px;">
+                    <!-- Header -->
+                    <h1 style="font-family: Georgia, serif; color: #588157; font-size: 28px; margin: 0 0 4px 0; font-weight: normal; font-style: italic;">{headline}</h1>
+                    <p style="color: #6b7280; font-size: 14px; margin: 0 0 20px 0;">{date_range}</p>
+                    
+                    {hero_html}
+                    
+                    <!-- Narrative -->
+                    <div style="font-size: 16px; line-height: 1.7; color: #1e1e1e; margin-bottom: 24px;">
+                        {body_escaped}
+                    </div>
+                    
+                    <!-- Stats Table -->
+                    <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="font-size: 14px; border-collapse: collapse;">
+                        <tr>
+                            <th style="text-align:left; padding: 12px 0; border-bottom: 1px solid #588157; color: #6b7280; font-weight: normal;">Metric</th>
+                            <th style="text-align:left; padding: 12px 0; border-bottom: 1px solid #588157; color: #6b7280; font-weight: normal;">Range</th>
+                            <th style="text-align:left; padding: 12px 0; border-bottom: 1px solid #588157; color: #6b7280; font-weight: normal;">Avg</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 12px 0; border-bottom: 1px solid #e5e7eb; color: #1e1e1e;">Temperature</td>
+                            <td style="padding: 12px 0; border-bottom: 1px solid #e5e7eb; color: #1e1e1e;">{temp_range}</td>
+                            <td style="padding: 12px 0; border-bottom: 1px solid #e5e7eb; color: #1e1e1e;">{fmt(summary.get('temp_avg'))}°</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 12px 0; color: #1e1e1e;">Humidity</td>
+                            <td style="padding: 12px 0; color: #1e1e1e;">{humidity_range}</td>
+                            <td style="padding: 12px 0; color: #1e1e1e;">{fmt(summary.get('humidity_avg'))}%</td>
+                        </tr>
+                    </table>
+                    
+                    <p style="color: #9ca3af; font-size: 12px; margin-top: 20px; text-align: center;">
+                        Based on {summary.get('days_recorded', 0)} days of data
+                    </p>
+                </td>
+            </tr>
+        </table>
     </body>
     </html>
     """
     
     msg.add_alternative(html_body, subtype="html")
-    return msg
+    
+    # Attach hero image if available
+    if image_bytes and image_cid:
+        html_part = msg.get_payload()[1]
+        html_part.add_related(image_bytes, maintype="image", subtype="jpeg", 
+                              cid=f"<{image_cid}>", filename="greenhouse_weekly.jpg")
+    
+    return msg, image_path
 
 
 def send_weekly_digest() -> bool:
@@ -282,7 +349,7 @@ def send_weekly_digest() -> bool:
     summary = compute_weekly_summary(weekly)
     log(f"Weekly summary: {summary}")
     
-    msg = build_weekly_email(summary)
+    msg, image_path = build_weekly_email(summary)
     
     # Send email
     smtp_server = os.getenv("SMTP_SERVER", "smtp.gmail.com")
