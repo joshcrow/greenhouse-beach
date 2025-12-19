@@ -96,52 +96,52 @@ def get_current_weather() -> Dict[str, Any]:
 
         result: Dict[str, Any] = {}
 
-        # Current conditions
+        # Current conditions (round to integers for cleaner display)
         if "temp" in current:
-            result["outdoor_temp"] = float(current["temp"])
+            result["outdoor_temp"] = round(float(current["temp"]))
         if condition is not None:
             result["condition"] = str(condition)
         if "humidity" in current:
-            result["humidity_out"] = int(current["humidity"])
+            result["humidity_out"] = round(float(current["humidity"]))
 
-        # Wind
+        # Wind (round to integers)
         if "wind_speed" in current:
-            result["wind_mph"] = float(current["wind_speed"])
+            result["wind_mph"] = round(float(current["wind_speed"]))
         if "wind_deg" in current:
             deg = float(current["wind_deg"])
             result["wind_deg"] = deg
             result["wind_direction"] = _wind_direction(deg)
             result["wind_arrow"] = _wind_arrow(deg)
 
-        # Daily high/low and moon phase (use first daily entry)
+        # Daily high/low and moon phase (use first daily entry, round to integers)
         if daily_list:
             first = daily_list[0] or {}
             temp_block = first.get("temp", {})
             if "max" in temp_block:
-                result["high_temp"] = float(temp_block["max"])
+                result["high_temp"] = round(float(temp_block["max"]))
             if "min" in temp_block:
-                result["low_temp"] = float(temp_block["min"])
+                result["low_temp"] = round(float(temp_block["min"]))
             if "moon_phase" in first:
                 phase = float(first["moon_phase"])
                 result["moon_phase"] = phase
                 result["moon_icon"] = _moon_phase_icon(phase)
             
-            # Daily wind (more representative for "Today's Weather" summary)
+            # Daily wind (more representative for "Today's Weather" summary, round to integers)
             if "wind_speed" in first:
-                result["daily_wind_mph"] = float(first["wind_speed"])
+                result["daily_wind_mph"] = round(float(first["wind_speed"]))
             if "wind_deg" in first:
                 result["daily_wind_deg"] = float(first["wind_deg"])
                 result["daily_wind_direction"] = _wind_direction(result["daily_wind_deg"])
                 result["daily_wind_arrow"] = _wind_arrow(result["daily_wind_deg"])
         
-        # Tomorrow's forecast (lookahead for narrative)
+        # Tomorrow's forecast (lookahead for narrative, round to integers)
         if len(daily_list) > 1:
             tomorrow = daily_list[1] or {}
             tomorrow_temp = tomorrow.get("temp", {})
             if "max" in tomorrow_temp:
-                result["tomorrow_high"] = float(tomorrow_temp["max"])
+                result["tomorrow_high"] = round(float(tomorrow_temp["max"]))
             if "min" in tomorrow_temp:
-                result["tomorrow_low"] = float(tomorrow_temp["min"])
+                result["tomorrow_low"] = round(float(tomorrow_temp["min"]))
             tomorrow_weather = tomorrow.get("weather", [])
             if tomorrow_weather:
                 result["tomorrow_condition"] = str(tomorrow_weather[0].get("main", ""))

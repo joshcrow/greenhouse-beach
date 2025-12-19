@@ -97,7 +97,15 @@ def build_email(sensor_data: Dict[str, Any]) -> Tuple[EmailMessage, Optional[str
     for key in ["satellite_2_temperature", "satellite-2_satellite_2_temperature"]:
         sat_temp_c = sensor_data.get(key)
         if sat_temp_c is not None and sat_temp_c < 50:  # Likely Celsius if under 50
-            sensor_data[key] = round(sat_temp_c * 9/5 + 32, 1)
+            sensor_data[key] = round(sat_temp_c * 9/5 + 32)
+    
+    # Round all sensor values to integers for cleaner AI narrative and display
+    for key in ["interior_temp", "interior_humidity", "exterior_temp", "exterior_humidity"]:
+        if key in sensor_data and sensor_data[key] is not None:
+            try:
+                sensor_data[key] = round(float(sensor_data[key]))
+            except (ValueError, TypeError):
+                pass
 
     # Narrative content and augmented data (includes weather)
     try:
@@ -175,7 +183,7 @@ def build_email(sensor_data: Dict[str, Any]) -> Tuple[EmailMessage, Optional[str
     
     # Convert satellite temp if it's in Celsius (from old format)
     if sat_temp is not None and sat_temp < 50:  # Likely Celsius if under 50
-        sat_temp = round(sat_temp * 9/5 + 32, 1)
+        sat_temp = round(sat_temp * 9/5 + 32)
 
     # 24-hour stats (min/max) for vitals
     stats_24h = stats.get_24h_stats(datetime.utcnow())
@@ -184,20 +192,20 @@ def build_email(sensor_data: Dict[str, Any]) -> Tuple[EmailMessage, Optional[str
     indoor_humidity_min = stats_24h.get("indoor_humidity_min")
     indoor_humidity_max = stats_24h.get("indoor_humidity_max")
 
-    # Convert satellite temps from Celsius to Fahrenheit and round to 1 decimal
+    # Convert satellite temps from Celsius to Fahrenheit and round to integers
     sat_temp_min_c = stats_24h.get("satellite_temp_min")
     sat_temp_max_c = stats_24h.get("satellite_temp_max")
-    sat_temp_min = round(sat_temp_min_c * 9/5 + 32, 1) if sat_temp_min_c is not None else None
-    sat_temp_max = round(sat_temp_max_c * 9/5 + 32, 1) if sat_temp_max_c is not None else None
+    sat_temp_min = round(sat_temp_min_c * 9/5 + 32) if sat_temp_min_c is not None else None
+    sat_temp_max = round(sat_temp_max_c * 9/5 + 32) if sat_temp_max_c is not None else None
     sat_humidity_min = stats_24h.get("satellite_humidity_min")
     sat_humidity_max = stats_24h.get("satellite_humidity_max")
 
-    def fmt(value, decimals=1):
-        """Format value for display, returning N/A for None. Rounds numbers to specified decimals."""
+    def fmt(value):
+        """Format value for display as integer, returning N/A for None."""
         if value is None:
             return "N/A"
         try:
-            return f"{float(value):.{decimals}f}"
+            return str(round(float(value)))
         except (ValueError, TypeError):
             return str(value)
     
