@@ -2,6 +2,7 @@ import glob
 import html
 import json
 import os
+import re
 import ssl
 from datetime import datetime
 from email.message import EmailMessage
@@ -130,6 +131,11 @@ def build_email(sensor_data: Dict[str, Any]) -> Tuple[EmailMessage, Optional[str
         subject = "Greenhouse News"
         headline = "Greenhouse Update"
         body_text = "Error generating update."
+    
+    # Clean subject line - remove any HTML/markdown formatting (AI sometimes adds it)
+    subject = re.sub(r'<[^>]+>', '', subject)  # Remove HTML tags
+    subject = re.sub(r'\*+', '', subject)  # Remove markdown bold/italic
+    subject = subject.strip()
 
     # Hero image
     image_path = find_latest_image()
