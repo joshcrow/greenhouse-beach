@@ -1,49 +1,71 @@
 {
+  "site": {
+    "name": "Outer Banks Greenhouse",
+    "location": "Kill Devil Hills, NC",
+    "timezone": "America/New_York"
+  },
+  "networks": {
+    "home": {
+      "ssid": "beachFi",
+      "subnet": "192.168.1.0/24"
+    },
+    "iot": {
+      "ssid": "GREENHOUSE_IOT",
+      "subnet": "10.0.0.0/24",
+      "gateway": "10.0.0.1"
+    }
+  },
   "devices": [
     {
-      "mac_address": "AA:BB:CC:DD:EE:01",
-      "ip_address": "10.0.0.10",
       "type": "sensor_node",
+      "device_name": "satellite_sensor_2",
+      "friendly_name": "Greenhouse Satellite",
       "location": "greenhouse_interior",
-      "topic_root": "greenhouse/node/1",
-      "device_name": "greenhouse_node_1",
+      "network": "iot",
+      "topic_root": "greenhouse/satellite-2",
+      "platform": "esphome",
+      "hardware": "FireBeetle 2 ESP32-E",
       "sensors": [
         {
-          "name": "Greenhouse Temperature",
-          "key": "temperature",
-          "unit": "°F",
-          "platform": "bme280",
-          "entity_id": "sensor.greenhouse_temperature",
+          "name": "Interior Temperature",
+          "key": "satellite_2_temperature",
+          "unit": "°C",
+          "convert_to": "°F",
           "active": true
         },
         {
-          "name": "Greenhouse Humidity",
-          "key": "humidity",
+          "name": "Interior Humidity",
+          "key": "satellite_2_humidity",
           "unit": "%",
-          "platform": "bme280",
-          "entity_id": "sensor.greenhouse_humidity",
           "active": true
         },
         {
-          "name": "Greenhouse Pressure",
-          "key": "pressure",
+          "name": "Interior Pressure",
+          "key": "satellite_2_pressure",
           "unit": "hPa",
-          "platform": "bme280",
-          "entity_id": "sensor.greenhouse_pressure",
+          "active": true
+        },
+        {
+          "name": "Satellite Battery",
+          "key": "satellite_2_battery",
+          "unit": "V",
+          "voltage_divider": 2.0,
           "active": true
         }
       ],
-      "personality_context": "Witty, Scientific, Optimistic",
+      "personality_context": "The Scout. A solar-powered sentinel monitoring the greenhouse interior.",
       "active": true
     },
     {
-      "mac_address": "AA:BB:CC:DD:EE:02",
-      "ip_address": "10.0.0.20",
       "type": "camera",
+      "device_name": "greenhouse_camera",
+      "friendly_name": "Greenhouse Camera",
       "location": "greenhouse_interior",
+      "network": "home",
       "topic_root": "greenhouse/camera/main",
-      "device_name": "greenhouse_pi_camera",
-      "sensors": [],
+      "platform": "home_assistant",
+      "ha_entity": "camera.greenhouse",
+      "capture_interval_minutes": 60,
       "personality_context": "Hero image provider for daily dispatch",
       "active": true
     },
@@ -51,49 +73,43 @@
       "type": "virtual",
       "device_name": "outside_weather",
       "friendly_name": "Beach Weather",
-      "mqtt_topic": null,
-      "unit": "F",
-      "ai_context": "Current external conditions for comparison",
+      "platform": "openweathermap",
+      "ai_context": "Current external conditions from OpenWeatherMap API",
       "personality_context": "The Meteorologist",
       "active": true
     },
     {
       "type": "sensor_node",
-      "location": "greenhouse_exterior",
-      "topic_root": "greenhouse/satellite-2",
-      "device_name": "satellite_sensor_2",
+      "device_name": "greenhouse_node_1",
+      "friendly_name": "Indoor Station",
+      "location": "greenhouse_interior",
+      "network": "iot",
+      "topic_root": "greenhouse/node/1",
+      "platform": "esphome",
+      "hardware": "ESP32 DevKit + BME280",
       "sensors": [
         {
-          "name": "Exterior Temp",
-          "key": "satellite_2_temperature",
-          "unit": "°C",
-          "platform": "esphome",
-          "active": true
+          "name": "Greenhouse Temperature",
+          "key": "temp",
+          "unit": "°F",
+          "active": false
         },
         {
-          "name": "Exterior Humidity",
-          "key": "satellite_2_humidity",
+          "name": "Greenhouse Humidity",
+          "key": "humidity",
           "unit": "%",
-          "platform": "esphome",
-          "active": true
+          "active": false
         },
         {
-          "name": "Exterior Pressure",
-          "key": "satellite_2_pressure",
+          "name": "Greenhouse Pressure",
+          "key": "pressure",
           "unit": "hPa",
-          "platform": "esphome",
-          "active": true
-        },
-        {
-          "name": "Satellite Battery",
-          "key": "satellite_2_battery",
-          "unit": "V",
-          "platform": "esphome",
-          "active": true
+          "active": false
         }
       ],
-      "personality_context": "The Scout. A rugged exterior observer reporting from the elements.",
-      "active": true
+      "personality_context": "The Home Base. Primary indoor monitoring station.",
+      "active": false,
+      "_note": "Phase 2 deployment - requires additional ESP32 hardware"
     }
   ]
 }

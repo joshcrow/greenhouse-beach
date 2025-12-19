@@ -1,5 +1,32 @@
+# Secrets
 .env
+scripts/*.env
+
+# Python
 __pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Logs
 *.log
+
+# Data directories (keep structure, ignore contents)
 data/archive/*
 data/incoming/*
+!data/archive/.gitkeep
+!data/incoming/.gitkeep
+
+# Runtime files
+data/status.json
+data/stats_24h.json
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo

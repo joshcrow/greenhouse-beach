@@ -1,30 +1,48 @@
 # Project Chlorophyll: Current System State
-**Status:** MVP / Staging (SD Card)
-**Last Updated:** Dec 1, 2025
+**Status:** Pre-Deployment / Ready for Installation
+**Last Updated:** Dec 19, 2025
 
 ## Active Architecture
 * **Hardware:** Raspberry Pi 5 (running Bookworm Lite).
-* **Storage:** Currently running on SD Card. NVMe drive arriving Wednesday (Migration pending).
+* **Storage:** SD Card (NVMe migration pending).
 * **Services (Docker):**
-    1.  `mosquitto` (Port 1883).
-    2.  `storyteller` (Python container running 3 parallel processes).
+    1.  `mosquitto` (Port 1883) - MQTT broker accepting external connections.
+    2.  `storyteller` (Python container running 4 parallel processes).
+
+## Running Processes (Storyteller Container)
+1.  `ingestion.py` - Listens for images on `greenhouse/+/image`
+2.  `curator.py` - Processes and archives incoming images
+3.  `scheduler.py` - Triggers Daily Dispatch at 07:00 local time
+4.  `status_daemon.py` - Maintains `status.json` and `stats_24h.json` from MQTT sensor data
 
 ## Critical Configuration Overrides
-1.  **Hardware Bypass:** The `devices: /dev/video0` mapping in `docker-compose.yml` is **COMMENTED OUT** because no camera is attached yet.
-2.  **MQTT Patch:** `scripts/ingestion.py` uses `mqtt.CallbackAPIVersion.VERSION2` to fix Paho deprecation warnings.
-3.  **Model Selection:** `scripts/narrator.py` is hardcoded to `gemini-2.5-flash` (fallback: `gemini-flash-latest`) to match available API models.
-4.  **Process Manager:** The `entrypoint.sh` launches three processes: `ingestion.py`, `curator.py`, and `scheduler.py`.
-5.  **Weather API:** `scripts/weather_service.py` targets OpenWeatherMap **One Call 3.0** (`/data/3.0/onecall`) due to API key incompatibility with v2.5.
+1.  **Hardware Bypass:** Camera device mapping is **COMMENTED OUT** - images come via MQTT from Greenhouse Pi.
+2.  **MQTT Patch:** Uses `mqtt.CallbackAPIVersion.VERSION2` for Paho 2.x compatibility.
+3.  **Model Selection:** `gemini-2.5-flash` primary, `gemini-flash-latest` fallback.
+4.  **Weather API:** OpenWeatherMap **One Call 3.0** (`/data/3.0/onecall`).
+5.  **Temp Conversion:** Satellite temps converted from °C to °F in `publisher.py`.
 
-## Current Verification Status
-* [x] **MQTT Ingestion:** Active. Tested with fake data.
-* [x] **Curator Logic:** Active. Filters low luminance and corrupt files.
-* [x] **Gemini Narrative:** Authenticated. Generating text with sensor data.
-* [x] **Weather Integration:** Script updated for One Call 3.0. (Requires valid subscription key in .env).
-* [x] **Email Publishing:** SMTP authenticated (App Password) and successfully delivered HTML email with image.
-* [x] **Scheduler:** Verified running (PID active) and awaiting 07:00 trigger.
+## Verification Status
+* [x] **MQTT Ingestion:** Active. Receiving satellite sensor data.
+* [x] **Satellite Sensor:** FireBeetle ESP32-E publishing every 15 min.
+* [x] **Status Daemon:** Writing sensor snapshots to `status.json`.
+* [x] **24h Stats:** Tracking min/max for temp and humidity.
+* [x] **Gemini Narrative:** Authenticated and generating daily updates.
+* [x] **Weather Integration:** One Call 3.0 working with valid API key.
+* [x] **Email Publishing:** SMTP working via Gmail App Password.
+* [x] **Scheduler:** Firing Daily Dispatch at 07:00 EST.
 
-## Next Steps
-1.  **Burn-In Test:** Run continuously for 48h to check thermal stability and memory leaks.
-2.  **Hardware Migration:** Clone SD card to NVMe drive (Wednesday).
-3.  **Camera Activation:** Uncomment video device mapping once hardware is installed.
+## Deployment Preparation Status
+* [x] **DEPLOYMENT.md:** Architecture and installation guide created.
+* [x] **gateway_nat_setup.sh:** NAT/iptables script for Greenhouse Pi.
+* [x] **camera_mqtt_bridge.py:** Captures HA camera → MQTT.
+* [x] **camera-mqtt-bridge.service:** Systemd unit file.
+* [x] **mosquitto.conf:** Updated to accept external connections.
+* [x] **registry.json:** Updated with production network topology.
+
+## Pending for On-Site Installation
+1.  **Set Storyteller static IP** on beachFi network.
+2.  **Run gateway_nat_setup.sh** on Greenhouse Pi with Storyteller IP.
+3.  **Deploy camera_mqtt_bridge.py** as systemd service on Greenhouse Pi.
+4.  **Flash satellite sensor** with GREENHOUSE_IOT WiFi credentials.
+5.  **Verify end-to-end** data flow and email delivery.

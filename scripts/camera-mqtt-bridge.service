@@ -1,0 +1,33 @@
+# Systemd service file for Camera MQTT Bridge
+# Install on Greenhouse Pi (Node A):
+#   sudo cp camera-mqtt-bridge.service /etc/systemd/system/
+#   sudo cp camera_mqtt_bridge.py /opt/greenhouse/
+#   sudo cp camera_mqtt_bridge.env /opt/greenhouse/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable camera-mqtt-bridge
+#   sudo systemctl start camera-mqtt-bridge
+
+[Unit]
+Description=Greenhouse Gazette Camera MQTT Bridge
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/opt/greenhouse
+EnvironmentFile=/opt/greenhouse/camera_mqtt_bridge.env
+ExecStart=/usr/bin/python3 /opt/greenhouse/camera_mqtt_bridge.py --daemon --interval 60
+Restart=on-failure
+RestartSec=30
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=camera-mqtt-bridge
+
+[Install]
+WantedBy=multi-user.target

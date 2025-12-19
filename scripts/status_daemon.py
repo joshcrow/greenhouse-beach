@@ -44,12 +44,14 @@ def _key_from_topic(topic: str) -> str | None:
     """Extract logical sensor key from MQTT topic.
 
     Expected topic format: greenhouse/{device_id}/sensor/{key}/state
-    Returns the {key} segment.
+    Returns '{device_id}_{key}' for uniqueness across zones.
     """
 
     parts = topic.split("/")
     if len(parts) >= 5 and parts[-1] == "state":
-        return parts[-2]
+        device_id = parts[1]  # e.g., 'interior', 'exterior', 'satellite-2'
+        sensor_key = parts[-2]  # e.g., 'temp', 'humidity'
+        return f"{device_id}_{sensor_key}"
     return None
 
 
@@ -71,25 +73,11 @@ def _prune_and_compute_stats(now: datetime) -> Dict[str, Any]:
         if not numeric_values:
             continue
 
-        k_low = None
-        k_high = None
-
-        if key == "temp":
-            k_low = "indoor_temp_min"
-            k_high = "indoor_temp_max"
-        elif key == "humidity":
-            k_low = "indoor_humidity_min"
-            k_high = "indoor_humidity_max"
-        elif key == "satellite_2_temperature":
-            k_low = "satellite_temp_min"
-            k_high = "satellite_temp_max"
-        elif key == "satellite_2_humidity":
-            k_low = "satellite_humidity_min"
-            k_high = "satellite_humidity_max"
-
-        if k_low and k_high:
-            metrics[k_low] = min(numeric_values)
-            metrics[k_high] = max(numeric_values)
+        # Dynamic stats key generation based on sensor key
+        # Key format: {device}_{sensor} e.g., interior_temp, exterior_humidity
+        # Generate stats keys: {device}_{sensor}_min, {device}_{sensor}_max
+        metrics[f"{key}_min"] = min(numeric_values)
+        metrics[f"{key}_max"] = max(numeric_values)
 
     return metrics
 

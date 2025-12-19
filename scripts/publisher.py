@@ -93,10 +93,11 @@ def build_email(sensor_data: Dict[str, Any]) -> Tuple[EmailMessage, Optional[str
     """Construct the email message and return it along with the image path (if any)."""
 
     # Convert satellite temperature from Celsius to Fahrenheit BEFORE narrator
-    # so AI generates correct narrative
-    sat_temp_c = sensor_data.get("satellite_2_temperature")
-    if sat_temp_c is not None:
-        sensor_data["satellite_2_temperature"] = round(sat_temp_c * 9/5 + 32, 1)
+    # so AI generates correct narrative (handle both old and new key formats)
+    for key in ["satellite_2_temperature", "satellite-2_satellite_2_temperature"]:
+        sat_temp_c = sensor_data.get(key)
+        if sat_temp_c is not None and sat_temp_c < 50:  # Likely Celsius if under 50
+            sensor_data[key] = round(sat_temp_c * 9/5 + 32, 1)
 
     # Narrative content and augmented data (includes weather)
     try:
@@ -136,9 +137,16 @@ def build_email(sensor_data: Dict[str, Any]) -> Tuple[EmailMessage, Optional[str
     # Plain-text fallback
     msg.set_content(body_text)
 
-    # Extract vitals with graceful fallbacks
-    indoor_temp = sensor_data.get("temp")
-    indoor_humidity = sensor_data.get("humidity")
+    # Extract vitals with graceful fallbacks (support both old and new key formats)
+    # Interior sensors (from HA bridge or direct MQTT)
+    indoor_temp = sensor_data.get("interior_temp") or sensor_data.get("temp")
+    indoor_humidity = sensor_data.get("interior_humidity") or sensor_data.get("humidity")
+    
+    # Exterior sensors (from HA bridge)
+    exterior_temp = sensor_data.get("exterior_temp")
+    exterior_humidity = sensor_data.get("exterior_humidity")
+    
+    # Weather API outdoor conditions
     outdoor_temp = sensor_data.get("outdoor_temp") or sensor_data.get("outside_temp")
     outdoor_humidity = sensor_data.get("humidity_out") or sensor_data.get("outside_humidity")
     outdoor_condition = sensor_data.get("condition")
@@ -160,9 +168,14 @@ def build_email(sensor_data: Dict[str, Any]) -> Tuple[EmailMessage, Optional[str
     moon_phase = sensor_data.get("moon_phase")
     moon_icon = sensor_data.get("moon_icon") or ""
 
-    # Satellite sensor vitals (already converted to Fahrenheit above)
-    sat_temp = sensor_data.get("satellite_2_temperature")
-    sat_humidity = sensor_data.get("satellite_2_humidity")
+    # Satellite sensor vitals (support both old and new key formats)
+    # New format: satellite-2_satellite_2_temperature, Old: satellite_2_temperature
+    sat_temp = sensor_data.get("satellite-2_satellite_2_temperature") or sensor_data.get("satellite_2_temperature")
+    sat_humidity = sensor_data.get("satellite-2_satellite_2_humidity") or sensor_data.get("satellite_2_humidity")
+    
+    # Convert satellite temp if it's in Celsius (from old format)
+    if sat_temp is not None and sat_temp < 50:  # Likely Celsius if under 50
+        sat_temp = round(sat_temp * 9/5 + 32, 1)
 
     # 24-hour stats (min/max) for vitals
     stats_24h = stats.get_24h_stats(datetime.utcnow())
@@ -476,15 +489,15 @@ def build_email(sensor_data: Dict[str, Any]) -> Tuple[EmailMessage, Optional[str
                                     </tr>
                                     {''.join([
                                         f'''<tr>
-                                        <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #588157; color:#1e1e1e;">Indoor</td>
+                                        <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #588157; color:#1e1e1e;">Interior</td>
                                         <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #588157; color:#1e1e1e;">{fmt(indoor_temp)}°</td>
                                         <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #588157; color:#1e1e1e;">{fmt(indoor_humidity)}%</td>
                                     </tr>''' if indoor_temp is not None or indoor_humidity is not None else '',
                                         f'''<tr>
-                                        <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #588157; color:#1e1e1e;">Outdoor</td>
-                                        <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #588157; color:#1e1e1e;">{fmt(outdoor_temp)}°</td>
-                                        <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #588157; color:#1e1e1e;">{fmt(outdoor_humidity)}%</td>
-                                    </tr>''' if outdoor_temp is not None or outdoor_humidity is not None else '',
+                                        <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #588157; color:#1e1e1e;">Exterior</td>
+                                        <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #588157; color:#1e1e1e;">{fmt(exterior_temp)}°</td>
+                                        <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #588157; color:#1e1e1e;">{fmt(exterior_humidity)}%</td>
+                                    </tr>''' if exterior_temp is not None or exterior_humidity is not None else '',
                                         f'''<tr>
                                         <td class="dark-text-primary" style="padding:12px 0; color:#1e1e1e;">Satellite</td>
                                         <td class="dark-text-primary" style="padding:12px 0; color:#1e1e1e;">{fmt(sat_temp)}°</td>
