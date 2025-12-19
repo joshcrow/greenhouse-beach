@@ -1,8 +1,8 @@
 # Project Chlorophyll: Current System State
 
-**Status:** ✅ Operational (via Tailscale) — Pre-Installation Phase  
-**Last Updated:** Dec 19, 2025 @ 2:20 PM EST  
-**Next Milestone:** On-site installation at Mom's house
+**Status:** ✅ Operational (via Tailscale) — Ready for Deployment  
+**Last Updated:** Dec 19, 2025 @ 5:11 PM EST  
+**Next Milestone:** Deploy FireBeetle at Mom's greenhouse (Dec 20)
 
 ---
 
@@ -58,11 +58,11 @@
 | `interior_humidity` | Greenhouse inside | 78% | ✅ |
 | `exterior_temp` | Greenhouse outside | 72°F | ✅ |
 | `exterior_humidity` | Greenhouse outside | 74% | ✅ |
-| `satellite-2` | Josh's house (temp) | 66°F | ✅ |
-| `satellite-2_battery` | Josh's house | 0.84V | ⚠️ **CRITICAL** |
+| `satellite-2` | Ready for deploy | 21.2°C | ✅ Flashed & tested |
+| `satellite-2_battery` | FireBeetle | 4.2V | ✅ Fully charged |
 | `sensor1_greenhouse` | Broken hardware | — | ❌ Offline |
 
-> ⚠️ **Satellite battery is dead!** Reading 0.42V (actual 0.84V with divider). Charge immediately.
+> ✅ **FireBeetle satellite flashed and tested!** Battery at 4.2V (100%). Ready for greenhouse deployment.
 
 ---
 
@@ -107,8 +107,10 @@
 - [x] Verify Tailscale is enabled and auto-starts ✅
 - [x] Satellite ESPHome has dual-network support ✅
 - [x] Helper scripts created (set_static_ip.sh, update_bridge_configs.sh) ✅
-- [ ] Charge satellite battery to full (currently charging)
-- [ ] Flash satellite with production MQTT broker (10.0.0.1)
+- [x] Charge satellite battery to full ✅ (4.2V = 100%)
+- [x] Flash satellite with production MQTT broker (10.0.0.1) ✅
+- [x] Fixed battery ADC pin (GPIO34) ✅
+- [x] Verified battery operation via ping test ✅
 
 ### On-Site Installation (At Mom's)
 - [ ] Connect Storyteller to beachFi network

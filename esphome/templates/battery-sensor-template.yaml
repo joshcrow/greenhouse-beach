@@ -167,7 +167,7 @@ sensor:
       name: "${sensor_prefix} Humidity"
 
   - platform: adc
-    pin: 36
+    pin: 34  # FireBeetle 2 battery voltage divider
     id: battery_voltage
     name: "${sensor_prefix} Battery"
     update_interval: never
