@@ -10,14 +10,18 @@ Centralized management for all ESPHome-based sensors in the Greenhouse Gazette s
 
 ```
 esphome/
-├── README.md           # This file
-├── secrets.yaml        # WiFi passwords, API keys
-├── sensors/            # Active device configurations
-│   └── satellite-sensor-2.yaml
-├── templates/          # Copy these to create new devices
-│   └── battery-sensor-template.yaml
-└── common/             # Shared includes (future use)
+├── README.md                        # This file
+├── secrets.yaml                     # ⚠️ GITIGNORED - Your real credentials
+├── secrets.example.yaml             # Template with placeholders
+├── sensors/
+│   ├── satellite-sensor-2.yaml      # ⚠️ GITIGNORED - Your real config
+│   └── satellite-sensor-2.example.yaml  # Template with placeholders
+├── templates/
+│   └── battery-sensor-template.yaml # Template for new sensors
+└── common/                          # Shared includes (future use)
 ```
+
+> **Security:** Real configs with credentials are gitignored. Only `.example.yaml` files are committed.
 
 **Related Documentation:**
 - [ESP32-solar-guide.md](../ESP32-solar-guide.md) - Hardware soldering & assembly
@@ -199,14 +203,16 @@ The WiFi config already handles this with priorities:
 wifi:
   networks:
     - ssid: "GREENHOUSE_IOT"    # Production - Priority 10
-      password: "YOUR_IOT_NETWORK_PASSWORD"
+      password: !secret wifi_password_production
       priority: 10
     - ssid: "beachFi"           # Development - Priority 5
-      password: "YOUR_DEV_NETWORK_PASSWORD"
+      password: !secret wifi_password_dev
       priority: 5
 ```
 
 Only the `mqtt.broker` needs to change between dev/prod.
+
+> **Note:** Real passwords are in `secrets.yaml` (gitignored). See `secrets.example.yaml` for template.
 
 ---
 

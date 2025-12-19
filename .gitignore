@@ -30,3 +30,10 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+
+# ESPHome secrets (real credentials)
+esphome/secrets.yaml
+esphome/sensors/*.yaml
+
+# Keep examples only
+!esphome/sensors/*.example.yaml

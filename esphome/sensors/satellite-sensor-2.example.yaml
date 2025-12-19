@@ -1,46 +1,37 @@
 # =============================================================================
-# BATTERY SENSOR TEMPLATE
+# SATELLITE SENSOR 2 - Greenhouse Exterior
 # =============================================================================
-# Copy this file to ../sensors/satellite-sensor-N.yaml and customize.
+# Hardware: FireBeetle 2 ESP32-E + BME280 + 3.7V LiPo + Solar Panel
+# Location: Greenhouse exterior (production) / Josh's house (dev)
+# Network:  GREENHOUSE_IOT (10.0.0.x) at Mom's, beachFi at Josh's
+# 
+# Features:
+#   - Temperature, humidity, pressure (BME280)
+#   - Battery voltage monitoring (ADC with 1/2 divider)
+#   - Deep sleep (15 min cycles)
+#   - Dual-network failover
+#   - Maintenance mode (prevents sleep for debugging)
+#   - OTA updates
 #
-# Hardware Required:
-#   - FireBeetle 2 ESP32-E (or compatible)
-#   - BME280 sensor (I2C)
-#   - 3.7V LiPo battery (1000-2000mAh recommended)
-#   - Solar panel (optional, 5V 1W+)
+# MQTT Topics Published:
+#   greenhouse/satellite-2/sensor/satellite_2_temperature/state
+#   greenhouse/satellite-2/sensor/satellite_2_humidity/state
+#   greenhouse/satellite-2/sensor/satellite_2_pressure/state
+#   greenhouse/satellite-2/sensor/satellite_2_battery/state
+#   greenhouse/satellite-2/status (online/offline)
 #
-# Customization Checklist:
-#   [ ] Change esphome.name (must be unique, lowercase, hyphens only)
-#   [ ] Change esphome.friendly_name
-#   [ ] Generate new API key: esphome compile --only-generate
-#   [ ] Update MQTT topic_prefix
-#   [ ] Update sensor names
-#   [ ] Update maintenance entity_id
-#   [ ] Update AP ssid for rescue mode
-#
+# Last Updated: 2025-12-19
 # =============================================================================
-
-substitutions:
-  # ===== CHANGE THESE =====
-  device_name: satellite-sensor-N      # Unique device name (lowercase, hyphens)
-  friendly_name: "Satellite N"         # Human-readable name
-  sensor_prefix: "Satellite N"         # Prefix for sensor names
-  mqtt_prefix: "greenhouse/satellite-N"
-  maintenance_entity: input_boolean.greenhouse_satellite_N_maintenance
-  rescue_ap_name: "Satellite-N Rescue"
-  
-  # ===== USUALLY KEEP THESE =====
-  sleep_duration: "15min"
-  run_duration: "60s"
-
 
 esphome:
-  name: ${device_name}
-  friendly_name: ${friendly_name}
+  name: satellite-sensor-2
+  friendly_name: "Greenhouse Exterior Satellite"
   on_boot:
     priority: -10
     then:
       - output.turn_off: led_builtin
+      
+      # RESILIENT WAIT: Connect if EITHER MQTT or API is available
       - wait_until:
           timeout: 30s
           condition:
@@ -50,18 +41,21 @@ esphome:
                 - api.connected:
                 - mqtt.connected:
       - delay: 2s
+      
+      # MAINTENANCE CHECK (Dual-Source)
       - if:
           condition:
             or:
-              - binary_sensor.is_on: maintenance_mode_ha
-              - binary_sensor.is_on: maintenance_mode_mqtt
+              - binary_sensor.is_on: maintenance_mode_ha    # Mom's House Control
+              - binary_sensor.is_on: maintenance_mode_mqtt  # Dev House Control
           then:
             - logger.log: "MAINTENANCE MODE: ON. Staying awake."
             - deep_sleep.prevent: deep_sleep_1
           else:
-            - logger.log: "Normal operation. Measuring and sleeping..."
+            - logger.log: "MAINTENANCE MODE: OFF. Measuring..."
             - component.update: bme280_sensor
             - component.update: battery_voltage
+            - logger.log: "Sending data..."
             - delay: 2s 
             - deep_sleep.enter: deep_sleep_1
 
@@ -82,26 +76,29 @@ logger:
 
 api:
   encryption:
-    # GENERATE NEW KEY: esphome compile --only-generate
-    key: "GENERATE_NEW_KEY_HERE"
+    key: "YOUR_API_KEY_HERE"  # Generate: openssl rand -base64 32
   reboot_timeout: 0s 
 
 
 mqtt:
-  # PRODUCTION: Greenhouse Pi (NATs to Storyteller)
-  broker: 10.0.0.1
+  # PRODUCTION: Point to Greenhouse Pi (NATs to Storyteller)
+  # broker: 10.0.0.1
+  
+  # DEV: Point to Storyteller on local network
+  broker: 192.168.1.151
+  
   port: 1883
   username: "greenhouse"
   password: "YOUR_MQTT_PASSWORD"
-  topic_prefix: ${mqtt_prefix}
-  discovery: false
+  topic_prefix: "greenhouse/satellite-2"
+  discovery: false  # Prevents HA duplicates
   reboot_timeout: 0s 
   
   birth_message:
-    topic: "${mqtt_prefix}/status"
+    topic: "greenhouse/satellite-2/status"
     payload: "online"
   will_message:
-    topic: "${mqtt_prefix}/status"
+    topic: "greenhouse/satellite-2/status"
     payload: "offline"
 
 
@@ -114,18 +111,19 @@ wifi:
   power_save_mode: none
   fast_connect: false
   networks:
-    # Production Network (Mom's greenhouse)
+    # Mom's House (Production) - High Priority
     - ssid: "GREENHOUSE_IOT"
       password: "YOUR_IOT_NETWORK_PASSWORD"
       priority: 10
     
-    # Development Network (Josh's house)
+    # Josh's House (Development) - Low Priority
     - ssid: "beachFi"
       password: "YOUR_DEV_NETWORK_PASSWORD"
       priority: 5
   
+  # Fallback AP for rescue/debugging
   ap:
-    ssid: ${rescue_ap_name}
+    ssid: "Satellite-2 Rescue"
     password: "YOUR_RESCUE_AP_PASSWORD"
 
 
@@ -156,39 +154,42 @@ sensor:
     address: 0x76 
     update_interval: never
     temperature:
-      name: "${sensor_prefix} Temperature"
+      name: "Satellite 2 Temperature"
     pressure:
-      name: "${sensor_prefix} Pressure"
+      name: "Satellite 2 Pressure"
     humidity:
-      name: "${sensor_prefix} Humidity"
+      name: "Satellite 2 Humidity"
 
   - platform: adc
-    pin: 36
+    pin: 36  # VP pin on FireBeetle
     id: battery_voltage
-    name: "${sensor_prefix} Battery"
+    name: "Satellite 2 Battery"
     update_interval: never
     attenuation: 11db
     filters:
-      - multiply: 2.0  # FireBeetle voltage divider
+      - multiply: 2.0  # FireBeetle has 1/2 voltage divider
 
 
 # =============================================================================
 # MAINTENANCE MODE
 # =============================================================================
 
+# Subscribe to MQTT maintenance topic
 text_sensor:
   - platform: mqtt_subscribe
     id: mqtt_maintenance_text
-    topic: "${mqtt_prefix}/maintenance/state"
+    topic: "greenhouse/satellite-2/maintenance/state"
     internal: true
 
 
 binary_sensor:
+  # Mom's House (via Home Assistant API)
   - platform: homeassistant
     id: maintenance_mode_ha
-    entity_id: ${maintenance_entity}
+    entity_id: input_boolean.greenhouse_satellite_2_maintenance
     internal: true 
 
+  # Dev House (via MQTT)
   - platform: template
     id: maintenance_mode_mqtt
     name: "Maintenance Mode MQTT"
@@ -203,5 +204,5 @@ binary_sensor:
 
 deep_sleep:
   id: deep_sleep_1
-  run_duration: ${run_duration}
-  sleep_duration: ${sleep_duration}
+  run_duration: 60s 
+  sleep_duration: 15min
