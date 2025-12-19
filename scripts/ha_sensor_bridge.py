@@ -55,11 +55,14 @@ def fetch_ha_states(ha_url: str, ha_token: str) -> Optional[List[Dict[str, Any]]
         return None
 
 
-def publish_to_mqtt(broker_host: str, broker_port: int, topic: str, value: str) -> bool:
+def publish_to_mqtt(broker_host: str, broker_port: int, topic: str, value: str,
+                    username: str = None, password: str = None) -> bool:
     """Publish a single value to MQTT."""
     try:
         import paho.mqtt.client as mqtt
         client = mqtt.Client()
+        if username and password:
+            client.username_pw_set(username, password)
         client.connect(broker_host, broker_port, keepalive=30)
         client.loop_start()
         result = client.publish(topic, value, qos=1, retain=True)
@@ -93,7 +96,8 @@ def bridge_sensors(config: Dict[str, Any]) -> int:
         # Build MQTT topic matching status_daemon expectation
         topic = f"greenhouse/{device}/sensor/{key}/state"
         
-        if publish_to_mqtt(config['mqtt_host'], config['mqtt_port'], topic, state):
+        if publish_to_mqtt(config['mqtt_host'], config['mqtt_port'], topic, state,
+                           config.get('mqtt_username'), config.get('mqtt_password')):
             log(f'Published {entity_id} -> {topic}: {state}')
             published += 1
     
@@ -106,6 +110,8 @@ def load_config() -> Dict[str, Any]:
         'ha_token': os.getenv('HA_TOKEN'),
         'mqtt_host': os.getenv('MQTT_HOST', '100.94.172.114'),
         'mqtt_port': int(os.getenv('MQTT_PORT', '1883')),
+        'mqtt_username': os.getenv('MQTT_USERNAME'),
+        'mqtt_password': os.getenv('MQTT_PASSWORD'),
         'interval_minutes': int(os.getenv('SENSOR_INTERVAL_MINUTES', '5')),
     }
 
