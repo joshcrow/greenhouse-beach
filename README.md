@@ -84,8 +84,16 @@ nano .env  # Add your API keys and SMTP credentials
 ### 2. Start the Storyteller
 
 ```bash
+# Option A: Pull pre-built image from Docker Hub (fast)
+docker pull jcrow333/greenhouse-storyteller:latest
 docker compose up -d
-docker compose logs -f  # Watch for startup messages
+
+# Option B: Build locally
+docker compose build
+docker compose up -d
+
+# Watch logs
+docker compose logs -f
 ```
 
 ### 3. Deploy Bridges to Greenhouse Pi
@@ -100,8 +108,38 @@ scp scripts/camera_mqtt_bridge.py scripts/ha_sensor_bridge.py user@greenhouse-pi
 ### 4. Test Email Delivery
 
 ```bash
-docker exec greenhouse-beach-storyteller-1 python scripts/publisher.py
+docker exec greenhouse-storyteller python scripts/publisher.py
 ```
+
+---
+
+## 🔄 CI/CD Pipeline
+
+Automated testing and deployment via GitHub Actions.
+
+| Component | Status |
+|-----------|--------|
+| **Docker Hub** | [`jcrow333/greenhouse-storyteller`](https://hub.docker.com/r/jcrow333/greenhouse-storyteller) |
+| **CI/CD** | GitHub Actions (test → build → push) |
+| **Platforms** | `linux/amd64`, `linux/arm64` (Raspberry Pi) |
+
+### Development Workflow
+
+```bash
+# Run tests locally
+pytest
+
+# Push to trigger CI/CD
+git push origin main
+# → Tests run → Docker image built → Pushed to Docker Hub
+
+# Update Storyteller Pi
+ssh pi@storyteller
+docker pull jcrow333/greenhouse-storyteller:latest
+docker compose up -d
+```
+
+See [`DEVELOPMENT.md`](DEVELOPMENT.md) for full details.
 
 ---
 
