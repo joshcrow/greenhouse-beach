@@ -163,17 +163,27 @@ def build_email(sensor_data: Dict[str, Any]) -> Tuple[EmailMessage, Optional[str
     image_type = "jpeg"  # Default to jpeg, may change to gif for timelapse
     
     if weekly_mode:
-        # Create timelapse GIF for weekly edition
-        log("Creating weekly timelapse GIF...")
+        # Weekly Edition: Use existing weekly timelapse logic (golden hour stitch)
+        log("Creating weekly timelapse GIF (golden hour stitch)...")
         image_bytes = timelapse.create_weekly_timelapse()
         if image_bytes:
             image_cid = make_msgid(domain="greenhouse")[1:-1]
             image_type = "gif"
-            log(f"Timelapse created: {len(image_bytes)} bytes")
+            log(f"Weekly timelapse created: {len(image_bytes)} bytes")
         else:
-            log("Timelapse creation failed, falling back to static image")
+            log("Weekly timelapse creation failed, falling back to static image")
+    else:
+        # Daily Edition: Use new daily timelapse (yesterday's daylight images)
+        log("Daily Edition: Creating daily timelapse from yesterday's daylight images...")
+        image_bytes = timelapse.create_daily_timelapse()
+        if image_bytes:
+            image_cid = make_msgid(domain="greenhouse")[1:-1]
+            image_type = "gif"
+            log(f"Daily timelapse created: {len(image_bytes)} bytes")
+        else:
+            log("Daily timelapse creation failed, falling back to static image")
     
-    # Fall back to static image if no timelapse or not weekly
+    # Fall back to static image if no timelapse was created
     if image_bytes is None:
         image_path = find_latest_image()
         if image_path:
@@ -181,6 +191,7 @@ def build_email(sensor_data: Dict[str, Any]) -> Tuple[EmailMessage, Optional[str
                 image_bytes = load_image_bytes(image_path)
                 image_cid = make_msgid(domain="greenhouse")[1:-1]
                 image_type = "jpeg"
+                log(f"Using static fallback image: {image_path}")
             except Exception as exc:  # noqa: BLE001
                 log(f"Failed to load image '{image_path}': {exc}")
                 image_bytes = None
@@ -192,7 +203,9 @@ def build_email(sensor_data: Dict[str, Any]) -> Tuple[EmailMessage, Optional[str
 
     msg = EmailMessage()
     msg["From"] = smtp_from
-    msg["To"] = smtp_to
+    # Handle multiple recipients separated by commas
+    recipients = [addr.strip() for addr in smtp_to.split(',') if addr.strip()]
+    msg["To"] = ", ".join(recipients)  # Display all recipients in header
     msg["Date"] = formatdate(localtime=True)
     msg["Subject"] = subject
 
@@ -725,7 +738,7 @@ def build_email(sensor_data: Dict[str, Any]) -> Tuple[EmailMessage, Optional[str
     return msg, weekly_mode
 
 
-def send_email(msg: EmailMessage) -> None:
+def send_email(msg: EmailMessage, recipients: list[str] = None) -> None:
     """Send the email via SMTP over SSL using environment variables."""
 
     smtp_server = os.getenv("SMTP_SERVER") or os.getenv("SMTP_HOST")
@@ -744,8 +757,9 @@ def send_email(msg: EmailMessage) -> None:
         with smtplib.SMTP_SSL(smtp_server, smtp_port, context=context) as server:
             if smtp_user and smtp_pass:
                 server.login(smtp_user, smtp_pass)
-            server.send_message(msg)
-        log("Email sent successfully.")
+            # Send to all recipients
+            server.send_message(msg, to_addrs=recipients)
+        log(f"Email sent successfully to {len(recipients)} recipients.")
     except Exception as exc:  # noqa: BLE001
         log(f"Error while sending email: {exc}")
 
@@ -757,12 +771,16 @@ def run_once() -> None:
     log(f"Preparing email with sensor data: {sensor_data}")
     msg, weekly_mode = build_email(sensor_data)
     
+    # Parse recipients from environment
+    smtp_to = os.getenv("SMTP_TO", "you@example.com")
+    recipients = [addr.strip() for addr in smtp_to.split(',') if addr.strip()]
+    
     if weekly_mode:
         log("Sending Weekly Edition with timelapse...")
     else:
         log("Sending daily email...")
 
-    send_email(msg)
+    send_email(msg, recipients)
 
 
 if __name__ == "__main__":

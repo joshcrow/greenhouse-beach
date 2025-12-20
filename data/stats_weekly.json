@@ -11,6 +11,18 @@
         "window_start": "2025-12-18T19:03:30.070515Z"
       },
       "recorded_at": "2025-12-19T19:03:49.317767"
+    },
+    {
+      "date": "2025-12-20",
+      "stats": {
+        "metrics": {
+          "satellite-2_satellite_2_battery_max": 0.42,
+          "satellite-2_satellite_2_battery_min": 0.42
+        },
+        "window_end": "2025-12-19T22:41:11.639276Z",
+        "window_start": "2025-12-18T22:41:11.639276Z"
+      },
+      "recorded_at": "2025-12-20T12:00:30.799540"
     }
   ],
   "week_start": "2025-12-19"

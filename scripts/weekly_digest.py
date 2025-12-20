@@ -216,6 +216,9 @@ def build_weekly_email(summary: Dict[str, Any]) -> Tuple[EmailMessage, Optional[
     smtp_from = os.getenv("SMTP_FROM", "Greenhouse Gazette")
     smtp_to = os.getenv("SMTP_TO", "")
     
+    # Handle multiple recipients separated by commas
+    recipients = [addr.strip() for addr in smtp_to.split(',') if addr.strip()]
+    
     # Find hero image
     image_path = find_latest_image()
     image_cid = None
@@ -232,7 +235,7 @@ def build_weekly_email(summary: Dict[str, Any]) -> Tuple[EmailMessage, Optional[
     
     msg = EmailMessage()
     msg["From"] = smtp_from
-    msg["To"] = smtp_to
+    msg["To"] = ", ".join(recipients)  # Display all recipients in header
     msg["Date"] = formatdate(localtime=True)
     msg["Subject"] = f"📊 {subject}"
     
@@ -399,6 +402,10 @@ def send_weekly_digest() -> bool:
     
     msg, image_path = build_weekly_email(summary)
     
+    # Parse recipients from environment
+    smtp_to = os.getenv("SMTP_TO", "")
+    recipients = [addr.strip() for addr in smtp_to.split(',') if addr.strip()]
+    
     # Send email
     smtp_server = os.getenv("SMTP_SERVER", "smtp.gmail.com")
     smtp_port = int(os.getenv("SMTP_PORT", "465"))
@@ -413,8 +420,9 @@ def send_weekly_digest() -> bool:
         context = ssl.create_default_context()
         with smtplib.SMTP_SSL(smtp_server, smtp_port, context=context) as server:
             server.login(smtp_user, smtp_password)
-            server.send_message(msg)
-        log("Weekly digest sent successfully!")
+            # Send to all recipients
+            server.send_message(msg, to_addrs=recipients)
+        log(f"Weekly digest sent successfully to {len(recipients)} recipients!")
         
         # Clear weekly stats ONLY after successful send
         save_weekly_stats({"days": [], "week_start": None})
