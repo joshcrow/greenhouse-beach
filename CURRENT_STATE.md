@@ -1,8 +1,8 @@
 # Project Chlorophyll: Current System State
 
 **Status:** ✅ Operational (via Tailscale) — Ready for Deployment  
-**Last Updated:** Dec 19, 2025 @ 6:40 PM EST  
-**Next Milestone:** Deploy FireBeetle at Mom's greenhouse (Dec 20)
+**Last Updated:** Dec 21, 2025 @ 2:15 PM EST  
+**Next Milestone:** Monitor Coast & Sky integration in daily emails
 
 ---
 
@@ -13,7 +13,7 @@
 | **GitHub Repo** | [joshcrow/greenhouse-beach](https://github.com/joshcrow/greenhouse-beach) |
 | **Docker Hub** | [jcrow333/greenhouse-storyteller](https://hub.docker.com/r/jcrow333/greenhouse-storyteller) |
 | **CI/CD** | GitHub Actions ✅ |
-| **Tests** | 104 passed, 10 skipped (41% coverage) |
+| **Tests** | 109 passed, 8 skipped (50% coverage) |
 
 ### Development Workflow
 ```bash
@@ -25,8 +25,9 @@
 
 ### Deploy to Pi (Fast!)
 ```bash
-docker pull jcrow333/greenhouse-storyteller:latest
-docker compose up -d
+# Local build (pull_policy: never)
+docker compose build --no-cache storyteller
+docker compose up -d --force-recreate storyteller
 ```
 
 ---
@@ -122,6 +123,9 @@ docker compose up -d
 - [x] **Weekly Edition** - Sunday daily email includes weekly summary + timelapse GIF
 - [x] **Timelapse generation** - Animated GIF from week's archived images
 - [x] **Golden hour capture** - Seasonal timing for optimal photos (Dec: 3:45 PM)
+- [x] **Coast & Sky integration** - NOAA tides (Jennette's Pier), meteor showers, named moon events
+- [x] **Emoji policy** - No emojis in AI-generated subject/headline/body; kept in data tables
+- [x] **Visibility gating** - clouds_pct, precip_prob for meteor shower recommendations
 
 ---
 

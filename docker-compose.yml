@@ -33,7 +33,7 @@ services:
   # ---------------------------------------------------------------------------
   storyteller:
     image: jcrow333/greenhouse-storyteller:latest
-    pull_policy: always
+    pull_policy: never
     build:
       context: .
       target: production
