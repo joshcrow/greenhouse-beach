@@ -201,12 +201,12 @@ def mock_mqtt_client():
 
 @pytest.fixture
 def mock_gemini():
-    """Mock Google Generative AI."""
-    with patch("google.generativeai.GenerativeModel") as mock_class:
-        mock_instance = MagicMock()
-        mock_class.return_value = mock_instance
+    """Mock Google Generative AI (new google-genai SDK)."""
+    with patch("narrator.genai") as mock_genai:
+        mock_client = MagicMock()
+        mock_genai.Client.return_value = mock_client
         
-        # Mock response
+        # Mock response structure for new SDK
         mock_response = MagicMock()
         mock_response.text = """SUBJECT: Perfect Growing Conditions Today
 
@@ -216,8 +216,8 @@ BODY: The greenhouse is thriving today with temperatures in the comfortable rang
 Humidity levels are ideal for most plants.
 
 Expect similar conditions through the afternoon. No action needed."""
-        mock_instance.generate_content.return_value = mock_response
-        yield mock_instance
+        mock_client.models.generate_content.return_value = mock_response
+        yield mock_client
 
 
 @pytest.fixture

@@ -1,9 +1,27 @@
 {
   "last_seen": {
-    "satellite-2_battery": "2025-12-21T20:12:47.818589Z"
+    "exterior_humidity": "2025-12-21T20:15:52.589534Z",
+    "exterior_pressure": "2025-12-21T20:15:52.589659Z",
+    "exterior_temp": "2025-12-21T20:15:52.589417Z",
+    "interior_humidity": "2025-12-21T20:15:52.589173Z",
+    "interior_pressure": "2025-12-21T20:15:52.589293Z",
+    "interior_temp": "2025-12-21T20:16:56.992637Z",
+    "satellite-2_battery": "2025-12-21T20:15:52.586662Z",
+    "satellite-2_humidity": "2025-12-21T20:15:52.588745Z",
+    "satellite-2_pressure": "2025-12-21T20:15:52.588902Z",
+    "satellite-2_temperature": "2025-12-21T20:15:52.588552Z"
   },
   "sensors": {
-    "satellite-2_battery": 4.05000019073486
+    "exterior_humidity": 54.1,
+    "exterior_pressure": 14.83,
+    "exterior_temp": 76.3,
+    "interior_humidity": 77.6,
+    "interior_pressure": 14.78,
+    "interior_temp": 60.8,
+    "satellite-2_battery": 4.05000019073486,
+    "satellite-2_humidity": 59.4287109375,
+    "satellite-2_pressure": 14.8407490146929,
+    "satellite-2_temperature": 53.4880630493164
   },
-  "updated_at": "2025-12-21T20:12:47.818589Z"
+  "updated_at": "2025-12-21T20:16:56.992637Z"
 }

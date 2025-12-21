@@ -190,10 +190,12 @@ class TestGenerateUpdate:
     @pytest.mark.unit
     def test_fallback_on_api_error(self):
         """Should return fallback values on API error."""
-        with patch("narrator.init_model") as mock_init:
-            mock_init.side_effect = Exception("API Error")
+        mock_client = MagicMock()
+        mock_client.models.generate_content.side_effect = Exception("API Error")
+        with patch("narrator._get_client", return_value=mock_client):
             with patch("narrator.weather_service.get_current_weather", return_value={}):
-                subject, headline, body, data = narrator.generate_update({})
+                with patch("narrator.coast_sky_service.get_coast_sky_summary", return_value={}):
+                    subject, headline, body, data = narrator.generate_update({})
         
         assert subject == "Greenhouse Update"
         assert headline == "Greenhouse Update"
