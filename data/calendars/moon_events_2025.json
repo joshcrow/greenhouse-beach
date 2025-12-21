@@ -1,0 +1,74 @@
+{
+  "2025-01-13": {
+    "full_moon_name": "Wolf Moon",
+    "is_blue_moon": false,
+    "is_supermoon": false,
+    "notes": "First full moon of the year"
+  },
+  "2025-02-12": {
+    "full_moon_name": "Snow Moon",
+    "is_blue_moon": false,
+    "is_supermoon": false,
+    "notes": ""
+  },
+  "2025-03-14": {
+    "full_moon_name": "Worm Moon",
+    "is_blue_moon": false,
+    "is_supermoon": false,
+    "notes": "Near spring equinox"
+  },
+  "2025-04-13": {
+    "full_moon_name": "Pink Moon",
+    "is_blue_moon": false,
+    "is_supermoon": false,
+    "notes": ""
+  },
+  "2025-05-12": {
+    "full_moon_name": "Flower Moon",
+    "is_blue_moon": false,
+    "is_supermoon": true,
+    "notes": "First supermoon of 2025"
+  },
+  "2025-06-11": {
+    "full_moon_name": "Strawberry Moon",
+    "is_blue_moon": false,
+    "is_supermoon": true,
+    "notes": "Supermoon"
+  },
+  "2025-07-10": {
+    "full_moon_name": "Buck Moon",
+    "is_blue_moon": false,
+    "is_supermoon": true,
+    "notes": "Supermoon"
+  },
+  "2025-08-09": {
+    "full_moon_name": "Sturgeon Moon",
+    "is_blue_moon": false,
+    "is_supermoon": true,
+    "notes": "Supermoon; closest to Earth in 2025"
+  },
+  "2025-09-07": {
+    "full_moon_name": "Harvest Moon",
+    "is_blue_moon": false,
+    "is_supermoon": true,
+    "notes": "Full moon closest to autumn equinox; supermoon"
+  },
+  "2025-10-06": {
+    "full_moon_name": "Hunter's Moon",
+    "is_blue_moon": false,
+    "is_supermoon": true,
+    "notes": "Last supermoon of 2025"
+  },
+  "2025-11-05": {
+    "full_moon_name": "Beaver Moon",
+    "is_blue_moon": false,
+    "is_supermoon": false,
+    "notes": ""
+  },
+  "2025-12-04": {
+    "full_moon_name": "Cold Moon",
+    "is_blue_moon": false,
+    "is_supermoon": false,
+    "notes": "Last full moon of the year"
+  }
+}

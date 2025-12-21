@@ -150,7 +150,7 @@ def build_email(sensor_data: Dict[str, Any]) -> Tuple[EmailMessage, Optional[str
     
     if weekly_mode:
         log("Weekly Edition: Including weekly summary and timelapse")
-        subject = f"📊 Weekly Edition: {subject}"
+        subject = f"Weekly Edition: {subject}"
         # Get weekly summary stats
         weekly_data = weekly_digest.load_weekly_stats()
         if weekly_data.get("days"):

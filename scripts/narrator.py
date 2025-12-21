@@ -1,10 +1,38 @@
 import os
+import re
 from datetime import datetime
 from typing import Any, Dict
 
 import google.generativeai as genai
 
+import coast_sky_service
 import weather_service
+
+
+def strip_emojis(text: str) -> str:
+    """Remove emojis from text while preserving other characters.
+    
+    Used to ensure subject/headline/body are emoji-free while
+    keeping emojis in data tables for good UX.
+    """
+    # Regex pattern covering common emoji Unicode ranges
+    emoji_pattern = re.compile(
+        "["
+        "\U0001F600-\U0001F64F"  # emoticons
+        "\U0001F300-\U0001F5FF"  # symbols & pictographs
+        "\U0001F680-\U0001F6FF"  # transport & map symbols
+        "\U0001F1E0-\U0001F1FF"  # flags
+        "\U00002702-\U000027B0"  # dingbats
+        "\U000024C2-\U0001F251"  # enclosed characters
+        "\U0001F900-\U0001F9FF"  # supplemental symbols
+        "\U0001FA00-\U0001FA6F"  # chess symbols
+        "\U0001FA70-\U0001FAFF"  # symbols extended-A
+        "\U00002600-\U000026FF"  # misc symbols (sun, moon, etc)
+        "\U0000FE0F"             # variation selector
+        "]+",
+        flags=re.UNICODE
+    )
+    return emoji_pattern.sub("", text).strip()
 
 
 def log(message: str) -> None:
@@ -88,7 +116,8 @@ def build_prompt(sanitized_data: Dict[str, Any]) -> str:
     """Construct the narrative prompt enforcing persona and safety constraints."""
 
     lines = [
-        "You are a greenhouse newsletter narrator. Your style is scientific yet witty.",
+        "You are The Greenhouse Gazette: a witty, scientific, optimistic greenhouse newsletter narrator.",
+        "Location: Outer Banks, NC (coastal).",
         "",
         "RULES:",
         "- Do NOT list every sensor reading. The email already has data tables.",
@@ -106,20 +135,32 @@ def build_prompt(sanitized_data: Dict[str, Any]) -> str:
         "- Do not use emojis.",
         "- Focus on actionable insights: Should they vent? Water? Protect from cold? Charge a sensor?",
         "",
-        "DATA (for context only, do not recite these numbers):",
+        "COAST & SKY (IMPORTANT - NO HALLUCINATION):",
+        "- You may include 1-2 sentences about Coast & Sky ONLY if the DATA contains relevant fields.",
+        "- TIDES: Only mention if tide_summary is present. Use the provided times/heights (in feet).",
+        "  If is_king_tide_window is true, briefly explain higher-than-usual tides.",
+        "- METEOR SHOWERS: Only mention if sky_summary is present with meteor_shower_name.",
+        "  If is_peak_window is true, note it. Consider clouds_pct and precip_prob for visibility.",
+        "  If clouds_pct > 70 or precip_prob > 50, note viewing may be limited.",
+        "- MOON EVENTS: Only mention if moon_event_summary is present with full_moon_name.",
+        "  Supermoons or blue moons are worth a brief mention.",
+        "- If none of these keys are present, do NOT mention tides, meteors, or named moon events.",
+        "",
+        "DATA (for context only, do not recite raw numbers):",
         str(sanitized_data),
         "",
         "OUTPUT FORMAT (follow exactly):",
         "",
-        "SUBJECT: <Urgency-based subject line, 5-8 words. PLAIN TEXT ONLY - no bold, no markdown, no HTML tags.",
+        "SUBJECT: <Urgency-based subject line, 5-8 words. PLAIN TEXT ONLY - no bold, no markdown, no HTML tags, no emojis.",
         "         If a sensor battery is critical, include it in subject.",
         "         Examples: 'High Wind Alert - 34mph Gusts Today'",
         "                   'Satellite Battery Critical - Charge Now'",
         "                   'Perfect Growing Conditions Today'>",
         "",
-        "HEADLINE: <Conversational summary, 8-12 words>",
+        "HEADLINE: <Conversational summary, 8-12 words. No emojis.>",
         "",
-        "BODY: <Two short paragraphs. First: current conditions and feel. Second: what to expect or do.>",
+        "BODY: <Two short paragraphs. First: current conditions and feel. Second: what to expect or do.",
+        "       If Coast & Sky data is present and notable, add a brief third sentence or short paragraph.>",
     ]
 
     return "\n".join(lines)
@@ -153,6 +194,15 @@ def generate_update(sensor_data: Dict[str, Any]) -> tuple[str, str, str, Dict[st
             log(f"Augmented sensor data with external weather: {weather}")
     except Exception as exc:  # noqa: BLE001
         log(f"Error while fetching external weather: {exc}")
+
+    # Optionally augment with coast & sky data (tides, meteor showers, moon events)
+    try:
+        coast_sky = coast_sky_service.get_coast_sky_summary()
+        if coast_sky:
+            sensor_data = {**sensor_data, **coast_sky}
+            log(f"Augmented sensor data with coast & sky: {list(coast_sky.keys())}")
+    except Exception as exc:  # noqa: BLE001
+        log(f"Error while fetching coast & sky data: {exc}")
 
     sanitized = sanitize_data(sensor_data)
 
@@ -249,6 +299,11 @@ def generate_update(sensor_data: Dict[str, Any]) -> tuple[str, str, str, Dict[st
             log(f"Error parsing narrative response: {e}")
             # On any parsing error, fall back to the raw model text
             body = raw_text  # type: ignore[assignment]
+
+    # Strip any emojis from AI-generated text (keep emojis only in data tables)
+    subject = strip_emojis(subject)
+    headline = strip_emojis(headline)
+    body = strip_emojis(body)
 
     return subject, headline, body, sensor_data
 

@@ -1,0 +1,83 @@
+{
+  "2026-01-03": {
+    "full_moon_name": "Wolf Moon",
+    "is_blue_moon": false,
+    "is_supermoon": true,
+    "notes": "First full moon and first supermoon of the year"
+  },
+  "2026-02-01": {
+    "full_moon_name": "Snow Moon",
+    "is_blue_moon": false,
+    "is_supermoon": false,
+    "notes": ""
+  },
+  "2026-03-03": {
+    "full_moon_name": "Worm Moon",
+    "is_blue_moon": false,
+    "is_supermoon": false,
+    "notes": "Total lunar eclipse (Blood Moon) visible from Americas, Australia, Asia"
+  },
+  "2026-04-02": {
+    "full_moon_name": "Pink Moon",
+    "is_blue_moon": false,
+    "is_supermoon": false,
+    "notes": "Paschal Moon; Easter is April 5"
+  },
+  "2026-05-01": {
+    "full_moon_name": "Flower Moon",
+    "is_blue_moon": false,
+    "is_supermoon": false,
+    "is_micromoon": true,
+    "notes": "First micromoon of 2026"
+  },
+  "2026-05-31": {
+    "full_moon_name": "Blue Moon",
+    "is_blue_moon": true,
+    "is_supermoon": false,
+    "is_micromoon": true,
+    "notes": "Second full moon of May; smallest micromoon of the year"
+  },
+  "2026-06-29": {
+    "full_moon_name": "Strawberry Moon",
+    "is_blue_moon": false,
+    "is_supermoon": false,
+    "is_micromoon": true,
+    "notes": "Last micromoon of 2026; closest to summer solstice"
+  },
+  "2026-07-29": {
+    "full_moon_name": "Buck Moon",
+    "is_blue_moon": false,
+    "is_supermoon": false,
+    "notes": ""
+  },
+  "2026-08-28": {
+    "full_moon_name": "Sturgeon Moon",
+    "is_blue_moon": false,
+    "is_supermoon": false,
+    "notes": "Partial lunar eclipse (96% coverage)"
+  },
+  "2026-09-26": {
+    "full_moon_name": "Harvest Moon",
+    "is_blue_moon": false,
+    "is_supermoon": false,
+    "notes": "Full moon closest to autumn equinox"
+  },
+  "2026-10-26": {
+    "full_moon_name": "Hunter's Moon",
+    "is_blue_moon": false,
+    "is_supermoon": false,
+    "notes": ""
+  },
+  "2026-11-24": {
+    "full_moon_name": "Beaver Moon",
+    "is_blue_moon": false,
+    "is_supermoon": true,
+    "notes": "Supermoon near Pleiades star cluster"
+  },
+  "2026-12-24": {
+    "full_moon_name": "Cold Moon",
+    "is_blue_moon": false,
+    "is_supermoon": true,
+    "notes": "Biggest supermoon of 2026; Christmas Eve"
+  }
+}

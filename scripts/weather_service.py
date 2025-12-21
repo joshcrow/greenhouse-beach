@@ -114,6 +114,12 @@ def get_current_weather() -> Dict[str, Any]:
             result["condition"] = str(condition)
         if "humidity" in current:
             result["humidity_out"] = round(float(current["humidity"]))
+        
+        # Cloud cover and pressure (for visibility gating and storm context)
+        if "clouds" in current:
+            result["clouds_pct"] = round(float(current["clouds"]))
+        if "pressure" in current:
+            result["pressure_hpa"] = round(float(current["pressure"]))
 
         # Wind (round to integers)
         if "wind_speed" in current:
@@ -153,6 +159,10 @@ def get_current_weather() -> Dict[str, Any]:
                 result["daily_wind_deg"] = float(first["wind_deg"])
                 result["daily_wind_direction"] = _wind_direction(result["daily_wind_deg"])
                 result["daily_wind_arrow"] = _wind_arrow(result["daily_wind_deg"])
+            
+            # Precipitation probability (for meteor shower visibility gating)
+            if "pop" in first:
+                result["precip_prob"] = round(float(first["pop"]) * 100)  # Convert 0-1 to 0-100%
         
         # Tomorrow's forecast (lookahead for narrative, round to integers)
         if len(daily_list) > 1:
