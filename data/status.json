@@ -6,7 +6,7 @@
     "interior_humidity": "2025-12-21T20:32:29.628607Z",
     "interior_pressure": "2025-12-21T20:32:30.661055Z",
     "interior_temp": "2025-12-21T20:37:38.830332Z",
-    "satellite-2_battery": "2025-12-21T20:32:37.787437Z",
+    "satellite-2_battery": "2025-12-21T20:42:07.626727Z",
     "satellite-2_humidity": "2025-12-21T20:32:35.750997Z",
     "satellite-2_pressure": "2025-12-21T20:32:36.766816Z",
     "satellite-2_temperature": "2025-12-21T20:32:34.737134Z"
@@ -23,5 +23,5 @@
     "satellite-2_pressure": 14.84359240601,
     "satellite-2_temperature": 51.2479061126709
   },
-  "updated_at": "2025-12-21T20:37:38.830332Z"
+  "updated_at": "2025-12-21T20:42:07.626727Z"
 }

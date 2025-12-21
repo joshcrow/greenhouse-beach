@@ -393,8 +393,8 @@ def build_email(sensor_data: Dict[str, Any]) -> Tuple[EmailMessage, Optional[str
     body_text_escaped = body_text_escaped.replace('&lt;b&gt;', '<b>').replace('&lt;/b&gt;', '</b>')
     body_text_escaped = body_text_escaped.replace('&lt;i&gt;', '<i>').replace('&lt;/i&gt;', '</i>')
 
-    # Convert paragraph breaks (double newlines) to HTML breaks (single for tighter spacing)
-    body_text_escaped = body_text_escaped.replace('\n\n', '<br>')
+    # Convert paragraph breaks (double newlines) to HTML with spacing for readability
+    body_text_escaped = body_text_escaped.replace('\n\n', '<br><br>')
 
     # Build hero image section if available
     hero_section = ""
