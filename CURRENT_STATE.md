@@ -1,7 +1,7 @@
 # Project Chlorophyll: Current System State
 
 **Status:** ✅ Operational (via Tailscale) — Production-Hardened  
-**Last Updated:** Dec 21, 2025 @ 5:00 PM EST  
+**Last Updated:** Dec 21, 2025 @ 5:45 PM EST  
 **Next Milestone:** On-site deployment at Mom's house
 
 ---
@@ -39,22 +39,23 @@ docker compose up -d --force-recreate storyteller
 | **Hostname** | `greenhouse-storyteller` |
 | **Location** | Josh's home network (192.168.1.151) |
 | **Tailscale IP** | `100.94.172.114` |
-| **Storage** | SD Card (NVMe migration pending) |
+| **Storage** | NVMe (1TB) ✅ |
 | **Docker** | 2 containers running |
 
 ### Docker Services
 | Container | Status | Purpose |
 |-----------|--------|---------|
-| `greenhouse-beach-mosquitto-1` | ✅ Running | MQTT broker (port 1883) |
-| `greenhouse-beach-storyteller-1` | ✅ Running | 4 Python processes |
+| `greenhouse-mosquitto` | ✅ Running | MQTT broker (port 1883) |
+| `greenhouse-storyteller` | ✅ Running | 5 Python processes + web server |
 
 ### Storyteller Processes
 | Process | Topic/Schedule | Status |
 |---------|----------------|--------|
 | `ingestion.py` | `greenhouse/+/image` | ✅ Receiving camera images |
 | `curator.py` | Archive queue | ✅ Processing to `data/archive/` |
-| `scheduler.py` | 07:00 EST daily | ✅ Triggering Daily Dispatch |
+| `scheduler.py` | 07:00 daily, monthly/yearly timelapses | ✅ Running |
 | `status_daemon.py` | `greenhouse/+/sensor/+/state` | ✅ Writing `status.json` |
+| `web_server.py` | Port 8080 | ✅ Serving timelapses |
 
 ---
 
@@ -70,7 +71,7 @@ docker compose up -d --force-recreate storyteller
 ### Services Running
 | Service | Interval | Status |
 |---------|----------|--------|
-| `camera-mqtt-bridge` | 60 min | ✅ Publishing to Storyteller |
+| `camera-mqtt-bridge` | 30 min | ✅ Publishing to Storyteller |
 | `sensor-mqtt-bridge` | 5 min | ✅ Publishing HA sensors |
 | Home Assistant | Always | ✅ Camera streaming |
 
@@ -123,7 +124,11 @@ docker compose up -d --force-recreate storyteller
 - [x] **Hero image** - Latest archived image embedded in email
 - [x] **7AM scheduler** - Running and ready for tomorrow
 - [x] **Weekly Edition** - Sunday daily email includes weekly summary + timelapse GIF
-- [x] **Timelapse generation** - Animated GIF from week's archived images
+- [x] **Daily timelapse** - 60-frame GIF of yesterday's daylight images in every email
+- [x] **Weekly timelapse** - 100-frame GIF in Sunday edition
+- [x] **Monthly timelapse** - 500-frame MP4 generated on 1st of month, email notification
+- [x] **Yearly timelapse** - 4000-frame MP4 generated Jan 1st, email notification
+- [x] **Timelapse web server** - http://100.94.172.114:8080/timelapses/
 - [x] **Golden hour capture** - Seasonal timing for optimal photos (Dec: 3:45 PM)
 - [x] **Coast & Sky integration** - NOAA tides (Jennette's Pier), meteor showers, named moon events
 - [x] **Emoji policy** - No emojis in AI-generated subject/headline/body; kept in data tables
@@ -165,7 +170,7 @@ docker compose up -d --force-recreate storyteller
 ### Future
 - [ ] Fix sensor #1 hardware
 - [ ] Add more microclimate sensors
-- [x] NVMe migration (will dramatically speed up Docker builds) ✅
+- [x] **NVMe migration** - 1TB NVMe installed ✅
 - [ ] Web dashboard
 
 ---
@@ -186,7 +191,8 @@ docker compose --profile dev up          # Dev mode (hot-reload)
 docker pull jcrow333/greenhouse-storyteller:latest  # Pull latest image
 
 # === Manual Actions ===
-docker exec greenhouse-storyteller python scripts/publisher.py  # Test email
+docker exec greenhouse-storyteller python scripts/publisher.py --test  # Test email (you only)
+docker exec greenhouse-storyteller python scripts/publisher.py         # Full email (all recipients)
 cat data/status.json | jq                # Check sensor data
 
 # === SSH to Greenhouse Pi ===
