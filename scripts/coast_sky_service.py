@@ -22,8 +22,8 @@ NOAA_STATION_ID = os.getenv("NOAA_TIDE_STATION", "8652226")
 NOAA_STATION_NAME = "Jennette's Pier, NC"
 NOAA_BASE_URL = "https://api.tidesandcurrents.noaa.gov/api/prod/datagetter"
 
-# Cache configuration
-CACHE_PATH = os.getenv("COAST_SKY_CACHE_PATH", "/tmp/coast_sky_cache.json")
+# Cache configuration - persist to mounted volume (survives container restarts)
+CACHE_PATH = os.getenv("COAST_SKY_CACHE_PATH", "/app/data/coast_sky_cache.json")
 CACHE_TTL_HOURS = int(os.getenv("COAST_SKY_CACHE_TTL_HOURS", "6"))
 
 # Calendar paths
@@ -167,29 +167,72 @@ def _fetch_noaa_tides(date_local: datetime) -> Dict[str, Any]:
 
 
 def _load_meteor_calendar() -> List[Dict[str, Any]]:
-    """Load meteor shower calendar from static JSON file."""
+    """Load meteor shower calendar from static JSON file.
+    
+    M2: Validates required fields are present in each entry.
+    """
     path = os.path.join(CALENDARS_DIR, "meteor_showers.json")
     if not os.path.exists(path):
         log(f"Meteor calendar not found at {path}")
         return []
     try:
         with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception as exc:
+            data = json.load(f)
+        
+        # M2: Validate structure - must be a list
+        if not isinstance(data, list):
+            log(f"Meteor calendar invalid format: expected list, got {type(data).__name__}")
+            return []
+        
+        # Filter out entries missing required fields
+        required_fields = {"name", "active_start", "active_end", "peak_start", "peak_end"}
+        valid_entries = []
+        for entry in data:
+            if isinstance(entry, dict) and required_fields.issubset(entry.keys()):
+                valid_entries.append(entry)
+            else:
+                log(f"Skipping invalid meteor entry: {entry.get('name', 'unknown')}")
+        
+        return valid_entries
+    except json.JSONDecodeError as exc:
+        log(f"Meteor calendar JSON parse error: {exc}")
+        return []
+    except OSError as exc:
         log(f"Meteor calendar load error: {exc}")
         return []
 
 
 def _load_moon_events(year: int) -> Dict[str, Dict[str, Any]]:
-    """Load named moon events for a given year from static JSON file."""
+    """Load named moon events for a given year from static JSON file.
+    
+    M2: Validates structure and required fields.
+    """
     path = os.path.join(CALENDARS_DIR, f"moon_events_{year}.json")
     if not os.path.exists(path):
         log(f"Moon events calendar not found at {path}")
         return {}
     try:
         with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception as exc:
+            data = json.load(f)
+        
+        # M2: Validate structure - must be a dict with date keys
+        if not isinstance(data, dict):
+            log(f"Moon events invalid format: expected dict, got {type(data).__name__}")
+            return {}
+        
+        # Validate each entry has at least full_moon_name
+        valid_entries = {}
+        for date_key, event in data.items():
+            if isinstance(event, dict) and "full_moon_name" in event:
+                valid_entries[date_key] = event
+            else:
+                log(f"Skipping invalid moon event for {date_key}")
+        
+        return valid_entries
+    except json.JSONDecodeError as exc:
+        log(f"Moon events JSON parse error: {exc}")
+        return {}
+    except OSError as exc:
         log(f"Moon events calendar load error: {exc}")
         return {}
 

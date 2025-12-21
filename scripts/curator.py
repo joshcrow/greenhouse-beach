@@ -9,6 +9,11 @@ import cv2
 INCOMING_DIR = "/app/data/incoming"
 ARCHIVE_ROOT = "/app/data/archive"
 
+# L2: Image quality thresholds (brightness 0-255 scale)
+BRIGHTNESS_MIN_NIGHT = 10.0      # Below this = night image, archive separately
+BRIGHTNESS_MIN_DIM = 30.0       # Below this = dim but valid, log warning
+BRIGHTNESS_MAX_OVEREXPOSED = 250.0  # Above this = overexposed, reject
+
 
 def log(message: str) -> None:
     """Simple timestamped logger (same format as ingestion)."""
@@ -69,9 +74,8 @@ def process_file(path: str) -> None:
         mean_brightness = float(gray.mean())
 
         # Threshold check - widened to preserve dawn/dusk golden hour photos
-        # 10 = nearly pitch black (keep for forensic/security value)
-        # 250 = severely overexposed
-        if mean_brightness < 10.0:
+        # L2: Using named constants instead of magic numbers
+        if mean_brightness < BRIGHTNESS_MIN_NIGHT:
             now = datetime.utcnow()
             year = now.strftime("%Y")
             month = now.strftime("%m")
@@ -84,13 +88,13 @@ def process_file(path: str) -> None:
             log(f"Archived night image '{path}' -> '{dest}' (mean luminance {mean_brightness:.2f}).")
             return
 
-        if mean_brightness > 250.0:
+        if mean_brightness > BRIGHTNESS_MAX_OVEREXPOSED:
             log(f"Rejected: Luminance {mean_brightness:.2f} too high (overexposed) for '{path}', deleting.")
             os.remove(path)
             return
         
         # Log warning for dim images but still archive them
-        if mean_brightness < 30.0:
+        if mean_brightness < BRIGHTNESS_MIN_DIM:
             log(f"Note: Low-light image '{path}' (luminance {mean_brightness:.2f}) - archiving anyway.")
 
         # Passed luminance gates -> archive

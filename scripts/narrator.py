@@ -46,12 +46,19 @@ _client: genai.Client | None = None
 
 
 def _get_client() -> genai.Client:
-    """Get or create the Gemini client using GEMINI_API_KEY from the environment."""
+    """Get or create the Gemini client using GEMINI_API_KEY from the environment.
+    
+    Raises:
+        ValueError: If GEMINI_API_KEY is not set (fail-fast).
+    """
     global _client
     if _client is None:
         api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
-            log("WARNING: GEMINI_API_KEY is not set; generation calls will fail.")
+            raise ValueError(
+                "GEMINI_API_KEY environment variable is not set. "
+                "Cannot initialize Gemini client."
+            )
         _client = genai.Client(api_key=api_key)
     return _client
 

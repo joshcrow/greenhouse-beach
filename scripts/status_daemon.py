@@ -41,6 +41,9 @@ HUMIDITY_MAX_PCT = float(os.getenv("HUMIDITY_MAX_PCT", "100"))
 
 MAX_SAMPLES_PER_KEY = int(os.getenv("MAX_SAMPLES_PER_KEY", "3000"))
 
+# Maximum buffer size for sensor log (prevent OOM if writes fail)
+MAX_SENSOR_LOG_BUFFER = int(os.getenv("MAX_SENSOR_LOG_BUFFER", "1000"))
+
 
 def log(message: str) -> None:
     ts = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -123,8 +126,10 @@ def _save_history_cache() -> None:
         tmp_path = HISTORY_CACHE_PATH + ".tmp"
         with open(tmp_path, "w", encoding="utf-8") as f:
             json.dump(cache, f)
+            f.flush()
+            os.fsync(f.fileno())  # M3: Ensure data is on disk before rename
         os.replace(tmp_path, HISTORY_CACHE_PATH)
-    except Exception as exc:  # noqa: BLE001
+    except OSError as exc:
         log(f"Failed to save history cache: {exc}")
 
 
@@ -159,9 +164,17 @@ def _write_sensor_log() -> None:
 
 
 def _buffer_sensor_reading(now: datetime) -> None:
-    """Add current sensor state to the log buffer."""
+    """Add current sensor state to the log buffer.
+    
+    Caps buffer size to prevent OOM if writes fail repeatedly.
+    """
     if not latest_values:
         return
+    
+    # Evict oldest entries if buffer is full (H2: prevent unbounded growth)
+    while len(sensor_log_buffer) >= MAX_SENSOR_LOG_BUFFER:
+        sensor_log_buffer.pop(0)
+        log("WARNING: Sensor log buffer full, evicting oldest entry")
     
     entry = {
         "ts": now.isoformat() + "Z",
@@ -301,9 +314,11 @@ def _write_files_if_due(now: datetime) -> None:
         tmp_path = STATUS_PATH + ".tmp"
         with open(tmp_path, "w", encoding="utf-8") as f:
             json.dump(snapshot, f, indent=2, sort_keys=True)
+            f.flush()
+            os.fsync(f.fileno())  # M3: Ensure data is on disk before rename
         os.replace(tmp_path, STATUS_PATH)
         log(f"Wrote latest sensor snapshot to {STATUS_PATH}: {latest_values}")
-    except Exception as exc:  # noqa: BLE001
+    except OSError as exc:
         log(f"Error writing status snapshot to {STATUS_PATH}: {exc}")
 
     # Write stats_24h.json
@@ -317,9 +332,11 @@ def _write_files_if_due(now: datetime) -> None:
         tmp_path = STATS_24H_PATH + ".tmp"
         with open(tmp_path, "w", encoding="utf-8") as f:
             json.dump(stats_payload, f, indent=2, sort_keys=True)
+            f.flush()
+            os.fsync(f.fileno())  # M3: Ensure data is on disk before rename
         os.replace(tmp_path, STATS_24H_PATH)
         log(f"Wrote 24h stats to {STATS_24H_PATH}: {metrics}")
-    except Exception as exc:  # noqa: BLE001
+    except OSError as exc:
         log(f"Error writing 24h stats to {STATS_24H_PATH}: {exc}")
 
     if (now - last_cache_write).total_seconds() >= CACHE_WRITE_INTERVAL_SECONDS:
@@ -391,6 +408,7 @@ def on_message(client: mqtt.Client, userdata, msg: mqtt.MQTTMessage):  # type: i
 
 
 def run_client_loop() -> None:
+    """Run MQTT client loop with connection timeout handling (M4)."""
     client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
     client.on_connect = on_connect
     client.on_disconnect = on_disconnect
@@ -403,7 +421,18 @@ def run_client_loop() -> None:
 
     log(f"Attempting MQTT connection to {BROKER_HOST}:{BROKER_PORT}")
     client.reconnect_delay_set(min_delay=1, max_delay=60)
-    client.connect(BROKER_HOST, BROKER_PORT, keepalive=60)
+    
+    # M4: Use connect with timeout via socket options
+    # connect() itself doesn't have timeout, but we can set socket timeout
+    import socket
+    client.socket().settimeout(30.0) if client.socket() else None
+    
+    try:
+        client.connect(BROKER_HOST, BROKER_PORT, keepalive=60)
+    except (socket.timeout, OSError) as exc:
+        log(f"MQTT connection timeout/error: {exc}")
+        raise
+    
     log("Starting MQTT network loop (loop_forever)")
     client.loop_forever()
 

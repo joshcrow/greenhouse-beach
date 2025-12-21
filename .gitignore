@@ -22,6 +22,7 @@ data/status.json
 data/stats_24h.json
 data/stats_weekly.json
 data/history_cache.json
+data/coast_sky_cache.json
 
 # Long-term sensor logs (can get large)
 data/sensor_log/

@@ -57,9 +57,13 @@ def fetch_ha_states(ha_url: str, ha_token: str) -> Optional[List[Dict[str, Any]]
 
 def publish_to_mqtt(broker_host: str, broker_port: int, topic: str, value: str,
                     username: str = None, password: str = None) -> bool:
-    """Publish a single value to MQTT."""
+    """Publish a single value to MQTT.
+    
+    Uses try/finally to ensure client cleanup on any exception (H5: prevent resource leak).
+    """
+    import paho.mqtt.client as mqtt
+    client = None
     try:
-        import paho.mqtt.client as mqtt
         client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
         if username and password:
             client.username_pw_set(username, password)
@@ -67,12 +71,17 @@ def publish_to_mqtt(broker_host: str, broker_port: int, topic: str, value: str,
         client.loop_start()
         result = client.publish(topic, value, qos=1, retain=True)
         result.wait_for_publish(timeout=5)
-        client.loop_stop()
-        client.disconnect()
         return result.is_published()
     except Exception as e:
         log(f'MQTT error for {topic}: {e}')
         return False
+    finally:
+        if client is not None:
+            try:
+                client.loop_stop()
+                client.disconnect()
+            except Exception:
+                pass  # Ignore cleanup errors
 
 
 def bridge_sensors(config: Dict[str, Any]) -> int:

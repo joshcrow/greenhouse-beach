@@ -101,10 +101,13 @@ def build_email(sensor_data: Dict[str, Any]) -> Tuple[EmailMessage, Optional[str
     """Construct the email message and return it along with the image path (if any)."""
 
     # Convert satellite temperature from Celsius to Fahrenheit BEFORE narrator
-    # so AI generates correct narrative (handle both old and new key formats)
+    # M1: Improved heuristic - satellite sensors from ESPHome always report Celsius
+    # We check for reasonable Celsius range (-40 to 60°C) rather than arbitrary < 50
+    CELSIUS_MIN, CELSIUS_MAX = -40, 60  # Reasonable sensor range in Celsius
     for key in ["satellite-2_temperature", "satellite-2_satellite_2_temperature", "satellite_2_temperature"]:
         sat_temp_c = sensor_data.get(key)
-        if sat_temp_c is not None and sat_temp_c < 50:  # Likely Celsius if under 50
+        if sat_temp_c is not None and CELSIUS_MIN <= sat_temp_c <= CELSIUS_MAX:
+            # ESPHome BME280 always reports Celsius; convert to Fahrenheit
             sensor_data[key] = round(sat_temp_c * 9/5 + 32)
     
     # Round all sensor values to integers for cleaner AI narrative and display
