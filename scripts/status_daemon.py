@@ -17,10 +17,23 @@ TOPIC_FILTER = "greenhouse/+/sensor/+/state"
 
 STATUS_PATH = os.getenv("STATUS_PATH", "/app/data/status.json")
 STATS_24H_PATH = os.getenv("STATS_24H_PATH", "/app/data/stats_24h.json")
-HISTORY_CACHE_PATH = os.getenv("HISTORY_CACHE_PATH", "/app/data/history_cache.json")
+HISTORY_CACHE_PATH = os.getenv("HISTORY_CACHE_PATH", "/tmp/greenhouse_history_cache.json")
 
 # Minimum interval between disk writes (seconds)
 WRITE_INTERVAL_SECONDS = int(os.getenv("STATUS_WRITE_INTERVAL", "60"))
+
+CACHE_WRITE_INTERVAL_SECONDS = int(os.getenv("HISTORY_WRITE_INTERVAL", "300"))
+
+SPIKE_WINDOW_SECONDS = int(os.getenv("SENSOR_SPIKE_WINDOW_SECONDS", "600"))
+TEMP_SPIKE_F = float(os.getenv("TEMP_SPIKE_F", "20"))
+HUMIDITY_SPIKE_PCT = float(os.getenv("HUMIDITY_SPIKE_PCT", "30"))
+
+TEMP_MIN_F = float(os.getenv("TEMP_MIN_F", "-10"))
+TEMP_MAX_F = float(os.getenv("TEMP_MAX_F", "130"))
+HUMIDITY_MIN_PCT = float(os.getenv("HUMIDITY_MIN_PCT", "0"))
+HUMIDITY_MAX_PCT = float(os.getenv("HUMIDITY_MAX_PCT", "100"))
+
+MAX_SAMPLES_PER_KEY = int(os.getenv("MAX_SAMPLES_PER_KEY", "3000"))
 
 
 def log(message: str) -> None:
@@ -32,6 +45,9 @@ def log(message: str) -> None:
 latest_values: Dict[str, Any] = {}
 history: Dict[str, List[Tuple[datetime, float]]] = defaultdict(list)
 last_write: datetime = datetime.min
+last_cache_write: datetime = datetime.min
+last_seen: Dict[str, datetime] = {}
+last_numeric_value: Dict[str, float] = {}
 
 
 def _load_history_cache() -> None:
@@ -48,6 +64,14 @@ def _load_history_cache() -> None:
         # Restore latest values
         if "latest_values" in cache:
             latest_values.update(cache["latest_values"])
+
+        if "last_seen" in cache and isinstance(cache["last_seen"], dict):
+            for key, ts_str in cache["last_seen"].items():
+                try:
+                    ts = datetime.fromisoformat(str(ts_str).replace("Z", "+00:00")).replace(tzinfo=None)
+                    last_seen[key] = ts
+                except Exception:
+                    continue
         
         # Restore history (convert ISO strings back to datetime)
         if "history" in cache:
@@ -80,13 +104,16 @@ def _save_history_cache() -> None:
         
         cache = {
             "latest_values": latest_values,
+            "last_seen": {k: (v.isoformat() + "Z") for k, v in last_seen.items()},
             "history": history_serializable,
             "saved_at": datetime.utcnow().isoformat() + "Z",
         }
         
         os.makedirs(os.path.dirname(HISTORY_CACHE_PATH), exist_ok=True)
-        with open(HISTORY_CACHE_PATH, "w", encoding="utf-8") as f:
+        tmp_path = HISTORY_CACHE_PATH + ".tmp"
+        with open(tmp_path, "w", encoding="utf-8") as f:
             json.dump(cache, f)
+        os.replace(tmp_path, HISTORY_CACHE_PATH)
     except Exception as exc:  # noqa: BLE001
         log(f"Failed to save history cache: {exc}")
 
@@ -113,6 +140,54 @@ def _key_from_topic(topic: str) -> str | None:
         sensor_key = parts[-2]  # e.g., 'temp', 'humidity'
         return f"{device_id}_{sensor_key}"
     return None
+
+
+def _parts_from_topic(topic: str) -> Tuple[str, str] | None:
+    parts = topic.split("/")
+    if len(parts) >= 5 and parts[-1] == "state":
+        return parts[1], parts[-2]
+    return None
+
+
+def _is_temp_sensor(sensor_key: str) -> bool:
+    k = sensor_key.lower()
+    return "temp" in k
+
+
+def _is_humidity_sensor(sensor_key: str) -> bool:
+    k = sensor_key.lower()
+    return "humidity" in k
+
+
+def _temp_to_f(device_id: str, value: float) -> float:
+    if device_id.startswith("satellite"):
+        return value * 9.0 / 5.0 + 32.0
+    return value
+
+
+def _validate_numeric(device_id: str, sensor_key: str, value: float) -> Tuple[bool, float]:
+    if _is_temp_sensor(sensor_key):
+        v_f = _temp_to_f(device_id, value)
+        return (TEMP_MIN_F <= v_f <= TEMP_MAX_F), v_f
+    if _is_humidity_sensor(sensor_key):
+        return (HUMIDITY_MIN_PCT <= value <= HUMIDITY_MAX_PCT), value
+    return True, value
+
+
+def _is_spike(key: str, now: datetime, comparable_value: float, sensor_key: str) -> bool:
+    prev_ts = last_seen.get(key)
+    prev_val = last_numeric_value.get(key)
+    if prev_ts is None or prev_val is None:
+        return False
+    if (now - prev_ts).total_seconds() > SPIKE_WINDOW_SECONDS:
+        return False
+
+    delta = abs(comparable_value - prev_val)
+    if _is_temp_sensor(sensor_key):
+        return delta > TEMP_SPIKE_F
+    if _is_humidity_sensor(sensor_key):
+        return delta > HUMIDITY_SPIKE_PCT
+    return False
 
 
 def _prune_and_compute_stats(now: datetime) -> Dict[str, Any]:
@@ -142,8 +217,20 @@ def _prune_and_compute_stats(now: datetime) -> Dict[str, Any]:
     return metrics
 
 
+def _prune_key_history(now: datetime, key: str) -> None:
+    window_start = now - timedelta(hours=24)
+    samples = history.get(key)
+    if not samples:
+        return
+
+    while samples and samples[0][0] < window_start:
+        samples.pop(0)
+    if len(samples) > MAX_SAMPLES_PER_KEY:
+        history[key] = samples[-MAX_SAMPLES_PER_KEY:]
+
+
 def _write_files_if_due(now: datetime) -> None:
-    global last_write
+    global last_write, last_cache_write
 
     if (now - last_write).total_seconds() < WRITE_INTERVAL_SECONDS:
         return
@@ -151,12 +238,15 @@ def _write_files_if_due(now: datetime) -> None:
     # Write status.json
     snapshot = {
         "sensors": latest_values,
+        "last_seen": {k: (v.isoformat() + "Z") for k, v in last_seen.items()},
         "updated_at": now.isoformat() + "Z",
     }
     try:
         os.makedirs(os.path.dirname(STATUS_PATH), exist_ok=True)
-        with open(STATUS_PATH, "w", encoding="utf-8") as f:
+        tmp_path = STATUS_PATH + ".tmp"
+        with open(tmp_path, "w", encoding="utf-8") as f:
             json.dump(snapshot, f, indent=2, sort_keys=True)
+        os.replace(tmp_path, STATUS_PATH)
         log(f"Wrote latest sensor snapshot to {STATUS_PATH}: {latest_values}")
     except Exception as exc:  # noqa: BLE001
         log(f"Error writing status snapshot to {STATUS_PATH}: {exc}")
@@ -169,14 +259,17 @@ def _write_files_if_due(now: datetime) -> None:
         "metrics": metrics,
     }
     try:
-        with open(STATS_24H_PATH, "w", encoding="utf-8") as f:
+        tmp_path = STATS_24H_PATH + ".tmp"
+        with open(tmp_path, "w", encoding="utf-8") as f:
             json.dump(stats_payload, f, indent=2, sort_keys=True)
+        os.replace(tmp_path, STATS_24H_PATH)
         log(f"Wrote 24h stats to {STATS_24H_PATH}: {metrics}")
     except Exception as exc:  # noqa: BLE001
         log(f"Error writing 24h stats to {STATS_24H_PATH}: {exc}")
 
-    # Save history cache for crash recovery
-    _save_history_cache()
+    if (now - last_cache_write).total_seconds() >= CACHE_WRITE_INTERVAL_SECONDS:
+        _save_history_cache()
+        last_cache_write = now
 
     last_write = now
 
@@ -190,6 +283,10 @@ def on_connect(client: mqtt.Client, userdata, flags, rc, properties=None):  # ty
         log(f"MQTT connection failed with rc={rc}")
 
 
+def on_disconnect(client: mqtt.Client, userdata, rc, properties=None):  # type: ignore[override]
+    log(f"MQTT disconnected (rc={rc})")
+
+
 def on_message(client: mqtt.Client, userdata, msg: mqtt.MQTTMessage):  # type: ignore[override]
     global latest_values
 
@@ -199,14 +296,32 @@ def on_message(client: mqtt.Client, userdata, msg: mqtt.MQTTMessage):  # type: i
             log(f"Ignoring message on unexpected topic '{msg.topic}'")
             return
 
+        parts = _parts_from_topic(msg.topic)
+        if not parts:
+            log(f"Ignoring message on unexpected topic '{msg.topic}'")
+            return
+        device_id, sensor_key = parts
+
         value = _parse_payload(msg.payload)
         now = datetime.utcnow()
 
+        if isinstance(value, (int, float)):
+            ok, comparable = _validate_numeric(device_id, sensor_key, float(value))
+            if not ok:
+                log(f"Rejected out-of-range value for '{key}': {value}")
+                return
+            if _is_spike(key, now, comparable, sensor_key):
+                log(f"Rejected spike value for '{key}': {value}")
+                return
+
         latest_values[key] = value
+        last_seen[key] = now
 
         # Update history only for numeric values
         if isinstance(value, (int, float)):
             history[key].append((now, float(value)))
+            last_numeric_value[key] = comparable
+            _prune_key_history(now, key)
 
         log(f"Updated key '{key}' from topic '{msg.topic}' with value {value}")
 
@@ -218,6 +333,7 @@ def on_message(client: mqtt.Client, userdata, msg: mqtt.MQTTMessage):  # type: i
 def run_client_loop() -> None:
     client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
     client.on_connect = on_connect
+    client.on_disconnect = on_disconnect
     client.on_message = on_message
 
     # Set credentials if provided
@@ -226,6 +342,7 @@ def run_client_loop() -> None:
         log(f"Using MQTT authentication as user '{MQTT_USERNAME}'")
 
     log(f"Attempting MQTT connection to {BROKER_HOST}:{BROKER_PORT}")
+    client.reconnect_delay_set(min_delay=1, max_delay=60)
     client.connect(BROKER_HOST, BROKER_PORT, keepalive=60)
     log("Starting MQTT network loop (loop_forever)")
     client.loop_forever()

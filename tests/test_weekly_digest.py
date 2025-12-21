@@ -132,19 +132,3 @@ class TestComputeWeeklySummary:
         """Should return empty dict for no data."""
         result = weekly_digest.compute_weekly_summary({"days": []})
         assert result == {}
-
-
-class TestSendWeeklyDigest:
-    """Tests for send_weekly_digest() function."""
-
-    @pytest.mark.integration
-    @pytest.mark.skip(reason="Complex integration - requires full email pipeline setup")
-    def test_sends_email_on_success(self, tmp_path, monkeypatch, mock_smtp, mock_gemini):
-        """Should send email and clear stats on success."""
-        pass
-
-    @pytest.mark.integration
-    @pytest.mark.skip(reason="Complex integration - requires full email pipeline setup")
-    def test_preserves_stats_on_failure(self, tmp_path, monkeypatch):
-        """Should preserve stats if email fails."""
-        pass

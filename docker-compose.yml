@@ -32,6 +32,8 @@ services:
   # Storyteller Service (Production)
   # ---------------------------------------------------------------------------
   storyteller:
+    image: jcrow333/greenhouse-storyteller:latest
+    pull_policy: always
     build:
       context: .
       target: production

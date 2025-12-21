@@ -76,6 +76,8 @@ def sample_weather_data() -> Dict[str, Any]:
         "condition": "Clouds",
         "high_temp": 62,
         "low_temp": 48,
+        "sunrise": "7:12 AM",
+        "sunset": "4:56 PM",
         "wind_mph": 12,
         "wind_direction": "NE",
         "wind_arrow": "↗",

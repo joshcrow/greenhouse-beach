@@ -243,6 +243,9 @@ def build_email(sensor_data: Dict[str, Any]) -> Tuple[EmailMessage, Optional[str
     moon_phase = sensor_data.get("moon_phase")
     moon_icon = sensor_data.get("moon_icon") or ""
 
+    sunrise = sensor_data.get("sunrise")
+    sunset = sensor_data.get("sunset")
+
     # Satellite sensor vitals (support both old and new key formats)
     # New format: satellite-2_satellite_2_temperature, Old: satellite_2_temperature
     # NOTE: Temperature already converted to °F in build_email() lines 105-108
@@ -371,6 +374,11 @@ def build_email(sensor_data: Dict[str, Any]) -> Tuple[EmailMessage, Optional[str
         direction = wind_direction or "N/A"
         arrow = wind_arrow or ""
         return f"{arrow} {direction} {speed} mph"
+
+    def fmt_time(value):
+        if value is None:
+            return "N/A"
+        return str(value)
     
     def fmt_temp_range():
         """Format high/low temp range with color styling."""
@@ -680,6 +688,14 @@ def build_email(sensor_data: Dict[str, Any]) -> Tuple[EmailMessage, Optional[str
                                     <tr>
                                         <td class="dark-text-secondary dark-border" style="padding: 12px 0; border-bottom:1px solid #588157; color:#4b5563; vertical-align:middle; mso-line-height-rule: exactly;">High / Low</td>
                                         <td class="dark-text-primary dark-border" style="padding: 12px 0; border-bottom:1px solid #588157; color:#1e1e1e; text-align: right; vertical-align:middle; mso-line-height-rule: exactly;">{fmt_temp_range()}</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="dark-text-secondary dark-border" style="padding: 12px 0; border-bottom:1px solid #588157; color:#4b5563; vertical-align:middle; mso-line-height-rule: exactly;">Sunrise</td>
+                                        <td class="dark-text-primary dark-border" style="padding: 12px 0; border-bottom:1px solid #588157; color:#1e1e1e; text-align: right; vertical-align:middle; mso-line-height-rule: exactly;">{fmt_time(sunrise)}</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="dark-text-secondary dark-border" style="padding: 12px 0; border-bottom:1px solid #588157; color:#4b5563; vertical-align:middle; mso-line-height-rule: exactly;">Sunset</td>
+                                        <td class="dark-text-primary dark-border" style="padding: 12px 0; border-bottom:1px solid #588157; color:#1e1e1e; text-align: right; vertical-align:middle; mso-line-height-rule: exactly;">{fmt_time(sunset)}</td>
                                     </tr>
                                     <tr>
                                         <td class="dark-text-secondary dark-border" style="padding: 12px 0; border-bottom:1px solid #588157; color:#4b5563; vertical-align:middle; mso-line-height-rule: exactly;">Wind</td>

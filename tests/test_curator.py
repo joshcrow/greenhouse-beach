@@ -115,7 +115,7 @@ class TestProcessFile:
 
     @pytest.mark.unit
     def test_rejects_dark_image(self, tmp_path, monkeypatch):
-        """Should delete images that are too dark."""
+        """Should archive pitch-black images for forensic value."""
         import cv2
         img = np.full((100, 100, 3), 5, dtype=np.uint8)  # Very dark
         img_path = tmp_path / "dark.jpg"
@@ -127,10 +127,9 @@ class TestProcessFile:
 
         curator.process_file(str(img_path))
 
-        assert not img_path.exists()  # Should be deleted
-        # Should NOT be in archive
-        archived_files = list(archive_root.rglob("*.jpg"))
-        assert len(archived_files) == 0
+        assert not img_path.exists()  # Should be moved
+        archived_files = list((archive_root / "_night").rglob("*.jpg"))
+        assert len(archived_files) == 1
 
     @pytest.mark.unit
     def test_rejects_overexposed_image(self, tmp_path, monkeypatch):

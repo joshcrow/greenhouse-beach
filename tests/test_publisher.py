@@ -77,6 +77,39 @@ class TestIsWeeklyEdition:
         assert isinstance(result, bool)
 
 
+class TestEmailWeatherTable:
+    @pytest.mark.unit
+    def test_includes_sunrise_sunset_rows(self, sample_sensor_data):
+        augmented = dict(sample_sensor_data)
+        augmented["sunrise"] = "7:12 AM"
+        augmented["sunset"] = "4:56 PM"
+        augmented["condition"] = "Clouds"
+        augmented["high_temp"] = 62
+        augmented["low_temp"] = 48
+        augmented["daily_wind_mph"] = 12
+        augmented["daily_wind_direction"] = "NE"
+        augmented["daily_wind_arrow"] = "↗"
+        augmented["moon_phase"] = 0.5
+        augmented["moon_icon"] = "🌕"
+
+        with (
+            patch("publisher.narrator.generate_update", return_value=("S", "H", "B", augmented)),
+            patch("publisher.timelapse.create_daily_timelapse", return_value=None),
+            patch("publisher.timelapse.create_weekly_timelapse", return_value=None),
+            patch("publisher.find_latest_image", return_value=None),
+            patch("publisher.stats.get_24h_stats", return_value={}),
+        ):
+            msg, _weekly_mode = publisher.build_email(dict(sample_sensor_data))
+
+        html_part = next(p for p in msg.iter_parts() if p.get_content_subtype() == "html")
+        html_body = html_part.get_content()
+
+        assert "Sunrise" in html_body
+        assert "7:12 AM" in html_body
+        assert "Sunset" in html_body
+        assert "4:56 PM" in html_body
+
+
 class TestSendEmail:
     """Tests for send_email() function."""
 

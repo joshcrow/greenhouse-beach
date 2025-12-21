@@ -69,6 +69,31 @@ class TestKeyFromTopic:
             assert result is None, f"Topic '{topic}' should return None"
 
 
+class TestValidationAndSpikes:
+    @pytest.mark.unit
+    def test_validate_numeric_converts_satellite_temp_to_f(self):
+        ok, v = status_daemon._validate_numeric("satellite-2", "satellite_2_temperature", 21.0)
+        assert ok is True
+        assert round(v, 1) == 69.8
+
+    @pytest.mark.unit
+    def test_validate_numeric_rejects_out_of_range_temp(self):
+        ok, _ = status_daemon._validate_numeric("interior", "temp", 500.0)
+        assert ok is False
+
+    @pytest.mark.unit
+    def test_is_spike_detects_temp_spike(self):
+        now = datetime.utcnow()
+        key = "interior_temp"
+        status_daemon.last_seen[key] = now - timedelta(seconds=30)
+        status_daemon.last_numeric_value[key] = 70.0
+        try:
+            assert status_daemon._is_spike(key, now, 100.0, "temp") is True
+        finally:
+            status_daemon.last_seen.clear()
+            status_daemon.last_numeric_value.clear()
+
+
 class TestPruneAndComputeStats:
     """Tests for _prune_and_compute_stats() function."""
 
@@ -145,6 +170,7 @@ class TestHistoryCache:
         now = datetime.utcnow()
         status_daemon.history["temp"] = [(now, 72.0)]
         status_daemon.latest_values["temp"] = 72.0
+        status_daemon.last_seen["temp"] = now
 
         try:
             # Save cache
@@ -154,13 +180,16 @@ class TestHistoryCache:
             # Clear and reload
             status_daemon.history.clear()
             status_daemon.latest_values.clear()
+            status_daemon.last_seen.clear()
             status_daemon._load_history_cache()
 
             # Verify restored (within 24h window)
             assert "temp" in status_daemon.latest_values
+            assert "temp" in status_daemon.last_seen
         finally:
             status_daemon.history.clear()
             status_daemon.latest_values.clear()
+            status_daemon.last_seen.clear()
 
     @pytest.mark.unit
     def test_load_handles_missing_file(self, tmp_path, monkeypatch):
@@ -172,3 +201,32 @@ class TestHistoryCache:
 
         # Should not raise
         status_daemon._load_history_cache()
+
+
+class TestStatusSnapshot:
+    @pytest.mark.unit
+    def test_status_snapshot_includes_last_seen(self, tmp_path, monkeypatch):
+        status_path = tmp_path / "status.json"
+        stats_path = tmp_path / "stats_24h.json"
+        cache_path = tmp_path / "history_cache.json"
+        monkeypatch.setenv("STATUS_PATH", str(status_path))
+        monkeypatch.setenv("STATS_24H_PATH", str(stats_path))
+        monkeypatch.setenv("HISTORY_CACHE_PATH", str(cache_path))
+        monkeypatch.setenv("STATUS_WRITE_INTERVAL", "0")
+
+        import importlib
+        importlib.reload(status_daemon)
+
+        now = datetime.utcnow()
+        status_daemon.latest_values["interior_temp"] = 70.0
+        status_daemon.last_seen["interior_temp"] = now
+
+        try:
+            status_daemon._write_files_if_due(now)
+            payload = json.loads(status_path.read_text())
+            assert "last_seen" in payload
+            assert "interior_temp" in payload["last_seen"]
+        finally:
+            status_daemon.latest_values.clear()
+            status_daemon.history.clear()
+            status_daemon.last_seen.clear()

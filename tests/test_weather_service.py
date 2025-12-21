@@ -93,42 +93,47 @@ class TestGetCurrentWeather:
     @responses.activate
     def test_successful_api_call(self):
         """Should parse API response correctly."""
-        api_response = {
-            "current": {
-                "temp": 72.5,
-                "humidity": 65,
-                "wind_speed": 12.3,
-                "wind_deg": 180,
-                "weather": [{"main": "Clouds"}],
-            },
-            "daily": [
-                {
-                    "temp": {"max": 78, "min": 55},
-                    "moon_phase": 0.5,
-                    "wind_speed": 15,
-                    "wind_deg": 200,
-                }
-            ],
-        }
+        with patch.dict("os.environ", {"TZ": "UTC"}):
+            api_response = {
+                "current": {
+                    "temp": 72.5,
+                    "humidity": 65,
+                    "wind_speed": 12.3,
+                    "wind_deg": 180,
+                    "weather": [{"main": "Clouds"}],
+                },
+                "daily": [
+                    {
+                        "temp": {"max": 78, "min": 55},
+                        "moon_phase": 0.5,
+                        "wind_speed": 15,
+                        "wind_deg": 200,
+                        "sunrise": 0,
+                        "sunset": 3600,
+                    }
+                ],
+            }
 
-        responses.add(
-            responses.GET,
-            "https://api.openweathermap.org/data/3.0/onecall",
-            json=api_response,
-            status=200,
-        )
+            responses.add(
+                responses.GET,
+                "https://api.openweathermap.org/data/3.0/onecall",
+                json=api_response,
+                status=200,
+            )
 
-        result = weather_service.get_current_weather()
+            result = weather_service.get_current_weather()
 
-        assert result["outdoor_temp"] == 72  # Rounded
-        assert result["humidity_out"] == 65
-        assert result["condition"] == "Clouds"
-        assert result["high_temp"] == 78
-        assert result["low_temp"] == 55
-        assert result["wind_mph"] == 12
-        assert result["wind_direction"] == "S"
-        assert result["moon_phase"] == 0.5
-        assert result["moon_icon"] == "🌕"
+            assert result["outdoor_temp"] == 72  # Rounded
+            assert result["humidity_out"] == 65
+            assert result["condition"] == "Clouds"
+            assert result["high_temp"] == 78
+            assert result["low_temp"] == 55
+            assert result["wind_mph"] == 12
+            assert result["wind_direction"] == "S"
+            assert result["moon_phase"] == 0.5
+            assert result["moon_icon"] == "🌕"
+            assert result["sunrise"] == "12:00 AM"
+            assert result["sunset"] == "1:00 AM"
 
     @pytest.mark.unit
     @responses.activate

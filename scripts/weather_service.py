@@ -1,6 +1,7 @@
 import os
 from datetime import datetime
 from typing import Any, Dict, Optional
+from zoneinfo import ZoneInfo
 
 import requests
 
@@ -42,6 +43,16 @@ def _wind_arrow(deg: float) -> str:
     arrows = ["↑", "↗", "→", "↘", "↓", "↙", "←", "↖"]
     idx = int((deg % 360) / 45.0 + 0.5) % 8
     return arrows[idx]
+
+
+def _format_local_time(unix_seconds: float) -> str:
+    tz_name = os.getenv("TZ") or "UTC"
+    try:
+        tz = ZoneInfo(tz_name)
+    except Exception:
+        tz = ZoneInfo("UTC")
+    dt = datetime.fromtimestamp(float(unix_seconds), tz=tz)
+    return dt.strftime("%I:%M %p").lstrip("0")
 
 
 def get_current_weather() -> Dict[str, Any]:
@@ -125,6 +136,15 @@ def get_current_weather() -> Dict[str, Any]:
                 phase = float(first["moon_phase"])
                 result["moon_phase"] = phase
                 result["moon_icon"] = _moon_phase_icon(phase)
+
+            if "sunrise" in first:
+                result["sunrise"] = _format_local_time(float(first["sunrise"]))
+            elif "sunrise" in current:
+                result["sunrise"] = _format_local_time(float(current["sunrise"]))
+            if "sunset" in first:
+                result["sunset"] = _format_local_time(float(first["sunset"]))
+            elif "sunset" in current:
+                result["sunset"] = _format_local_time(float(current["sunset"]))
             
             # Daily wind (more representative for "Today's Weather" summary, round to integers)
             if "wind_speed" in first:

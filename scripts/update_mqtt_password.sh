@@ -32,7 +32,7 @@ if [ -n "$1" ]; then
     echo -e "${YELLOW}Using provided password${NC}"
 else
     NEW_PASSWORD=$(openssl rand -base64 24)
-    echo -e "${GREEN}Generated new password: ${NEW_PASSWORD}${NC}"
+    echo -e "${GREEN}Generated new password.${NC}"
 fi
 
 echo ""

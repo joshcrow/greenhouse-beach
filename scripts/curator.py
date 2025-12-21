@@ -72,8 +72,16 @@ def process_file(path: str) -> None:
         # 10 = nearly pitch black (keep for forensic/security value)
         # 250 = severely overexposed
         if mean_brightness < 10.0:
-            log(f"Rejected: Luminance {mean_brightness:.2f} too low (pitch black) for '{path}', deleting.")
-            os.remove(path)
+            now = datetime.utcnow()
+            year = now.strftime("%Y")
+            month = now.strftime("%m")
+            day = now.strftime("%d")
+            basename = os.path.basename(path)
+            dest_dir = os.path.join(ARCHIVE_ROOT, "_night", year, month, day)
+            ensure_directory(dest_dir)
+            dest = os.path.join(dest_dir, basename)
+            shutil.move(path, dest)
+            log(f"Archived night image '{path}' -> '{dest}' (mean luminance {mean_brightness:.2f}).")
             return
 
         if mean_brightness > 250.0:
