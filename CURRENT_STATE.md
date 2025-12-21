@@ -1,7 +1,7 @@
 # Project Chlorophyll: Current System State
 
 **Status:** ✅ Operational (via Tailscale) — Production-Hardened  
-**Last Updated:** Dec 21, 2025 @ 3:30 PM EST  
+**Last Updated:** Dec 21, 2025 @ 5:00 PM EST  
 **Next Milestone:** On-site deployment at Mom's house
 
 ---
@@ -96,7 +96,7 @@ docker compose up -d --force-recreate storyteller
 
 1. **Camera:** Hardware device mapping COMMENTED OUT - images via MQTT bridge
 2. **MQTT:** Using `CallbackAPIVersion.VERSION2` for Paho 2.x
-3. **AI Model:** `gemini-2.0-flash` primary, `gemini-2.0-flash-lite` fallback (new SDK)
+3. **AI Model:** `gemini-3-flash-preview` primary, `gemini-2.0-flash-lite` fallback
 4. **Weather:** OpenWeatherMap One Call 3.0 API
 5. **Temps:** Auto-convert Celsius to Fahrenheit when < 50
 6. **Sensor Keys:** Zone-prefixed format (`interior_temp`, `exterior_temp`)
@@ -111,7 +111,9 @@ docker compose up -d --force-recreate storyteller
 - [x] **Multi-zone email** - Interior, Exterior, Satellite rows
 - [x] **Offline sensor handling** - Rows hidden when `None`
 - [x] **Weather integration** - OpenWeatherMap One Call 3.0
-- [x] **AI narrative** - Gemini 2.0 Flash with punchy prose (migrated to new google-genai SDK)
+- [x] **AI narrative** - Gemini 3 Flash with punchy prose (migrated to new google-genai SDK)
+- [x] **Comic Relief** - Daily joke or riddle (thematically related to narrative, dry/observational tone)
+- [x] **Riddle continuity** - Riddle answers revealed in next day's email
 - [x] **Bold alerts** - `<b>` tags render in email body
 - [x] **Integer display** - All temps/humidity/wind rounded (no decimals)
 - [x] **Urgency subjects** - Dynamic subject lines based on conditions

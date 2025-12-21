@@ -5,7 +5,7 @@
 Transform passive greenhouse monitoring into an active, narrative-driven experience. The Greenhouse Gazette ingests environmental metrics and imagery from distributed sensors, then generates a daily email newsletter with a witty, scientific personality.
 
 ![Architecture](https://img.shields.io/badge/Architecture-Distributed_Edge-green)
-![AI](https://img.shields.io/badge/AI-Gemini_2.0_Flash-blue)
+![AI](https://img.shields.io/badge/AI-Gemini_3_Flash-blue)
 ![Platform](https://img.shields.io/badge/Platform-Raspberry_Pi-red)
 
 ---
@@ -14,6 +14,7 @@ Transform passive greenhouse monitoring into an active, narrative-driven experie
 
 **Daily Email (7:00 AM)**
 - **AI-Generated Narrative** – Witty, scientific commentary on conditions
+- **Comic Relief** – Daily joke or riddle (dry, observational humor about gardening)
 - **Hero Image** – Photo captured at golden hour (optimal lighting)
 - **Sensor Dashboard** – Interior, exterior, and satellite readings with battery status
 - **Weather Forecast** – Today's conditions and tomorrow's outlook
