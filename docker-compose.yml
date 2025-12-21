@@ -47,6 +47,8 @@ services:
       - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
       - MQTT_HOST=mosquitto
       - MQTT_PORT=1883
+    ports:
+      - "8080:8080"
     volumes:
       - ./data:/app/data
       - ./configs/registry.json:/app/configs/registry.json:ro

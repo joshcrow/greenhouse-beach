@@ -6,6 +6,7 @@ import schedule
 import publisher
 import weekly_digest
 import golden_hour
+import extended_timelapse
 
 
 def log(message: str) -> None:
@@ -48,6 +49,34 @@ def trigger_golden_hour_capture() -> None:
         log(f"Error during golden hour capture: {exc}")
 
 
+def generate_monthly_timelapse() -> None:
+    """Generate monthly timelapse on the 1st of each month."""
+    try:
+        log("Generating monthly timelapse (500 frames)...")
+        result = extended_timelapse.create_monthly_timelapse(target_frames=500)
+        if result:
+            url = extended_timelapse.get_timelapse_url(result.split("/")[-1])
+            log(f"Monthly timelapse created: {url}")
+        else:
+            log("Monthly timelapse generation returned no result")
+    except Exception as exc:  # noqa: BLE001
+        log(f"Error generating monthly timelapse: {exc}")
+
+
+def generate_yearly_timelapse() -> None:
+    """Generate yearly timelapse on January 1st."""
+    try:
+        log("Generating yearly timelapse (4000 frames)...")
+        result = extended_timelapse.create_yearly_timelapse(target_frames=4000)
+        if result:
+            url = extended_timelapse.get_timelapse_url(result.split("/")[-1])
+            log(f"Yearly timelapse created: {url}")
+        else:
+            log("Yearly timelapse generation returned no result")
+    except Exception as exc:  # noqa: BLE001
+        log(f"Error generating yearly timelapse: {exc}")
+
+
 def main() -> None:
     log("Starting scheduler. Registering jobs...")
 
@@ -60,7 +89,17 @@ def main() -> None:
     schedule.every().day.at(gh_time).do(trigger_golden_hour_capture)
     log(f"Golden hour for this month: {gh_time}")
 
-    log(f"Registered: Daily @ 07:00 (Weekly Edition on Sundays), Golden Hour @ {gh_time}")
+    # Monthly timelapse on the 1st at 08:00 (after daily email)
+    schedule.every().day.at("08:00").do(
+        lambda: generate_monthly_timelapse() if datetime.now().day == 1 else None
+    )
+    
+    # Yearly timelapse on Jan 1st at 09:00
+    schedule.every().day.at("09:00").do(
+        lambda: generate_yearly_timelapse() if datetime.now().month == 1 and datetime.now().day == 1 else None
+    )
+
+    log(f"Registered: Daily @ 07:00, Golden Hour @ {gh_time}, Monthly Timelapse @ 08:00 (1st), Yearly @ 09:00 (Jan 1)")
 
     while True:
         try:
