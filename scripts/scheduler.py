@@ -55,8 +55,24 @@ def generate_monthly_timelapse() -> None:
         log("Generating monthly timelapse (500 frames)...")
         result = extended_timelapse.create_monthly_timelapse(target_frames=500)
         if result:
-            url = extended_timelapse.get_timelapse_url(result.split("/")[-1])
+            filename = result.split("/")[-1]
+            url = extended_timelapse.get_timelapse_url(filename)
             log(f"Monthly timelapse created: {url}")
+            
+            # Get file info for notification
+            import os
+            file_size_mb = os.path.getsize(result) / 1024 / 1024
+            # Estimate frame count and duration (500 target at 24fps)
+            frame_count = min(500, file_size_mb * 50)  # rough estimate
+            duration_sec = frame_count / 24
+            
+            extended_timelapse.send_timelapse_notification(
+                timelapse_type="monthly",
+                filename=filename,
+                file_size_mb=file_size_mb,
+                duration_sec=duration_sec,
+                frame_count=int(frame_count),
+            )
         else:
             log("Monthly timelapse generation returned no result")
     except Exception as exc:  # noqa: BLE001
@@ -69,8 +85,24 @@ def generate_yearly_timelapse() -> None:
         log("Generating yearly timelapse (4000 frames)...")
         result = extended_timelapse.create_yearly_timelapse(target_frames=4000)
         if result:
-            url = extended_timelapse.get_timelapse_url(result.split("/")[-1])
+            filename = result.split("/")[-1]
+            url = extended_timelapse.get_timelapse_url(filename)
             log(f"Yearly timelapse created: {url}")
+            
+            # Get file info for notification
+            import os
+            file_size_mb = os.path.getsize(result) / 1024 / 1024
+            # Estimate frame count and duration (4000 target at 30fps)
+            frame_count = min(4000, file_size_mb * 40)  # rough estimate
+            duration_sec = frame_count / 30
+            
+            extended_timelapse.send_timelapse_notification(
+                timelapse_type="yearly",
+                filename=filename,
+                file_size_mb=file_size_mb,
+                duration_sec=duration_sec,
+                frame_count=int(frame_count),
+            )
         else:
             log("Yearly timelapse generation returned no result")
     except Exception as exc:  # noqa: BLE001

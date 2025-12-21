@@ -8,9 +8,12 @@ Outputs to data/www/timelapses/ for web access via Tailscale.
 import glob
 import os
 import shutil
+import smtplib
+import ssl
 import subprocess
 import tempfile
 from datetime import datetime, timedelta
+from email.message import EmailMessage
 from typing import List, Optional
 
 from PIL import Image
@@ -277,6 +280,83 @@ def get_timelapse_url(filename: str) -> str:
     tailscale_ip = os.getenv("TAILSCALE_IP", "100.94.172.114")
     web_port = os.getenv("WEB_PORT", "8080")
     return f"http://{tailscale_ip}:{web_port}/timelapses/{filename}"
+
+
+def send_timelapse_notification(
+    timelapse_type: str,
+    filename: str,
+    file_size_mb: float,
+    duration_sec: float,
+    frame_count: int,
+) -> None:
+    """Send email notification when a timelapse is ready for download.
+    
+    Only sends to joshcrow1193@gmail.com (not all recipients).
+    """
+    recipient = "joshcrow1193@gmail.com"
+    
+    smtp_server = os.getenv("SMTP_SERVER", "smtp.gmail.com")
+    smtp_port = int(os.getenv("SMTP_PORT", "465"))
+    smtp_user = os.getenv("SMTP_USER", "")
+    smtp_pass = os.getenv("SMTP_PASSWORD", "")
+    smtp_from = os.getenv("SMTP_FROM", "Greenhouse Gazette <joshcrow1193@gmail.com>")
+    
+    if not smtp_user or not smtp_pass:
+        log("SMTP credentials not configured, skipping notification")
+        return
+    
+    url = get_timelapse_url(filename)
+    tailscale_ip = os.getenv("TAILSCALE_IP", "100.94.172.114")
+    
+    subject = f"Timelapse Ready: {timelapse_type.title()} ({filename})"
+    
+    body = f"""Your {timelapse_type} timelapse is ready for download!
+
+FILE DETAILS
+------------
+Filename: {filename}
+Size: {file_size_mb:.1f} MB
+Duration: {duration_sec:.1f} seconds
+Frames: {frame_count}
+
+HOW TO DOWNLOAD
+---------------
+
+Option 1: Direct Browser Download (Easiest)
+  1. Make sure you're connected to Tailscale
+  2. Open this URL in your browser:
+     {url}
+  3. The video will either play or download automatically
+
+Option 2: Command Line (Mac/Linux)
+  curl -O {url}
+
+Option 3: SCP from Storyteller Pi
+  scp joshcrow@{tailscale_ip}:/home/joshcrow/greenhouse-beach/data/www/timelapses/{filename} ~/Downloads/
+
+BROWSE ALL TIMELAPSES
+---------------------
+  http://{tailscale_ip}:8080/timelapses/
+
+---
+The Greenhouse Gazette
+"""
+
+    msg = EmailMessage()
+    msg["From"] = smtp_from
+    msg["To"] = recipient
+    msg["Subject"] = subject
+    msg.set_content(body)
+    
+    try:
+        context = ssl.create_default_context()
+        with smtplib.SMTP_SSL(smtp_server, smtp_port, context=context) as server:
+            if smtp_user and smtp_pass:
+                server.login(smtp_user, smtp_pass)
+            server.send_message(msg)
+        log(f"Timelapse notification sent to {recipient}")
+    except Exception as exc:  # noqa: BLE001
+        log(f"Failed to send timelapse notification: {exc}")
 
 
 def list_available_timelapses() -> List[dict]:
