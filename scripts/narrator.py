@@ -3,7 +3,7 @@ import re
 from datetime import datetime
 from typing import Any, Dict
 
-import google.generativeai as genai
+from google import genai
 
 import coast_sky_service
 import weather_service
@@ -41,15 +41,24 @@ def log(message: str) -> None:
     print(f"[{ts}] [narrator] {message}", flush=True)
 
 
-def init_model(model_name: str | None = None) -> genai.GenerativeModel:
-    """Initialize Gemini model using GEMINI_API_KEY from the environment."""
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        log("WARNING: GEMINI_API_KEY is not set; generation calls will fail.")
-    genai.configure(api_key=api_key)
+# Global client instance (lazy init)
+_client: genai.Client | None = None
 
-    effective_model = model_name or os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
-    return genai.GenerativeModel(effective_model)
+
+def _get_client() -> genai.Client:
+    """Get or create the Gemini client using GEMINI_API_KEY from the environment."""
+    global _client
+    if _client is None:
+        api_key = os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            log("WARNING: GEMINI_API_KEY is not set; generation calls will fail.")
+        _client = genai.Client(api_key=api_key)
+    return _client
+
+
+def get_model_name(model_name: str | None = None) -> str:
+    """Get the effective model name from parameter or environment."""
+    return model_name or os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
 
 
 def sanitize_data(sensor_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -228,26 +237,33 @@ def generate_update(sensor_data: Dict[str, Any]) -> tuple[str, str, str, Dict[st
     raw_text = None
 
     # First attempt: primary Gemini model from configuration
+    client = _get_client()
+    model_name = get_model_name()
     try:
-        model = init_model()
-        response = model.generate_content(prompt)
+        response = client.models.generate_content(
+            model=model_name,
+            contents=prompt
+        )
         raw_text = _extract_text(response)
         if not raw_text:
             log("WARNING: Primary Gemini model response had no text; will try fallback model.")
     except Exception as exc:  # noqa: BLE001
-        log(f"Error during Gemini generation with gemini-2.5-flash: {exc}")
+        log(f"Error during Gemini generation with {model_name}: {exc}")
 
-    # Fallback attempt: gemini-flash-latest if first failed
+    # Fallback attempt: gemini-2.0-flash-lite if first failed
     if not raw_text:
+        fallback_model = "gemini-2.0-flash-lite"
         try:
-            log("Attempting fallback generation with model 'gemini-flash-latest'.")
-            model = init_model("gemini-flash-latest")
-            response = model.generate_content(prompt)
+            log(f"Attempting fallback generation with model '{fallback_model}'.")
+            response = client.models.generate_content(
+                model=fallback_model,
+                contents=prompt
+            )
             raw_text = _extract_text(response)
             if not raw_text:
-                log("WARNING: Gemini (gemini-flash-latest) response had no text; returning fallback message.")
+                log(f"WARNING: Gemini ({fallback_model}) response had no text; returning fallback message.")
         except Exception as exc:  # noqa: BLE001
-            log(f"Error during Gemini generation with gemini-flash-latest: {exc}")
+            log(f"Error during Gemini generation with {fallback_model}: {exc}")
 
     # Parse the response
     subject = "Greenhouse Update"
@@ -323,7 +339,8 @@ if __name__ == "__main__":
     # List models visible to this API key for debugging
     try:
         log("Listing available Gemini models for this API key...")
-        models = list(genai.list_models())
+        client = _get_client()
+        models = client.models.list()
         for m in models:
             print(f"MODEL: {getattr(m, 'name', m)}")
     except Exception as exc:  # noqa: BLE001

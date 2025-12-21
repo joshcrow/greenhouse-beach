@@ -102,7 +102,7 @@ def build_email(sensor_data: Dict[str, Any]) -> Tuple[EmailMessage, Optional[str
 
     # Convert satellite temperature from Celsius to Fahrenheit BEFORE narrator
     # so AI generates correct narrative (handle both old and new key formats)
-    for key in ["satellite_2_temperature", "satellite-2_satellite_2_temperature"]:
+    for key in ["satellite-2_temperature", "satellite-2_satellite_2_temperature", "satellite_2_temperature"]:
         sat_temp_c = sensor_data.get(key)
         if sat_temp_c is not None and sat_temp_c < 50:  # Likely Celsius if under 50
             sensor_data[key] = round(sat_temp_c * 9/5 + 32)
@@ -116,7 +116,7 @@ def build_email(sensor_data: Dict[str, Any]) -> Tuple[EmailMessage, Optional[str
                 pass
     
     # Convert satellite battery to actual voltage (ADC uses 1/2 divider) for AI context
-    for key in ["satellite-2_satellite_2_battery", "satellite_2_battery"]:
+    for key in ["satellite-2_battery", "satellite-2_satellite_2_battery", "satellite_2_battery"]:
         if key in sensor_data and sensor_data[key] is not None:
             try:
                 raw = float(sensor_data[key])
@@ -246,14 +246,16 @@ def build_email(sensor_data: Dict[str, Any]) -> Tuple[EmailMessage, Optional[str
     sunrise = sensor_data.get("sunrise")
     sunset = sensor_data.get("sunset")
 
-    # Satellite sensor vitals (support both old and new key formats)
-    # New format: satellite-2_satellite_2_temperature, Old: satellite_2_temperature
+    # Satellite sensor vitals (support multiple key formats from different sources)
+    # Format 1: satellite-2_temperature (from status_daemon via MQTT)
+    # Format 2: satellite-2_satellite_2_temperature (from HA entity ID)
+    # Format 3: satellite_2_temperature (legacy)
     # NOTE: Temperature already converted to °F in build_email() lines 105-108
-    sat_temp = sensor_data.get("satellite-2_satellite_2_temperature") or sensor_data.get("satellite_2_temperature")
-    sat_humidity = sensor_data.get("satellite-2_satellite_2_humidity") or sensor_data.get("satellite_2_humidity")
+    sat_temp = sensor_data.get("satellite-2_temperature") or sensor_data.get("satellite-2_satellite_2_temperature") or sensor_data.get("satellite_2_temperature")
+    sat_humidity = sensor_data.get("satellite-2_humidity") or sensor_data.get("satellite-2_satellite_2_humidity") or sensor_data.get("satellite_2_humidity")
     
     # Satellite battery (ADC reading uses 1/2 voltage divider, so multiply by 2 for actual voltage)
-    sat_battery_raw = sensor_data.get("satellite-2_satellite_2_battery") or sensor_data.get("satellite_2_battery")
+    sat_battery_raw = sensor_data.get("satellite-2_battery") or sensor_data.get("satellite-2_satellite_2_battery") or sensor_data.get("satellite_2_battery")
     sat_battery = round(sat_battery_raw * 2, 1) if sat_battery_raw is not None else None
     
     # NOTE: Do NOT convert satellite temp here - already done earlier in build_email()
@@ -690,12 +692,8 @@ def build_email(sensor_data: Dict[str, Any]) -> Tuple[EmailMessage, Optional[str
                                         <td class="dark-text-primary dark-border" style="padding: 12px 0; border-bottom:1px solid #588157; color:#1e1e1e; text-align: right; vertical-align:middle; mso-line-height-rule: exactly;">{fmt_temp_range()}</td>
                                     </tr>
                                     <tr>
-                                        <td class="dark-text-secondary dark-border" style="padding: 12px 0; border-bottom:1px solid #588157; color:#4b5563; vertical-align:middle; mso-line-height-rule: exactly;">Sunrise</td>
-                                        <td class="dark-text-primary dark-border" style="padding: 12px 0; border-bottom:1px solid #588157; color:#1e1e1e; text-align: right; vertical-align:middle; mso-line-height-rule: exactly;">{fmt_time(sunrise)}</td>
-                                    </tr>
-                                    <tr>
-                                        <td class="dark-text-secondary dark-border" style="padding: 12px 0; border-bottom:1px solid #588157; color:#4b5563; vertical-align:middle; mso-line-height-rule: exactly;">Sunset</td>
-                                        <td class="dark-text-primary dark-border" style="padding: 12px 0; border-bottom:1px solid #588157; color:#1e1e1e; text-align: right; vertical-align:middle; mso-line-height-rule: exactly;">{fmt_time(sunset)}</td>
+                                        <td class="dark-text-secondary dark-border" style="padding: 12px 0; border-bottom:1px solid #588157; color:#4b5563; vertical-align:middle; mso-line-height-rule: exactly;">Sunrise / Sunset</td>
+                                        <td class="dark-text-primary dark-border" style="padding: 12px 0; border-bottom:1px solid #588157; color:#1e1e1e; text-align: right; vertical-align:middle; mso-line-height-rule: exactly;">{fmt_time(sunrise)} / {fmt_time(sunset)}</td>
                                     </tr>
                                     <tr>
                                         <td class="dark-text-secondary dark-border" style="padding: 12px 0; border-bottom:1px solid #588157; color:#4b5563; vertical-align:middle; mso-line-height-rule: exactly;">Wind</td>

@@ -1,6 +1,9 @@
 {
-  "sensors": {
-    "satellite-2_satellite_2_battery": 0.42
+  "last_seen": {
+    "satellite-2_battery": "2025-12-21T20:12:47.818589Z"
   },
-  "updated_at": "2025-12-19T22:41:11.639276Z"
+  "sensors": {
+    "satellite-2_battery": 4.05000019073486
+  },
+  "updated_at": "2025-12-21T20:12:47.818589Z"
 }

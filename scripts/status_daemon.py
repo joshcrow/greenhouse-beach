@@ -17,12 +17,18 @@ TOPIC_FILTER = "greenhouse/+/sensor/+/state"
 
 STATUS_PATH = os.getenv("STATUS_PATH", "/app/data/status.json")
 STATS_24H_PATH = os.getenv("STATS_24H_PATH", "/app/data/stats_24h.json")
-HISTORY_CACHE_PATH = os.getenv("HISTORY_CACHE_PATH", "/tmp/greenhouse_history_cache.json")
+# Persist history cache to mounted volume (survives container restarts)
+HISTORY_CACHE_PATH = os.getenv("HISTORY_CACHE_PATH", "/app/data/history_cache.json")
+# Long-term sensor logs directory (monthly JSONL files for analysis)
+SENSOR_LOG_DIR = os.getenv("SENSOR_LOG_DIR", "/app/data/sensor_log")
 
 # Minimum interval between disk writes (seconds)
 WRITE_INTERVAL_SECONDS = int(os.getenv("STATUS_WRITE_INTERVAL", "60"))
 
 CACHE_WRITE_INTERVAL_SECONDS = int(os.getenv("HISTORY_WRITE_INTERVAL", "300"))
+
+# Long-term log write interval (batch writes to reduce SD card wear)
+SENSOR_LOG_INTERVAL_SECONDS = int(os.getenv("SENSOR_LOG_INTERVAL", "300"))  # 5 minutes
 
 SPIKE_WINDOW_SECONDS = int(os.getenv("SENSOR_SPIKE_WINDOW_SECONDS", "600"))
 TEMP_SPIKE_F = float(os.getenv("TEMP_SPIKE_F", "20"))
@@ -46,8 +52,12 @@ latest_values: Dict[str, Any] = {}
 history: Dict[str, List[Tuple[datetime, float]]] = defaultdict(list)
 last_write: datetime = datetime.min
 last_cache_write: datetime = datetime.min
+last_sensor_log_write: datetime = datetime.min
 last_seen: Dict[str, datetime] = {}
 last_numeric_value: Dict[str, float] = {}
+
+# Buffer for long-term sensor log (batched writes to reduce SD card wear)
+sensor_log_buffer: List[Dict[str, Any]] = []
 
 
 def _load_history_cache() -> None:
@@ -116,6 +126,48 @@ def _save_history_cache() -> None:
         os.replace(tmp_path, HISTORY_CACHE_PATH)
     except Exception as exc:  # noqa: BLE001
         log(f"Failed to save history cache: {exc}")
+
+
+def _write_sensor_log() -> None:
+    """Write buffered sensor readings to monthly JSONL file for long-term analysis.
+    
+    File format: /app/data/sensor_log/YYYY-MM.jsonl
+    Each line is a JSON object: {"ts": "ISO8601", "sensors": {...}}
+    """
+    global sensor_log_buffer
+    
+    if not sensor_log_buffer:
+        return
+    
+    try:
+        os.makedirs(SENSOR_LOG_DIR, exist_ok=True)
+        
+        # Monthly file naming: 2025-12.jsonl
+        now = datetime.utcnow()
+        filename = now.strftime("%Y-%m") + ".jsonl"
+        filepath = os.path.join(SENSOR_LOG_DIR, filename)
+        
+        # Append buffered entries to the log file
+        with open(filepath, "a", encoding="utf-8") as f:
+            for entry in sensor_log_buffer:
+                f.write(json.dumps(entry, separators=(",", ":")) + "\n")
+        
+        log(f"Appended {len(sensor_log_buffer)} entries to sensor log {filepath}")
+        sensor_log_buffer.clear()
+    except Exception as exc:  # noqa: BLE001
+        log(f"Failed to write sensor log: {exc}")
+
+
+def _buffer_sensor_reading(now: datetime) -> None:
+    """Add current sensor state to the log buffer."""
+    if not latest_values:
+        return
+    
+    entry = {
+        "ts": now.isoformat() + "Z",
+        "sensors": dict(latest_values),
+    }
+    sensor_log_buffer.append(entry)
 
 
 def _parse_payload(payload: bytes) -> Any:
@@ -230,10 +282,13 @@ def _prune_key_history(now: datetime, key: str) -> None:
 
 
 def _write_files_if_due(now: datetime) -> None:
-    global last_write, last_cache_write
+    global last_write, last_cache_write, last_sensor_log_write
 
     if (now - last_write).total_seconds() < WRITE_INTERVAL_SECONDS:
         return
+    
+    # Buffer current sensor state for long-term logging
+    _buffer_sensor_reading(now)
 
     # Write status.json
     snapshot = {
@@ -270,6 +325,11 @@ def _write_files_if_due(now: datetime) -> None:
     if (now - last_cache_write).total_seconds() >= CACHE_WRITE_INTERVAL_SECONDS:
         _save_history_cache()
         last_cache_write = now
+
+    # Write long-term sensor log (batched to reduce SD card wear)
+    if (now - last_sensor_log_write).total_seconds() >= SENSOR_LOG_INTERVAL_SECONDS:
+        _write_sensor_log()
+        last_sensor_log_write = now
 
     last_write = now
 
@@ -358,10 +418,12 @@ def main() -> None:
         except KeyboardInterrupt:
             log("KeyboardInterrupt received; saving cache and exiting...")
             _save_history_cache()
+            _write_sensor_log()  # Flush any buffered sensor readings
             break
         except Exception as exc:  # noqa: BLE001
             log(f"Status daemon MQTT loop crashed with error: {exc}")
             _save_history_cache()  # Save before retry
+            _write_sensor_log()  # Flush any buffered sensor readings
             log("Sleeping 5 seconds before retrying MQTT connection...")
             time.sleep(5)
 

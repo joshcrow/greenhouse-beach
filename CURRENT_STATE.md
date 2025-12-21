@@ -1,8 +1,8 @@
 # Project Chlorophyll: Current System State
 
 **Status:** ✅ Operational (via Tailscale) — Ready for Deployment  
-**Last Updated:** Dec 21, 2025 @ 2:15 PM EST  
-**Next Milestone:** Monitor Coast & Sky integration in daily emails
+**Last Updated:** Dec 21, 2025 @ 3:15 PM EST  
+**Next Milestone:** Monitor sensor data persistence and long-term analysis
 
 ---
 
@@ -96,7 +96,7 @@ docker compose up -d --force-recreate storyteller
 
 1. **Camera:** Hardware device mapping COMMENTED OUT - images via MQTT bridge
 2. **MQTT:** Using `CallbackAPIVersion.VERSION2` for Paho 2.x
-3. **AI Model:** `gemini-2.5-flash` primary, `gemini-flash-latest` fallback
+3. **AI Model:** `gemini-2.0-flash` primary, `gemini-2.0-flash-lite` fallback (new SDK)
 4. **Weather:** OpenWeatherMap One Call 3.0 API
 5. **Temps:** Auto-convert Celsius to Fahrenheit when < 50
 6. **Sensor Keys:** Zone-prefixed format (`interior_temp`, `exterior_temp`)
@@ -111,7 +111,7 @@ docker compose up -d --force-recreate storyteller
 - [x] **Multi-zone email** - Interior, Exterior, Satellite rows
 - [x] **Offline sensor handling** - Rows hidden when `None`
 - [x] **Weather integration** - OpenWeatherMap One Call 3.0
-- [x] **AI narrative** - Gemini 2.5 Flash with punchy prose
+- [x] **AI narrative** - Gemini 2.0 Flash with punchy prose (migrated to new google-genai SDK)
 - [x] **Bold alerts** - `<b>` tags render in email body
 - [x] **Integer display** - All temps/humidity/wind rounded (no decimals)
 - [x] **Urgency subjects** - Dynamic subject lines based on conditions
@@ -126,6 +126,9 @@ docker compose up -d --force-recreate storyteller
 - [x] **Coast & Sky integration** - NOAA tides (Jennette's Pier), meteor showers, named moon events
 - [x] **Emoji policy** - No emojis in AI-generated subject/headline/body; kept in data tables
 - [x] **Visibility gating** - clouds_pct, precip_prob for meteor shower recommendations
+- [x] **Sensor data persistence** - History cache survives container restarts
+- [x] **Long-term sensor logs** - Monthly JSONL files in `data/sensor_log/` for analysis
+- [x] **Sunrise/Sunset compact** - Combined into single row in weather table
 
 ---
 

@@ -23,6 +23,9 @@ data/stats_24h.json
 data/stats_weekly.json
 data/history_cache.json
 
+# Long-term sensor logs (can get large)
+data/sensor_log/
+
 # Testing artifacts
 .venv/
 coverage_html/

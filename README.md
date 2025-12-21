@@ -5,7 +5,7 @@
 Transform passive greenhouse monitoring into an active, narrative-driven experience. The Greenhouse Gazette ingests environmental metrics and imagery from distributed sensors, then generates a daily email newsletter with a witty, scientific personality.
 
 ![Architecture](https://img.shields.io/badge/Architecture-Distributed_Edge-green)
-![AI](https://img.shields.io/badge/AI-Gemini_2.5_Flash-blue)
+![AI](https://img.shields.io/badge/AI-Gemini_2.0_Flash-blue)
 ![Platform](https://img.shields.io/badge/Platform-Raspberry_Pi-red)
 
 ---

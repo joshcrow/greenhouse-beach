@@ -1,8 +1,8 @@
 {
   "metrics": {
-    "satellite-2_satellite_2_battery_max": 0.42,
-    "satellite-2_satellite_2_battery_min": 0.42
+    "satellite-2_battery_max": 4.05000019073486,
+    "satellite-2_battery_min": 4.0460000038147
   },
-  "window_end": "2025-12-19T22:41:11.639276Z",
-  "window_start": "2025-12-18T22:41:11.639276Z"
+  "window_end": "2025-12-21T20:12:47.818589Z",
+  "window_start": "2025-12-20T20:12:47.818589Z"
 }
