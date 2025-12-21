@@ -797,6 +797,9 @@ if __name__ == "__main__":
     # Allow --weekly flag to force weekly edition mode for testing
     _force_weekly_mode = "--weekly" in sys.argv
     
+    # Allow --test flag to send only to primary recipient (joshcrow1193@gmail.com)
+    _test_mode = "--test" in sys.argv
+    
     if _force_weekly_mode:
         # Override the module-level function properly
         _original_is_weekly = is_weekly_edition
@@ -804,6 +807,11 @@ if __name__ == "__main__":
             return True
         globals()['is_weekly_edition'] = is_weekly_edition
         log("TESTING: Forcing Weekly Edition mode")
+    
+    if _test_mode:
+        # Override SMTP_TO to only send to primary recipient
+        os.environ["SMTP_TO"] = "joshcrow1193@gmail.com"
+        log("TEST MODE: Sending only to joshcrow1193@gmail.com")
     
     run_once()
 
