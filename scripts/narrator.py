@@ -1,12 +1,17 @@
+import json
 import os
+import random
 import re
-from datetime import datetime
-from typing import Any, Dict
+from datetime import datetime, timedelta
+from typing import Any, Dict, Optional
 
 from google import genai
 
 import coast_sky_service
 import weather_service
+
+
+_RIDDLE_STATE_PATH = os.getenv("RIDDLE_STATE_PATH", "/app/data/riddle_state.json")
 
 
 def strip_emojis(text: str) -> str:
@@ -65,7 +70,7 @@ def _get_client() -> genai.Client:
 
 def get_model_name(model_name: str | None = None) -> str:
     """Get the effective model name from parameter or environment."""
-    return model_name or os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+    return model_name or os.getenv("GEMINI_MODEL", "gemini-3-flash-preview")
 
 
 def sanitize_data(sensor_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -132,7 +137,7 @@ def build_prompt(sanitized_data: Dict[str, Any]) -> str:
     """Construct the narrative prompt enforcing persona and safety constraints."""
 
     lines = [
-        "You are The Greenhouse Gazette: a witty, scientific, optimistic greenhouse newsletter narrator.",
+        "You are The Greenhouse Gazette: a witty, scientific greenhouse newsletter narrator.",
         "Location: Outer Banks, NC (coastal).",
         "",
         "RULES:",
@@ -192,7 +197,154 @@ def _extract_text(response: Any) -> str | None:
             return response.candidates[0].content.parts[0].text  # type: ignore[index]
         except Exception:  # noqa: BLE001
             return None
-    return None
+
+
+def _load_riddle_state() -> Dict[str, Any]:
+    try:
+        if os.path.exists(_RIDDLE_STATE_PATH):
+            with open(_RIDDLE_STATE_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            return data if isinstance(data, dict) else {}
+    except Exception as exc:  # noqa: BLE001
+        log(f"WARNING: Failed to load riddle state: {exc}")
+    return {}
+
+
+def _save_riddle_state(state: Dict[str, Any]) -> None:
+    try:
+        tmp_path = f"{_RIDDLE_STATE_PATH}.tmp"
+        os.makedirs(os.path.dirname(_RIDDLE_STATE_PATH) or ".", exist_ok=True)
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump(state, f, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, _RIDDLE_STATE_PATH)
+    except Exception as exc:  # noqa: BLE001
+        log(f"WARNING: Failed to save riddle state: {exc}")
+
+
+def _extract_yesterday_answer(state: Dict[str, Any]) -> Optional[str]:
+    try:
+        if state.get("pending_riddle") is not True:
+            return None
+        date_str = state.get("date")
+        answer = state.get("answer")
+        if not date_str or not answer:
+            return None
+        yesterday = (datetime.now().date() - timedelta(days=1)).isoformat()
+        if date_str != yesterday:
+            return None
+        return str(answer).strip() or None
+    except Exception:
+        return None
+
+
+def _generate_joke_or_riddle_paragraph(narrative_body: str) -> str:
+    """Generate a thematically-related joke or riddle based on the narrative."""
+    state = _load_riddle_state()
+    yesterday_answer = _extract_yesterday_answer(state)
+
+    mode = random.choice(["joke", "riddle"])
+    intro = ""
+    if yesterday_answer:
+        intro = f"Yesterday's riddle answer: {yesterday_answer}"
+
+    prompt_lines = [
+        "You are the 'Comic Relief' section of the greenhouse newsletter.",
+        "Write ONE final paragraph as a light sign-off for today's newsletter.",
+        "",
+        "INSTRUCTIONS:",
+        "- Read the NARRATIVE below to understand today's theme and mood.",
+        "- Write a short, clever joke or riddle that is SUBTLY related to the narrative's theme.",
+        "- Do NOT reference specific data points, numbers, or sensor readings.",
+        "- The connection should be thematic (e.g., if the narrative mentions cold weather, a winter-themed joke).",
+        "- Tone: Dry, observational, perhaps slightly cynical about the struggles of gardening.",
+        "",
+        "FORMAT:",
+        "- MODE=joke: Write a short joke (setup + punchline) as a paragraph.",
+        "- MODE=riddle: Write a short riddle as a paragraph. Do NOT include the answer.",
+        "",
+        "RULES:",
+        "- If INTRO is provided, start with that sentence, then continue into the joke/riddle.",
+        "- No emojis. No markdown. No HTML.",
+        "- Keep it to 2-3 sentences max.",
+        "",
+        f"MODE: {mode}",
+        f"INTRO: {intro}",
+        "",
+        "NARRATIVE:",
+        narrative_body[:1500] if narrative_body else "A typical day at the greenhouse.",
+        "",
+        "OUTPUT: Return only the paragraph text.",
+    ]
+    prompt = "\n".join(prompt_lines)
+
+    client = _get_client()
+    model_name = get_model_name()
+    raw_text = None
+    try:
+        response = client.models.generate_content(model=model_name, contents=prompt)
+        raw_text = _extract_text(response)
+    except Exception as exc:  # noqa: BLE001
+        log(f"Error during joke/riddle generation with {model_name}: {exc}")
+
+    if not raw_text:
+        fallback_model = "gemini-2.0-flash-lite"
+        try:
+            response = client.models.generate_content(model=fallback_model, contents=prompt)
+            raw_text = _extract_text(response)
+        except Exception as exc:  # noqa: BLE001
+            log(f"Error during joke/riddle generation with {fallback_model}: {exc}")
+
+    paragraph = (raw_text or "").strip()
+    paragraph = strip_emojis(paragraph)
+    paragraph = paragraph.replace("\n", " ").strip()
+    if not paragraph:
+        return ""
+
+    if mode == "riddle":
+        answer_prompt_lines = [
+            "You are helping generate a riddle for a greenhouse newsletter.",
+            "Given the riddle text below, return ONLY the answer in a short phrase (no punctuation, no quotes).",
+            "Do not include the riddle again.",
+            "No emojis.",
+            "",
+            "RIDDLE:",
+            paragraph,
+            "",
+            "ANSWER:",
+        ]
+        answer_prompt = "\n".join(answer_prompt_lines)
+        answer_raw = None
+        try:
+            answer_resp = client.models.generate_content(model=model_name, contents=answer_prompt)
+            answer_raw = _extract_text(answer_resp)
+        except Exception as exc:  # noqa: BLE001
+            log(f"Error during riddle answer generation with {model_name}: {exc}")
+
+        if not answer_raw:
+            try:
+                answer_resp = client.models.generate_content(model="gemini-2.0-flash-lite", contents=answer_prompt)
+                answer_raw = _extract_text(answer_resp)
+            except Exception as exc:  # noqa: BLE001
+                log(f"Error during riddle answer generation with gemini-2.0-flash-lite: {exc}")
+
+        answer = strip_emojis((answer_raw or "").strip())
+        answer = answer.replace("\n", " ").strip()
+
+        _save_riddle_state(
+            {
+                "pending_riddle": True,
+                "date": datetime.now().date().isoformat(),
+                "riddle": paragraph,
+                "answer": answer,
+            }
+        )
+    else:
+        if yesterday_answer:
+            _save_riddle_state({"pending_riddle": False, "date": datetime.now().date().isoformat()})
+
+    return paragraph
 
 
 def generate_update(sensor_data: Dict[str, Any]) -> tuple[str, str, str, Dict[str, Any]]:
@@ -326,6 +478,17 @@ def generate_update(sensor_data: Dict[str, Any]) -> tuple[str, str, str, Dict[st
     # Convert markdown bold (**text**) to HTML bold (<b>text</b>)
     import re
     body = re.sub(r'\*\*([^*]+)\*\*', r'<b>\1</b>', body)
+
+    joke_or_riddle = ""
+    try:
+        joke_or_riddle = _generate_joke_or_riddle_paragraph(body)
+    except Exception as exc:  # noqa: BLE001
+        log(f"WARNING: Failed generating joke/riddle paragraph: {exc}")
+
+    if joke_or_riddle:
+        if body and not body.endswith("\n"):
+            body = body.rstrip()
+        body = f"{body}\n\n{joke_or_riddle}" if body else joke_or_riddle
 
     # Strip any emojis from AI-generated text (keep emojis only in data tables)
     subject = strip_emojis(subject)
