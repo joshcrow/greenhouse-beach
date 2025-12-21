@@ -1,11 +1,11 @@
 {
   "metrics": {
     "exterior_humidity_max": 54.1,
-    "exterior_humidity_min": 54.1,
+    "exterior_humidity_min": 48.5,
     "exterior_pressure_max": 14.84,
     "exterior_pressure_min": 14.83,
     "exterior_temp_max": 76.8,
-    "exterior_temp_min": 76.3,
+    "exterior_temp_min": 75.8,
     "interior_humidity_max": 77.6,
     "interior_humidity_min": 77.6,
     "interior_pressure_max": 14.78,
@@ -14,13 +14,13 @@
     "interior_temp_min": 60.8,
     "satellite-2_battery_max": 4.05000019073486,
     "satellite-2_battery_min": 4.0460000038147,
-    "satellite-2_humidity_max": 59.4287109375,
+    "satellite-2_humidity_max": 67.134765625,
     "satellite-2_humidity_min": 59.4287109375,
-    "satellite-2_pressure_max": 14.8407490146929,
+    "satellite-2_pressure_max": 14.84359240601,
     "satellite-2_pressure_min": 14.8407490146929,
     "satellite-2_temperature_max": 53.4880630493164,
-    "satellite-2_temperature_min": 53.4880630493164
+    "satellite-2_temperature_min": 51.2479061126709
   },
-  "window_end": "2025-12-21T20:27:45.542619Z",
-  "window_start": "2025-12-20T20:27:45.542619Z"
+  "window_end": "2025-12-21T20:37:38.830332Z",
+  "window_start": "2025-12-20T20:37:38.830332Z"
 }

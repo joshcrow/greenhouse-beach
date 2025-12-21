@@ -323,6 +323,10 @@ def generate_update(sensor_data: Dict[str, Any]) -> tuple[str, str, str, Dict[st
             # On any parsing error, fall back to the raw model text
             body = raw_text  # type: ignore[assignment]
 
+    # Convert markdown bold (**text**) to HTML bold (<b>text</b>)
+    import re
+    body = re.sub(r'\*\*([^*]+)\*\*', r'<b>\1</b>', body)
+
     # Strip any emojis from AI-generated text (keep emojis only in data tables)
     subject = strip_emojis(subject)
     headline = strip_emojis(headline)

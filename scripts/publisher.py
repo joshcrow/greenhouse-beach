@@ -100,15 +100,8 @@ def load_latest_sensor_snapshot() -> Dict[str, Any]:
 def build_email(sensor_data: Dict[str, Any]) -> Tuple[EmailMessage, Optional[str]]:
     """Construct the email message and return it along with the image path (if any)."""
 
-    # Convert satellite temperature from Celsius to Fahrenheit BEFORE narrator
-    # M1: Improved heuristic - satellite sensors from ESPHome always report Celsius
-    # We check for reasonable Celsius range (-40 to 60°C) rather than arbitrary < 50
-    CELSIUS_MIN, CELSIUS_MAX = -40, 60  # Reasonable sensor range in Celsius
-    for key in ["satellite-2_temperature", "satellite-2_satellite_2_temperature", "satellite_2_temperature"]:
-        sat_temp_c = sensor_data.get(key)
-        if sat_temp_c is not None and CELSIUS_MIN <= sat_temp_c <= CELSIUS_MAX:
-            # ESPHome BME280 always reports Celsius; convert to Fahrenheit
-            sensor_data[key] = round(sat_temp_c * 9/5 + 32)
+    # NOTE: Satellite temperature is already in Fahrenheit from ESPHome config
+    # No conversion needed - the BME280 filter in ESPHome converts C->F
     
     # Round all sensor values to integers for cleaner AI narrative and display
     for key in ["interior_temp", "interior_humidity", "exterior_temp", "exterior_humidity"]:
@@ -118,15 +111,13 @@ def build_email(sensor_data: Dict[str, Any]) -> Tuple[EmailMessage, Optional[str
             except (ValueError, TypeError):
                 pass
     
-    # Convert satellite battery to actual voltage (ADC uses 1/2 divider) for AI context
+    # Satellite battery voltage is already calibrated in ESPHome (no *2 needed)
+    # Just flag if critical for AI to mention
     for key in ["satellite-2_battery", "satellite-2_satellite_2_battery", "satellite_2_battery"]:
         if key in sensor_data and sensor_data[key] is not None:
             try:
-                raw = float(sensor_data[key])
-                actual_voltage = round(raw * 2, 1)
-                sensor_data[f"{key}_actual_voltage"] = actual_voltage
-                # Flag if critical for AI to mention
-                if actual_voltage < 3.4:
+                voltage = float(sensor_data[key])
+                if voltage < 3.4:
                     sensor_data["satellite_battery_critical"] = True
             except (ValueError, TypeError):
                 pass
@@ -257,9 +248,9 @@ def build_email(sensor_data: Dict[str, Any]) -> Tuple[EmailMessage, Optional[str
     sat_temp = sensor_data.get("satellite-2_temperature") or sensor_data.get("satellite-2_satellite_2_temperature") or sensor_data.get("satellite_2_temperature")
     sat_humidity = sensor_data.get("satellite-2_humidity") or sensor_data.get("satellite-2_satellite_2_humidity") or sensor_data.get("satellite_2_humidity")
     
-    # Satellite battery (ADC reading uses 1/2 voltage divider, so multiply by 2 for actual voltage)
+    # Satellite battery voltage (already calibrated in ESPHome, no conversion needed)
     sat_battery_raw = sensor_data.get("satellite-2_battery") or sensor_data.get("satellite-2_satellite_2_battery") or sensor_data.get("satellite_2_battery")
-    sat_battery = round(sat_battery_raw * 2, 1) if sat_battery_raw is not None else None
+    sat_battery = round(sat_battery_raw, 1) if sat_battery_raw is not None else None
     
     # NOTE: Do NOT convert satellite temp here - already done earlier in build_email()
 
