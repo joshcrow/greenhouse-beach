@@ -1,8 +1,8 @@
 # Project Chlorophyll: Current System State
 
-**Status:** ✅ Operational (via Tailscale) — Ready for Deployment  
-**Last Updated:** Dec 21, 2025 @ 3:15 PM EST  
-**Next Milestone:** Monitor sensor data persistence and long-term analysis
+**Status:** ✅ Operational (via Tailscale) — Production-Hardened  
+**Last Updated:** Dec 21, 2025 @ 3:30 PM EST  
+**Next Milestone:** On-site deployment at Mom's house
 
 ---
 
@@ -13,7 +13,7 @@
 | **GitHub Repo** | [joshcrow/greenhouse-beach](https://github.com/joshcrow/greenhouse-beach) |
 | **Docker Hub** | [jcrow333/greenhouse-storyteller](https://hub.docker.com/r/jcrow333/greenhouse-storyteller) |
 | **CI/CD** | GitHub Actions ✅ |
-| **Tests** | 109 passed, 8 skipped (50% coverage) |
+| **Tests** | 109 passed, 8 skipped (53% coverage) |
 
 ### Development Workflow
 ```bash
@@ -129,6 +129,13 @@ docker compose up -d --force-recreate storyteller
 - [x] **Sensor data persistence** - History cache survives container restarts
 - [x] **Long-term sensor logs** - Monthly JSONL files in `data/sensor_log/` for analysis
 - [x] **Sunrise/Sunset compact** - Combined into single row in weather table
+- [x] **Production hardening** - Security audit complete (Dec 21):
+  - Buffer overflow protection (sensor log cap)
+  - Fail-fast API key validation
+  - Data durability (fsync before atomic writes)
+  - MQTT resource cleanup and timeout handling
+  - Calendar JSON validation
+  - Coast/sky cache persistence
 
 ---
 
