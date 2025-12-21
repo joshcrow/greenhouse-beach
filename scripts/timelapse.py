@@ -282,8 +282,8 @@ def create_daily_timelapse() -> Optional[bytes]:
     This function:
     - Gets all images from yesterday (00:00 to 23:59)
     - Filters for daylight hours only
-    - Samples exactly 40 frames for smooth animation
-    - Optimizes for email delivery (under 4MB)
+    - Samples up to 60 frames for smooth animation
+    - Optimizes for email delivery
     """
     log("Creating daily timelapse from yesterday's images...")
     
@@ -294,8 +294,8 @@ def create_daily_timelapse() -> Optional[bytes]:
         log("No daylight images found for daily timelapse")
         return None
     
-    # Sample exactly 40 frames for smooth animation
-    target_frames = 40
+    # Sample frames for smooth animation
+    target_frames = 60
     sampled_images = sample_frames_evenly(daylight_images, target_frames)
     
     if len(sampled_images) < 2:
@@ -305,8 +305,8 @@ def create_daily_timelapse() -> Optional[bytes]:
     # Create optimized GIF with specific parameters for daily use
     return create_timelapse_gif(
         sampled_images,
-        max_frames=40,  # Exactly 40 frames as requested
-        frame_duration_ms=100,  # 10 fps for 4-second animation
+        max_frames=60,  # 60 frames for 6-second animation
+        frame_duration_ms=100,  # 10 fps
         max_width=600,  # Force 600px width for size management
         max_height=400,
         optimize=True,
@@ -326,8 +326,8 @@ def create_weekly_timelapse() -> Optional[bytes]:
     
     return create_timelapse_gif(
         images,
-        max_frames=50,  # Reasonable size for email
-        frame_duration_ms=150,  # Slightly faster for weekly
+        max_frames=100,  # 100 frames for weekly edition
+        frame_duration_ms=100,  # 10 fps for 10-second animation
         max_width=600,
         max_height=400,
     )

@@ -217,7 +217,7 @@ def run_once(config: dict) -> bool:
     )
 
 
-def run_daemon(config: dict, interval_minutes: int = 60) -> None:
+def run_daemon(config: dict, interval_minutes: int = 30) -> None:
     """Run continuously, capturing at regular intervals.
 
     Args:
