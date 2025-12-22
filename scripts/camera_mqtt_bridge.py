@@ -154,12 +154,14 @@ def publish_to_mqtt(
         return False
 
     try:
-        client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+        client = mqtt.Client()
 
         if username and password:
             client.username_pw_set(username, password)
 
         client.connect(broker_host, broker_port, keepalive=30)
+        client.loop_start()
+        time.sleep(1)
 
         result = client.publish(topic, image_data, qos=1)
         result.wait_for_publish(timeout=10)

@@ -1,7 +1,7 @@
 # Project Chlorophyll: Current System State
 
 **Status:** ✅ Operational (via Tailscale) — Production-Hardened  
-**Last Updated:** Dec 21, 2025 @ 5:45 PM EST  
+**Last Updated:** Dec 22, 2025 @ 10:30 AM EST  
 **Next Milestone:** On-site deployment at Mom's house
 
 ---
@@ -71,7 +71,7 @@ docker compose up -d --force-recreate storyteller
 ### Services Running
 | Service | Interval | Status |
 |---------|----------|--------|
-| `camera-mqtt-bridge` | 30 min | ✅ Publishing to Storyteller |
+| `camera-mqtt-bridge` | 30 min | ✅ Publishing to Storyteller (fixed Dec 22) |
 | `sensor-mqtt-bridge` | 5 min | ✅ Publishing HA sensors |
 | Home Assistant | Always | ✅ Camera streaming |
 
@@ -96,7 +96,7 @@ docker compose up -d --force-recreate storyteller
 ## ⚙️ Configuration Overrides
 
 1. **Camera:** Hardware device mapping COMMENTED OUT - images via MQTT bridge
-2. **MQTT:** Using `CallbackAPIVersion.VERSION2` for Paho 2.x
+2. **MQTT:** Using legacy `mqtt.Client()` API for Paho 1.x/2.x compatibility
 3. **AI Model:** `gemini-3-flash-preview` primary, `gemini-2.0-flash-lite` fallback
 4. **Weather:** OpenWeatherMap One Call 3.0 API
 5. **Temps:** Auto-convert Celsius to Fahrenheit when < 50
