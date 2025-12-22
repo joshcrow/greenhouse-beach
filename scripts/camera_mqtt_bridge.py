@@ -14,12 +14,10 @@ Usage:
 """
 
 import argparse
-import io
 import os
 import sys
 import time
 from datetime import datetime
-from pathlib import Path
 from typing import Optional
 
 # Optional: Use libcamera directly if HA is not available

@@ -458,8 +458,10 @@ def generate_update(sensor_data: Dict[str, Any]) -> tuple[str, str, str, Dict[st
                     else:
                         body = ""
 
-                if subject_part: subject = subject_part
-                if headline_part: headline = headline_part
+                if subject_part:
+                    subject = subject_part
+                if headline_part:
+                    headline = headline_part
             else:
                 # Fallback parsing logic
                 log("WARNING: Output format mismatch. Attempting partial parse.")

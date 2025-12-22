@@ -6,9 +6,8 @@ and triggers the camera bridge at that time.
 """
 
 import os
-import json
 from datetime import datetime, timedelta
-from typing import Optional, Tuple
+from typing import Optional
 import requests
 
 

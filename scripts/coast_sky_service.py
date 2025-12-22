@@ -81,8 +81,6 @@ def _fetch_noaa_tides(date_local: datetime) -> Dict[str, Any]:
     
     Returns structured tide_summary or empty dict on failure.
     """
-    tz = _get_local_tz()
-    
     # Request predictions for today and tomorrow (48 hours)
     begin_date = date_local.strftime("%Y%m%d")
     end_date = (date_local + timedelta(days=1)).strftime("%Y%m%d")
@@ -136,10 +134,10 @@ def _fetch_noaa_tides(date_local: datetime) -> Dict[str, Any]:
         # Compute today's extremes
         today_str = date_local.strftime("%Y-%m-%d")
         today_highs = [h for h in high_tides if h["time_local"].startswith(today_str)]
-        today_lows = [l for l in low_tides if l["time_local"].startswith(today_str)]
+        today_lows = [low for low in low_tides if low["time_local"].startswith(today_str)]
         
         max_high_ft = max((h["height_ft"] for h in today_highs), default=None)
-        min_low_ft = min((l["height_ft"] for l in today_lows), default=None)
+        min_low_ft = min((low["height_ft"] for low in today_lows), default=None)
         
         # Simple king tide heuristic: if max high > 5.5 ft at Jennette's Pier
         # (this threshold should be tuned for local conditions)

@@ -216,7 +216,7 @@ def build_email(sensor_data: Dict[str, Any]) -> Tuple[EmailMessage, Optional[str
     exterior_humidity = sensor_data.get("exterior_humidity")
     
     # Weather API outdoor conditions
-    outdoor_temp = sensor_data.get("outdoor_temp") or sensor_data.get("outside_temp")
+    _outdoor_temp = sensor_data.get("outdoor_temp") or sensor_data.get("outside_temp")  # noqa: F841
     outdoor_humidity = sensor_data.get("humidity_out") or sensor_data.get("outside_humidity")
     outdoor_condition = sensor_data.get("condition")
 
