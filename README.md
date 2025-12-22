@@ -67,49 +67,180 @@ Transform passive greenhouse monitoring into an active, narrative-driven experie
 
 ### Prerequisites
 
-- Raspberry Pi 5 (Storyteller) with Docker installed
+**Hardware:**
+- Raspberry Pi 4/5 (Storyteller) with 4GB+ RAM
 - Raspberry Pi with Home Assistant and camera (Greenhouse Pi)
-- ESP32 sensor nodes with ESPHome
-- API Keys: Google Gemini, OpenWeatherMap (One Call 3.0)
-- Gmail account with App Password for SMTP
+- ESP32 sensor nodes with ESPHome (optional)
 
-### 1. Clone and Configure
+**Software:**
+- Docker Engine 24+ and Docker Compose V2
+- Python 3.11+ (for local development only)
+- Git
+
+**API Keys (Required):**
+| Service | Purpose | Get Key |
+|---------|---------|----------|
+| Google Gemini | AI narrative generation | [aistudio.google.com](https://aistudio.google.com/app/apikey) |
+| OpenWeatherMap | Weather data (One Call 3.0) | [openweathermap.org](https://openweathermap.org/api) |
+| Gmail App Password | Email delivery | [Google Account → Security → App passwords](https://myaccount.google.com/apppasswords) |
+
+---
+
+### Step 1: Clone and Configure
 
 ```bash
-git clone https://github.com/joshcrow/greenhouse-beach.git
-cd greenhouse-beach
+# Clone the repository
+git clone https://github.com/your-username/greenhouse-gazette.git
+cd greenhouse-gazette
+
+# Copy environment template
 cp .env.example .env
-nano .env  # Add your API keys and SMTP credentials
 ```
 
-### 2. Start the Storyteller
+### Step 2: Set Environment Variables
+
+Edit `.env` with your credentials:
 
 ```bash
-# Option A: Pull pre-built image from Docker Hub (fast)
-docker pull jcrow333/greenhouse-storyteller:latest
+# Required - AI Narrative
+GEMINI_API_KEY=your-gemini-api-key
+
+# Required - Weather
+OPENWEATHER_API_KEY=your-openweather-key
+LAT=36.022                    # Your greenhouse latitude
+LON=-75.720                   # Your greenhouse longitude
+
+# Required - MQTT
+MQTT_HOST=mosquitto
+MQTT_PORT=1883
+MQTT_USERNAME=greenhouse
+MQTT_PASSWORD=your-mqtt-password
+
+# Required - Email
+SMTP_SERVER=smtp.gmail.com
+SMTP_PORT=465
+SMTP_USER=your-email@gmail.com
+SMTP_PASSWORD=your-gmail-app-password
+SMTP_TO=recipient@example.com
+
+# Timezone
+TZ=America/New_York
+```
+
+### Step 3: Configure MQTT Authentication
+
+```bash
+# Generate a strong password
+openssl rand -base64 24
+
+# Create the Mosquitto password file
+docker run --rm -v $(pwd)/configs:/mosquitto/config eclipse-mosquitto:2 \
+  mosquitto_passwd -c /mosquitto/config/passwd greenhouse
+
+# Enter the same password you put in .env when prompted
+```
+
+### Step 4: Build and Start
+
+```bash
+# Build the Docker image
+docker compose build
+
+# Start all services (mosquitto + storyteller)
 docker compose up -d
 
-# Option B: Build locally
-docker compose build
-docker compose up -d
+# Verify services are running
+docker compose ps
 
 # Watch logs
 docker compose logs -f
 ```
 
-### 3. Deploy Bridges to Greenhouse Pi
+### Step 5: Deploy Camera Bridge to Greenhouse Pi
 
 ```bash
-# Copy bridge scripts
-scp scripts/camera_mqtt_bridge.py scripts/ha_sensor_bridge.py user@greenhouse-pi:/opt/greenhouse/
+# Copy bridge scripts to Greenhouse Pi
+scp scripts/camera_mqtt_bridge.py user@greenhouse-pi:/opt/greenhouse/
+scp scripts/camera_mqtt_bridge.env user@greenhouse-pi:/opt/greenhouse/
 
-# Install as services (see DEPLOYMENT.md for details)
+# SSH to Greenhouse Pi and install dependencies
+ssh user@greenhouse-pi
+pip3 install paho-mqtt requests
+
+# Edit environment file with your HA credentials
+nano /opt/greenhouse/camera_mqtt_bridge.env
+
+# Test camera capture
+python3 /opt/greenhouse/camera_mqtt_bridge.py --test
+
+# Run as daemon (or install as systemd service)
+python3 /opt/greenhouse/camera_mqtt_bridge.py --daemon --interval 1800
 ```
 
-### 4. Test Email Delivery
+### Step 6: Test the System
 
 ```bash
-docker exec greenhouse-storyteller python scripts/publisher.py
+# Test email delivery manually
+docker compose exec storyteller python scripts/publisher.py
+
+# Check if images are being archived
+ls -la data/archive/$(date +%Y)/$(date +%m)/$(date +%d)/
+
+# Verify sensor data is being collected
+cat data/status.json | python3 -m json.tool
+```
+
+---
+
+## 🧪 Testing
+
+### Run Tests Locally
+
+```bash
+# Install test dependencies
+pip install -r requirements.txt
+
+# Run full test suite (109 tests)
+pytest
+
+# Run with coverage report
+pytest --cov=scripts --cov-report=term-missing
+
+# Run specific test file
+pytest tests/test_publisher.py -v
+
+# Run tests in Docker
+docker compose run --rm storyteller pytest tests/ -v
+```
+
+### Manual Component Tests
+
+```bash
+# Test MQTT connectivity
+docker compose exec mosquitto mosquitto_sub -t "greenhouse/#" -v -u greenhouse -P yourpassword
+
+# Test weather API
+docker compose exec storyteller python -c "
+import weather_service
+print(weather_service.get_current_weather())
+"
+
+# Test Gemini AI
+docker compose exec storyteller python -c "
+import narrator
+subj, head, body, data = narrator.generate_update({'interior_temp': 72, 'interior_humidity': 65})
+print(f'Subject: {subj}')
+print(f'Headline: {head}')
+"
+
+# Test SMTP connection
+docker compose exec storyteller python -c "
+import os, smtplib, ssl
+ctx = ssl.create_default_context()
+with smtplib.SMTP_SSL(os.getenv('SMTP_SERVER'), 465, context=ctx) as s:
+    s.login(os.getenv('SMTP_USER'), os.getenv('SMTP_PASSWORD'))
+    print('✅ SMTP connection successful')
+"
 ```
 
 ---
@@ -118,25 +249,27 @@ docker exec greenhouse-storyteller python scripts/publisher.py
 
 Automated testing and deployment via GitHub Actions.
 
-| Component | Status |
-|-----------|--------|
-| **Docker Hub** | [`jcrow333/greenhouse-storyteller`](https://hub.docker.com/r/jcrow333/greenhouse-storyteller) |
-| **CI/CD** | GitHub Actions (test → build → push) |
-| **Platforms** | `linux/amd64`, `linux/arm64` (Raspberry Pi) |
+| Stage | Description |
+|-------|-------------|
+| **Quality** | Ruff linting + pytest (109 tests) |
+| **Build** | Docker multi-arch image (amd64 + arm64) |
+| **Security** | pip-audit dependency scan |
+| **Deploy** | Push to Docker Hub on main branch |
 
 ### Development Workflow
 
 ```bash
-# Run tests locally
+# Run tests locally before pushing
 pytest
 
 # Push to trigger CI/CD
 git push origin main
-# → Tests run → Docker image built → Pushed to Docker Hub
+# → Lint → Test → Build → Push to Docker Hub
 
-# Update Storyteller Pi
-ssh pi@storyteller
-docker pull jcrow333/greenhouse-storyteller:latest
+# Update production Pi
+ssh user@storyteller-pi
+cd /opt/greenhouse
+docker compose pull
 docker compose up -d
 ```
 
@@ -275,36 +408,146 @@ Define your sensors, cameras, and network topology:
 
 ## 🔧 Troubleshooting
 
-### No sensor data in email
+### Common Errors and Solutions
+
+#### "GEMINI_API_KEY environment variable is not set"
 ```bash
-# Check status.json has data
-cat data/status.json
+# Verify .env is loaded
+docker compose exec storyteller env | grep GEMINI
+
+# Fix: Ensure .env exists and restart
+cp .env.example .env
+nano .env  # Add your API key
+docker compose down && docker compose up -d
+```
+
+#### "MQTT connection failed with rc=5" (Authentication Error)
+```bash
+# rc=5 means bad username/password
+# Verify password matches between .env and configs/passwd
+
+# Regenerate password file
+docker run --rm -v $(pwd)/configs:/mosquitto/config eclipse-mosquitto:2 \
+  mosquitto_passwd -c /mosquitto/config/passwd greenhouse
+# Enter the EXACT password from your .env file
+
+# Restart mosquitto
+docker compose restart mosquitto
+```
+
+#### "Weather API unreachable or error occurred"
+```bash
+# Check API key validity
+curl "https://api.openweathermap.org/data/3.0/onecall?lat=36&lon=-75&appid=YOUR_KEY"
+
+# Common causes:
+# - Invalid API key (check for typos)
+# - One Call 3.0 not subscribed (free tier requires signup)
+# - Rate limit exceeded (1000 calls/day free)
+```
+
+#### "No daylight images found for daily timelapse"
+```bash
+# Check if images exist for yesterday
+ls -la data/archive/$(date -d yesterday +%Y)/$(date -d yesterday +%m)/$(date -d yesterday +%d)/
+
+# If empty, verify camera bridge is running on Greenhouse Pi
+ssh user@greenhouse-pi "ps aux | grep camera_mqtt"
+
+# Check camera bridge logs
+ssh user@greenhouse-pi "tail -50 /tmp/camera_bridge.log"
+```
+
+#### "Permission denied" on data directories
+```bash
+# Fix ownership (run on host, not in container)
+sudo chown -R $(id -u):$(id -g) data/
+
+# Or set permissions
+chmod -R 755 data/
+```
+
+#### Images stuck in `incoming/` (not moving to `archive/`)
+```bash
+# Check curator logs for errors
+docker compose logs storyteller | grep curator
+
+# Common causes:
+# - Image too dark (brightness < 10) → archived to _night/ folder
+# - Image corrupt (cv2.imread fails) → deleted
+# - Permissions issue → see above
+```
+
+#### Email sends but has no timelapse (static image instead)
+```bash
+# Timelapse requires ≥2 daylight images from yesterday
+# Check archive
+ls data/archive/$(date -d yesterday +%Y/%m/%d)/*.jpg | wc -l
+
+# If < 2 images, timelapse falls back to latest static image
+# This is expected behavior, not an error
+```
+
+#### Sensor values showing as "N/A" or missing
+```bash
+# Check status.json for recent data
+cat data/status.json | python3 -m json.tool
 
 # Verify MQTT messages arriving
-docker exec greenhouse-beach-mosquitto-1 mosquitto_sub -t "greenhouse/#" -v
+docker compose exec mosquitto mosquitto_sub -t "greenhouse/#" -v -u greenhouse -P yourpassword
+
+# Check status_daemon logs
+docker compose logs storyteller | grep status
 ```
 
-### Email not sending
+#### "Sensor value out of bounds" warnings
 ```bash
-# Test manually
-docker exec greenhouse-beach-storyteller-1 python scripts/publisher.py
+# Data validation rejects:
+# - Temperature outside -10°F to 130°F
+# - Humidity outside 0% to 100%
+# - Sudden spikes (>20°F or >30% in 10 minutes)
 
-# Check SMTP credentials in .env
+# Check for faulty sensor or loose connection
+# Verify ESPHome calibration if values seem wrong
 ```
 
-### Camera images not arriving
+### Diagnostic Commands
+
 ```bash
-# Check camera bridge on Greenhouse Pi
-ssh user@greenhouse-pi "journalctl -u camera-mqtt-bridge -f"
+# View all running processes in storyteller container
+docker compose exec storyteller ps aux
 
-# Test camera capture
-ssh user@greenhouse-pi "python3 /opt/greenhouse/camera_mqtt_bridge.py --test"
+# Check container health
+docker compose ps
+
+# View recent logs (last 100 lines)
+docker compose logs --tail=100 storyteller
+
+# Inspect status.json
+docker compose exec storyteller cat /app/data/status.json | python3 -m json.tool
+
+# Check disk usage of archive
+du -sh data/archive/
+
+# Count images by day
+for d in data/archive/2025/*/*; do echo "$d: $(ls $d/*.jpg 2>/dev/null | wc -l)"; done
 ```
 
-### Satellite sensor offline
-- Check battery voltage (should be > 3.4V actual, > 1.7V ADC with voltage divider)
-- Verify WiFi connectivity to GREENHOUSE_IOT network
-- Check ESPHome logs in Home Assistant
+### Performance Issues on Raspberry Pi
+
+```bash
+# Check memory usage
+free -h
+
+# If low memory, reduce timelapse size in scripts/timelapse.py:
+# max_width=400, max_frames=30, colors=64
+
+# Check SD card health (avoid excessive writes)
+iostat -x 1 3
+
+# Move data directory to external storage if needed
+# Edit docker-compose.yml volumes section
+```
 
 ---
 
