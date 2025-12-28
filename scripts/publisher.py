@@ -626,6 +626,55 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
     </div>
 """
 
+    def build_alert_banner():
+        """Build alert banner for critical conditions.
+        
+        Returns HTML for a colored banner if there are alerts, empty string otherwise.
+        Alert conditions:
+        - Frost risk: low_temp < 35°F
+        - Critical battery: satellite-2_battery < 3.4V
+        - High wind: wind_mph > 25
+        """
+        alerts = []
+        
+        # Check for frost risk
+        if low_temp is not None and low_temp < 35:
+            alerts.append(f"🥶 <b>Frost risk tonight</b> — low of {low_temp}°F expected")
+        
+        # Check for critical battery
+        if sat_battery is not None and sat_battery < 3.4:
+            alerts.append(f"🪫 <b>Satellite sensor battery critical</b> — {sat_battery}V needs charging")
+        
+        # Check for high wind
+        if wind_mph is not None and wind_mph > 25:
+            alerts.append(f"💨 <b>High wind advisory</b> — gusts up to {wind_mph} mph")
+        
+        if not alerts:
+            # All clear - subtle green banner
+            return """
+                    <!-- ALERT BANNER: ALL CLEAR -->
+                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: separate; border-spacing: 0; background-color: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; margin-bottom: 16px;">
+                        <tr>
+                            <td style="padding: 12px 16px; color: #166534; font-size: 14px;">
+                                ✅ All systems normal
+                            </td>
+                        </tr>
+                    </table>
+            """
+        
+        # Warning banner - amber/red based on severity
+        alert_html = "<br>".join(alerts)
+        return f"""
+                    <!-- ALERT BANNER: WARNINGS -->
+                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: separate; border-spacing: 0; background-color: #fef3c7; border: 2px solid #f59e0b; border-radius: 8px; margin-bottom: 16px;">
+                        <tr>
+                            <td style="padding: 12px 16px; color: #92400e; font-size: 14px; line-height: 1.5;">
+                                {alert_html}
+                            </td>
+                        </tr>
+                    </table>
+        """
+
     def fmt_time(value):
         if value is None:
             return "N/A"
@@ -666,12 +715,25 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
     # Build hero image section if available
     hero_section = ""
     if image_cid:
+        # Determine caption based on weekly mode and whether it's a timelapse
+        if weekly_mode:
+            hero_caption = "📸 This Week's Timelapse"
+        else:
+            hero_caption = "📸 Daily Timelapse"
+        
         hero_section = f"""
-        <!-- CARD 0: HERO -->
-        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: separate; border-spacing: 0; border: 0; border-radius: 12px; overflow: hidden;" class="dark-bg-card">
+        <!-- CARD 0: HERO IMAGE -->
+        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: separate; border-spacing: 0;" class="dark-bg-card">
             <tr>
                 <td style="padding: 0;">
-                    <img src="cid:{image_cid}" alt="Greenhouse hero image" style="display:block; width:100%; height:auto; border:0;">
+                    <!-- Caption -->
+                    <div class="dark-text-accent" style="font-size:13px; color:#588157; margin-bottom:8px; font-weight:600; text-transform: uppercase; letter-spacing: 0.5px;">
+                        {hero_caption}
+                    </div>
+                    <!-- Image with shadow and border -->
+                    <div style="border-radius: 12px; overflow: hidden; border: 2px solid #588157; box-shadow: 0 4px 12px rgba(0,0,0,0.1);" class="dark-border">
+                        <img src="cid:{image_cid}" alt="Greenhouse timelapse" style="display:block; width:100%; height:auto; border:0;">
+                    </div>
                 </td>
             </tr>
         </table>
@@ -884,11 +946,13 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
                             </td>
                         </tr>
                         <tr>
-                            <td class="dark-text-muted" style="padding-bottom: 24px; font-size:13px; color:#6b7280; mso-line-height-rule: exactly;">
+                            <td class="dark-text-muted" style="padding-bottom: 16px; font-size:13px; color:#6b7280; mso-line-height-rule: exactly;">
                                 {date_subheadline}
                             </td>
                         </tr>
                     </table>
+
+                    {build_alert_banner()}
 
                     <!-- CARD 1: BODY -->
                     <!-- border-spacing: 0 is critical when using separate borders -->
