@@ -335,7 +335,7 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
     
     # Weather API outdoor conditions
     _outdoor_temp = sensor_data.get("outdoor_temp") or sensor_data.get("outside_temp")  # noqa: F841
-    outdoor_humidity = sensor_data.get("humidity_out") or sensor_data.get("outside_humidity")
+    outdoor_humidity = sensor_data.get("humidity_out") or sensor_data.get("outside_humidity")  # noqa: F841
     outdoor_condition = sensor_data.get("condition")
 
     # Extended weather details from weather_service (if available)
@@ -521,7 +521,7 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
             try:
                 dt = datetime.fromisoformat(time_str)
                 time_display = dt.strftime("%-I:%M %p")
-            except:
+            except (ValueError, TypeError):
                 time_display = "N/A"
             
             rows.append(f'''<tr>
@@ -540,7 +540,7 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
             try:
                 dt = datetime.fromisoformat(time_str)
                 time_display = dt.strftime("%-I:%M %p")
-            except:
+            except (ValueError, TypeError):
                 time_display = "N/A"
             
             rows.append(f'''<tr>

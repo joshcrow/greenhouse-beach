@@ -1,6 +1,5 @@
 import json
 import os
-import random
 import re
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
@@ -315,7 +314,7 @@ def _generate_joke_or_riddle_paragraph(narrative_body: str) -> str:
 
     if mode == "riddle":
         answer_prompt_lines = [
-            "You are helping generate a riddle for a greenhouse newsletter.",
+            "You are helping generate a riddle.",
             "Given the riddle text below, return ONLY the answer in a short phrase (no punctuation, no quotes).",
             "Do not include the riddle again.",
             "No emojis.",
