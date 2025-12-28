@@ -50,6 +50,7 @@ FROM deps AS test
 RUN pip install --no-cache-dir pytest pytest-cov pytest-mock responses freezegun
 
 # Copy all source code and tests
+COPY app /app/app
 COPY scripts /app/scripts
 COPY configs /app/configs
 COPY tests /app/tests
@@ -68,6 +69,7 @@ RUN groupadd --gid 1000 greenhouse \
     && useradd --uid 1000 --gid greenhouse --shell /bin/bash --create-home greenhouse
 
 # Copy application code
+COPY --chown=greenhouse:greenhouse app /app/app
 COPY --chown=greenhouse:greenhouse scripts /app/scripts
 COPY --chown=greenhouse:greenhouse configs /app/configs
 
