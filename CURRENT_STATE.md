@@ -1,7 +1,7 @@
 # Project Chlorophyll: Current System State
 
 **Status:** ✅ Operational (via Tailscale) — Production-Hardened  
-**Last Updated:** Dec 27, 2025 @ 11:30 PM EST  
+**Last Updated:** Dec 28, 2025 @ 6:15 PM EST  
 **Next Milestone:** On-site deployment at Mom's house
 
 ---
@@ -13,7 +13,7 @@
 | **GitHub Repo** | [joshcrow/greenhouse-beach](https://github.com/joshcrow/greenhouse-beach) |
 | **Docker Hub** | [jcrow333/greenhouse-storyteller](https://hub.docker.com/r/jcrow333/greenhouse-storyteller) |
 | **CI/CD** | GitHub Actions ✅ |
-| **Tests** | 109 passed, 8 skipped (53% coverage) |
+| **Tests** | 109 passed, 8 skipped (49% coverage) |
 
 ### Development Workflow
 ```bash
@@ -149,6 +149,12 @@ docker compose up -d --force-recreate storyteller
   - MQTT resource cleanup and timeout handling
   - Calendar JSON validation
   - Coast/sky cache persistence
+- [x] **Enterprise refactor** - Reliability improvements (Dec 28):
+  - Pydantic config (`app/config.py`) - centralized settings with fail-fast validation
+  - Data models (`app/models.py`) - type-safe SensorSnapshot, WeatherData, EmailContent
+  - VitalsFormatter service (`app/services/`) - extracted formatting logic
+  - Tenacity retries - Weather API and NOAA API with exponential backoff (3 attempts)
+  - Fixed Sunday email bug (`_test_mode` undefined when imported by scheduler)
 
 ---
 

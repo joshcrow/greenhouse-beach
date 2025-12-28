@@ -116,6 +116,14 @@ greenhouse-beach/
 │   ├── history_cache.json         # Sensor history (survives restarts)
 │   └── riddle_state.json          # Daily riddle continuity
 │
+├── app/                           # Core application package (Dec 2025)
+│   ├── __init__.py               # Package exports (settings, models)
+│   ├── config.py                 # Pydantic Settings - centralized config
+│   ├── models.py                 # Data models (SensorSnapshot, WeatherData, etc.)
+│   └── services/                 # Business logic services
+│       ├── __init__.py
+│       └── vitals_formatter.py   # Email formatting utilities
+│
 ├── scripts/                       # Python application code
 │   ├── entrypoint.sh              # Docker entrypoint (starts all services)
 │   │
@@ -213,12 +221,31 @@ publisher.py ──────────────────────�
 
 ### 3.4 External Integrations
 
-| Service | Purpose | Rate Limit |
-|---------|---------|------------|
-| **Google Gemini** | AI narrative generation | ~60 RPM |
-| **OpenWeatherMap** | Weather forecast, sunrise/sunset | 1000/day |
-| **NOAA CO-OPS** | Tide predictions (Jennette's Pier) | Unlimited |
-| **Gmail SMTP** | Email delivery | 500/day |
+| Service | Purpose | Rate Limit | Retry Policy |
+|---------|---------|------------|--------------|
+| **Google Gemini** | AI narrative generation | ~60 RPM | Fallback to lite model |
+| **OpenWeatherMap** | Weather forecast, sunrise/sunset | 1000/day | 3 attempts, exp backoff |
+| **NOAA CO-OPS** | Tide predictions (Jennette's Pier) | Unlimited | 3 attempts, exp backoff |
+| **Gmail SMTP** | Email delivery | 500/day | Single attempt |
+
+### 3.5 Resilience Patterns (Dec 2025)
+
+The system uses `tenacity` for network resilience:
+
+```python
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=2, max=30),
+    retry=retry_if_exception_type((RequestException, Timeout)),
+)
+def _fetch_weather_data(url, params):
+    ...
+```
+
+**Graceful Degradation:**
+- Weather API failure → Email sends with "Weather Unavailable"
+- NOAA API failure → Tide section omitted
+- Gemini failure → Falls back to `gemini-2.0-flash-lite`, then template
 
 ---
 
