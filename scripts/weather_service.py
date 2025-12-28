@@ -1,6 +1,6 @@
 import os
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 from zoneinfo import ZoneInfo
 
 import requests

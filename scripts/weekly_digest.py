@@ -7,8 +7,8 @@ and a narrative overview of the past week.
 
 import json
 import os
-from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Tuple
+from datetime import datetime
+from typing import Any, Dict
 
 
 
