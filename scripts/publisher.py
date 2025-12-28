@@ -629,7 +629,7 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
     def build_alert_banner():
         """Build alert banner for critical conditions.
         
-        Returns HTML for a colored banner if there are alerts, empty string otherwise.
+        Returns HTML for a colored banner ONLY if there are alerts, empty string otherwise.
         Alert conditions:
         - Frost risk: low_temp < 35°F
         - Critical battery: satellite-2_battery < 3.4V
@@ -643,32 +643,23 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
         
         # Check for critical battery
         if sat_battery is not None and sat_battery < 3.4:
-            alerts.append(f"🪫 <b>Satellite sensor battery critical</b> — {sat_battery}V needs charging")
+            alerts.append(f"🪫 <b>Sensor battery critical</b> — {sat_battery}V needs charging")
         
         # Check for high wind
         if wind_mph is not None and wind_mph > 25:
             alerts.append(f"💨 <b>High wind advisory</b> — gusts up to {wind_mph} mph")
         
+        # No alerts = no banner (don't clutter with "all clear")
         if not alerts:
-            # All clear - subtle green banner
-            return """
-                    <!-- ALERT BANNER: ALL CLEAR -->
-                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: separate; border-spacing: 0; background-color: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; margin-bottom: 16px;">
-                        <tr>
-                            <td style="padding: 12px 16px; color: #166534; font-size: 14px;">
-                                ✅ All systems normal
-                            </td>
-                        </tr>
-                    </table>
-            """
+            return ""
         
-        # Warning banner - amber/red based on severity
+        # Warning banner with dark mode support
         alert_html = "<br>".join(alerts)
         return f"""
                     <!-- ALERT BANNER: WARNINGS -->
-                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: separate; border-spacing: 0; background-color: #fef3c7; border: 2px solid #f59e0b; border-radius: 8px; margin-bottom: 16px;">
+                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: separate; border-spacing: 0; background-color: #fef3c7; border: 2px solid #f59e0b; border-radius: 8px; margin-bottom: 16px;" class="dark-alert-banner">
                         <tr>
-                            <td style="padding: 12px 16px; color: #92400e; font-size: 14px; line-height: 1.5;">
+                            <td style="padding: 12px 16px; color: #92400e; font-size: 14px; line-height: 1.5;" class="dark-alert-text">
                                 {alert_html}
                             </td>
                         </tr>
@@ -903,6 +894,10 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
             /* Cards: Explicitly match body color in dark mode (No visual fill) */
             .dark-bg-card {{ background-color: #171717 !important; }}
             
+            /* Alert Banner: Amber tones for dark mode */
+            .dark-alert-banner {{ background-color: #451a03 !important; border-color: #b45309 !important; }}
+            .dark-alert-text {{ color: #fcd34d !important; }}
+            
             /* Gmail Web hack - match color scheme above */
             u + .body .body-bg {{ background-color: #171717 !important; }}
             u + .body .dark-bg-card {{ background-color: #171717 !important; }}
@@ -913,6 +908,8 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
             u + .body .dark-text-low {{ color: #60a5fa !important; }}
             u + .body .dark-text-accent {{ color: #588157 !important; }}
             u + .body .dark-border {{ border-color: #588157 !important; }}
+            u + .body .dark-alert-banner {{ background-color: #451a03 !important; border-color: #b45309 !important; }}
+            u + .body .dark-alert-text {{ color: #fcd34d !important; }}
         }}
     </style>
     <!--[if mso]>

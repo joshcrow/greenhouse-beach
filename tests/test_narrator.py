@@ -151,7 +151,8 @@ class TestBuildPrompt:
         """Prompt should contain formatting rules."""
         prompt = narrator.build_prompt({})
         
-        assert "RULES:" in prompt
+        # Check for key sections (VOICE/CONTENT replaced RULES)
+        assert "VOICE:" in prompt or "CONTENT:" in prompt
         assert "SUBJECT:" in prompt
         assert "HEADLINE:" in prompt
         assert "BODY:" in prompt
