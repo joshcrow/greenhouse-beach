@@ -15,6 +15,7 @@ from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo
 
 import requests
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 
 # NOAA CO-OPS configuration
@@ -76,6 +77,19 @@ def _save_cache(data: Dict[str, Any]) -> None:
         log(f"Cache write error: {exc}")
 
 
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=2, max=30),
+    retry=retry_if_exception_type((requests.RequestException, requests.Timeout)),
+    reraise=False,
+)
+def _fetch_noaa_data(params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Internal function to fetch NOAA data with retry logic."""
+    resp = requests.get(NOAA_BASE_URL, params=params, timeout=10)
+    resp.raise_for_status()
+    return resp.json()
+
+
 def _fetch_noaa_tides(date_local: datetime) -> Dict[str, Any]:
     """Fetch tide predictions from NOAA CO-OPS for the given date.
 
@@ -101,9 +115,10 @@ def _fetch_noaa_tides(date_local: datetime) -> Dict[str, Any]:
         log(
             f"Fetching NOAA tides for station {NOAA_STATION_ID} ({begin_date} to {end_date})"
         )
-        resp = requests.get(NOAA_BASE_URL, params=params, timeout=10)
-        resp.raise_for_status()
-        data = resp.json()
+        data = _fetch_noaa_data(params)
+        if data is None:
+            log("NOAA API request failed after retries")
+            return None
 
         predictions = data.get("predictions", [])
         if not predictions:

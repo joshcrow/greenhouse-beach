@@ -4,6 +4,7 @@ from typing import Any, Dict
 from zoneinfo import ZoneInfo
 
 import requests
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 
 def log(message: str) -> None:
@@ -55,12 +56,27 @@ def _format_local_time(unix_seconds: float) -> str:
     return dt.strftime("%I:%M %p").lstrip("0")
 
 
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=2, max=30),
+    retry=retry_if_exception_type((requests.RequestException, requests.Timeout)),
+    reraise=False,
+)
+def _fetch_weather_data(url: str, params: Dict[str, Any]) -> Dict[str, Any]:
+    """Internal function to fetch weather data with retry logic."""
+    resp = requests.get(url, params=params, timeout=5)
+    resp.raise_for_status()
+    return resp.json()
+
+
 def get_current_weather() -> Dict[str, Any]:
     """Fetch current weather from OpenWeatherMap.
 
     Returns a dict like:
     {"outdoor_temp": 45.2, "condition": "Light Rain", "humidity_out": 88}
     or {} on failure. Never raises.
+    
+    Uses tenacity retry with exponential backoff for network resilience.
     """
 
     api_key = os.getenv("OPENWEATHER_API_KEY")
@@ -98,9 +114,10 @@ def get_current_weather() -> Dict[str, Any]:
             # If URL building fails, continue without logging the full URL
             log("Calling OpenWeather API (URL redacted)")
 
-        resp = requests.get(url, params=params, timeout=5)
-        resp.raise_for_status()
-        data = resp.json()
+        data = _fetch_weather_data(url, params)
+        if data is None:
+            log("Weather API request failed after retries")
+            return {}
 
         current = data.get("current", {})
         daily_list = data.get("daily", [])
