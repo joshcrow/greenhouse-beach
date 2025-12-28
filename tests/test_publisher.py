@@ -93,7 +93,7 @@ class TestEmailWeatherTable:
         augmented["moon_icon"] = "🌕"
 
         with (
-            patch("publisher.narrator.generate_update", return_value=("S", "H", "B", augmented)),
+            patch("publisher.narrator.generate_update", return_value=("S", "H", "B", "B", augmented)),
             patch("publisher.timelapse.create_daily_timelapse", return_value=None),
             patch("publisher.timelapse.create_weekly_timelapse", return_value=None),
             patch("publisher.find_latest_image", return_value=None),

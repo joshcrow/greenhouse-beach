@@ -380,7 +380,7 @@ def _generate_joke_or_riddle_paragraph(narrative_body: str) -> str:
 
 def generate_update(
     sensor_data: Dict[str, Any], is_weekly: bool = False
-) -> tuple[str, str, str, Dict[str, Any]]:
+) -> tuple[str, str, str, str, Dict[str, Any]]:
     """Sanitize data and request a narrative update from Gemini.
 
     Args:
