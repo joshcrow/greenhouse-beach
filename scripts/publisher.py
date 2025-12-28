@@ -20,6 +20,9 @@ import weekly_digest
 
 ARCHIVE_ROOT = "/app/data/archive"
 
+# Module-level flag for test mode (set via --test CLI argument)
+_test_mode = False
+
 
 def is_weekly_edition() -> bool:
     """Check if today is Sunday (Weekly Edition day)."""
