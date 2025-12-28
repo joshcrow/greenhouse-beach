@@ -169,23 +169,24 @@ class TestGenerateUpdate:
     """Tests for generate_update() function."""
 
     @pytest.mark.unit
-    def test_returns_tuple_of_four(self, mock_gemini):
-        """Should return (subject, headline, body, data) tuple."""
+    def test_returns_tuple_of_five(self, mock_gemini):
+        """Should return (subject, headline, body_html, body_plain, data) tuple."""
         with patch("narrator.weather_service.get_current_weather", return_value={}):
             result = narrator.generate_update({"interior_temp": 72})
         
         assert isinstance(result, tuple)
-        assert len(result) == 4
+        assert len(result) == 5
 
     @pytest.mark.unit
     def test_parses_gemini_response(self, mock_gemini):
         """Should parse structured response from Gemini."""
         with patch("narrator.weather_service.get_current_weather", return_value={}):
-            subject, headline, body, data = narrator.generate_update({"interior_temp": 72})
+            subject, headline, body_html, body_plain, data = narrator.generate_update({"interior_temp": 72})
         
         assert "Perfect Growing Conditions" in subject
         assert len(headline) > 0
-        assert len(body) > 0
+        assert len(body_html) > 0
+        assert len(body_plain) > 0
 
     @pytest.mark.unit
     def test_fallback_on_api_error(self):
@@ -195,11 +196,11 @@ class TestGenerateUpdate:
         with patch("narrator._get_client", return_value=mock_client):
             with patch("narrator.weather_service.get_current_weather", return_value={}):
                 with patch("narrator.coast_sky_service.get_coast_sky_summary", return_value={}):
-                    subject, headline, body, data = narrator.generate_update({})
+                    subject, headline, body_html, body_plain, data = narrator.generate_update({})
         
         assert subject == "Greenhouse Update"
         assert headline == "Greenhouse Update"
-        assert "error" in body.lower()
+        assert "error" in body_html.lower() or "error" in body_plain.lower()
 
     @pytest.mark.unit
     def test_weather_data_merged(self, mock_gemini):
@@ -207,6 +208,6 @@ class TestGenerateUpdate:
         weather = {"outdoor_temp": 55, "condition": "Clear"}
         
         with patch("narrator.weather_service.get_current_weather", return_value=weather):
-            _, _, _, augmented_data = narrator.generate_update({"interior_temp": 72})
+            _, _, _, _, augmented_data = narrator.generate_update({"interior_temp": 72})
         
         assert augmented_data.get("condition") == "Clear"
