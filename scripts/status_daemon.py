@@ -7,6 +7,13 @@ from typing import Any, Dict, List, Tuple
 
 import paho.mqtt.client as mqtt
 
+# Import device monitor (for online/offline alerts)
+try:
+    import device_monitor
+    DEVICE_MONITOR_ENABLED = True
+except ImportError:
+    DEVICE_MONITOR_ENABLED = False
+
 
 BROKER_HOST = os.getenv("MQTT_HOST", "mosquitto")
 BROKER_PORT = int(os.getenv("MQTT_PORT", "1883"))
@@ -29,6 +36,9 @@ CACHE_WRITE_INTERVAL_SECONDS = int(os.getenv("HISTORY_WRITE_INTERVAL", "300"))
 
 # Long-term log write interval (batch writes to reduce SD card wear)
 SENSOR_LOG_INTERVAL_SECONDS = int(os.getenv("SENSOR_LOG_INTERVAL", "300"))  # 5 minutes
+
+# Device monitor check interval (check for online/offline state changes)
+DEVICE_MONITOR_INTERVAL_SECONDS = int(os.getenv("DEVICE_MONITOR_INTERVAL", "300"))  # 5 minutes
 
 SPIKE_WINDOW_SECONDS = int(os.getenv("SENSOR_SPIKE_WINDOW_SECONDS", "600"))
 TEMP_SPIKE_F = float(os.getenv("TEMP_SPIKE_F", "20"))
@@ -56,6 +66,7 @@ history: Dict[str, List[Tuple[datetime, float]]] = defaultdict(list)
 last_write: datetime = datetime.min
 last_cache_write: datetime = datetime.min
 last_sensor_log_write: datetime = datetime.min
+last_device_monitor_check: datetime = datetime.min
 last_seen: Dict[str, datetime] = {}
 last_numeric_value: Dict[str, float] = {}
 
@@ -295,7 +306,7 @@ def _prune_key_history(now: datetime, key: str) -> None:
 
 
 def _write_files_if_due(now: datetime) -> None:
-    global last_write, last_cache_write, last_sensor_log_write
+    global last_write, last_cache_write, last_sensor_log_write, last_device_monitor_check
 
     if (now - last_write).total_seconds() < WRITE_INTERVAL_SECONDS:
         return
@@ -347,6 +358,14 @@ def _write_files_if_due(now: datetime) -> None:
     if (now - last_sensor_log_write).total_seconds() >= SENSOR_LOG_INTERVAL_SECONDS:
         _write_sensor_log()
         last_sensor_log_write = now
+
+    # Check device online/offline status and send alerts
+    if DEVICE_MONITOR_ENABLED and (now - last_device_monitor_check).total_seconds() >= DEVICE_MONITOR_INTERVAL_SECONDS:
+        try:
+            device_monitor.check_devices()
+            last_device_monitor_check = now
+        except Exception as exc:
+            log(f"Error checking device status: {exc}")
 
     last_write = now
 

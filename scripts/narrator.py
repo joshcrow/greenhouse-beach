@@ -158,8 +158,11 @@ def build_prompt(sanitized_data: Dict[str, Any]) -> str:
         "",
         "COAST & SKY (IMPORTANT - NO HALLUCINATION):",
         "- You may include 1-2 sentences about Coast & Sky ONLY if the DATA contains relevant fields.",
-        "- TIDES: Only mention if tide_summary is present. Use the provided times/heights (in feet).",
-        "  If is_king_tide_window is true, briefly explain higher-than-usual tides.",
+        "- TIDES: Only mention if tide_summary is present AND the tide is NOTABLE:",
+        "  * King tide window (is_king_tide_window is true) - explain higher-than-usual tides.",
+        "  * Very low tide (negative feet, good for beach walking).",
+        "  * Unusually high tide (above 3.5 ft).",
+        "  If tides are normal/unremarkable, do NOT mention them - the data table already shows them.",
         "- METEOR SHOWERS: Only mention if sky_summary is present with meteor_shower_name.",
         "  If is_peak_window is true, note it. Consider clouds_pct and precip_prob for visibility.",
         "  If clouds_pct > 70 or precip_prob > 50, note viewing may be limited.",
@@ -172,13 +175,14 @@ def build_prompt(sanitized_data: Dict[str, Any]) -> str:
         "",
         "OUTPUT FORMAT (follow exactly):",
         "",
-        "SUBJECT: <Urgency-based subject line, 5-8 words. PLAIN TEXT ONLY - no bold, no markdown, no HTML tags, no emojis.",
+        "SUBJECT: <Urgency-based subject line, 5-8 words in SENTENCE CASE (not Title Case).",
+        "         PLAIN TEXT ONLY - no bold, no markdown, no HTML tags, no emojis.",
         "         If a sensor battery is critical, include it in subject.",
-        "         Examples: 'High Wind Alert - 34mph Gusts Today'",
-        "                   'Satellite Battery Critical - Charge Now'",
-        "                   'Perfect Growing Conditions Today'>",
+        "         Examples: 'High wind alert - 34mph gusts today'",
+        "                   'Satellite battery critical - charge now'",
+        "                   'Perfect growing conditions today'>",
         "",
-        "HEADLINE: <Conversational summary, 8-12 words. No emojis.>",
+        "HEADLINE: <Conversational summary in SENTENCE CASE, 8-12 words. No emojis.>",
         "",
         "BODY: <Two short paragraphs. First: current conditions and feel. Second: what to expect or do.",
         "       If Coast & Sky data is present and notable, add a brief third sentence or short paragraph.>",
@@ -244,38 +248,45 @@ def _generate_joke_or_riddle_paragraph(narrative_body: str) -> str:
     state = _load_riddle_state()
     yesterday_answer = _extract_yesterday_answer(state)
 
-    mode = random.choice(["joke", "riddle"])
+    # Always use riddle mode - answer revealed next day
+    mode = "riddle"
     intro = ""
     if yesterday_answer:
         intro = f"Yesterday's riddle answer: {yesterday_answer}"
 
     prompt_lines = [
         "You are the 'Comic Relief' section of the greenhouse newsletter.",
-        "Write ONE final paragraph as a light sign-off for today's newsletter.",
+        "Write ONE riddle as a light sign-off for today's newsletter.",
         "",
-        "INSTRUCTIONS:",
-        "- Read the NARRATIVE below to understand today's theme and mood.",
-        "- Write a short, clever joke or riddle that is SUBTLY related to the narrative's theme.",
-        "- Do NOT reference specific data points, numbers, or sensor readings.",
-        "- The connection should be thematic (e.g., if the narrative mentions cold weather, a winter-themed joke).",
-        "- Tone: Dry, observational, perhaps slightly cynical about the struggles of gardening.",
+        "CRITICAL REQUIREMENTS:",
+        "- You MUST write a RIDDLE, not a joke.",
+        "- A riddle asks a question. The answer is NOT revealed until tomorrow's newsletter.",
+        "- NEVER include the answer, punchline, or solution in your output.",
+        "- NEVER use 'Because...' or any answer/explanation.",
         "",
-        "FORMAT:",
-        "- MODE=joke: Write a short joke (setup + punchline) as a paragraph.",
-        "- MODE=riddle: Write a short riddle as a paragraph. Do NOT include the answer.",
+        "RIDDLE FORMAT (follow exactly):",
+        "- Start with the INTRO text if provided.",
+        "- Then write a riddle question that ends with a question mark.",
+        "- The riddle should be 1-2 sentences max.",
+        "- Example: 'Here's today's riddle: What gets wetter the more it dries?'",
+        "- Example: 'Riddle me this: I have hands but cannot clap. What am I?'",
         "",
-        "RULES:",
-        "- If INTRO is provided, start with that sentence, then continue into the joke/riddle.",
-        "- No emojis. No markdown. No HTML.",
-        "- Keep it to 2-3 sentences max.",
+        "THEME:",
+        "- Read the NARRATIVE below for today's theme.",
+        "- Make the riddle SUBTLY related (gardening, weather, plants, greenhouse life).",
+        "- Do NOT reference specific numbers or sensor data.",
         "",
-        f"MODE: {mode}",
-        f"INTRO: {intro}",
+        "FORBIDDEN:",
+        "- No answers or punchlines (e.g., 'Because...').",
+        "- No emojis, markdown, or HTML.",
+        "- No jokes with setup+punchline format.",
+        "",
+        f"INTRO: {intro}" if intro else "INTRO: (none - start directly with riddle)",
         "",
         "NARRATIVE:",
         narrative_body[:1500] if narrative_body else "A typical day at the greenhouse.",
         "",
-        "OUTPUT: Return only the paragraph text.",
+        "OUTPUT: Return only the riddle paragraph (with INTRO if provided). No answer.",
     ]
     prompt = "\n".join(prompt_lines)
 
@@ -347,8 +358,12 @@ def _generate_joke_or_riddle_paragraph(narrative_body: str) -> str:
     return paragraph
 
 
-def generate_update(sensor_data: Dict[str, Any]) -> tuple[str, str, str, Dict[str, Any]]:
+def generate_update(sensor_data: Dict[str, Any], is_weekly: bool = False) -> tuple[str, str, str, Dict[str, Any]]:
     """Sanitize data and request a narrative update from Gemini.
+    
+    Args:
+        sensor_data: Sensor and weather data dict
+        is_weekly: If True, generate Sunday "Week in Review" edition
 
     Returns:
         tuple: (subject, headline, narrative_text, augmented_sensor_data)
@@ -479,7 +494,10 @@ def generate_update(sensor_data: Dict[str, Any]) -> tuple[str, str, str, Dict[st
 
     # Convert markdown bold (**text**) to HTML bold (<b>text</b>)
     import re
-    body = re.sub(r'\*\*([^*]+)\*\*', r'<b>\1</b>', body)
+    body_html = re.sub(r'\*\*([^*]+)\*\*', r'<b>\1</b>', body)
+    
+    # Create plain text version by stripping HTML tags
+    body_plain = re.sub(r'<[^>]+>', '', body_html)
 
     joke_or_riddle = ""
     try:
@@ -488,16 +506,22 @@ def generate_update(sensor_data: Dict[str, Any]) -> tuple[str, str, str, Dict[st
         log(f"WARNING: Failed generating joke/riddle paragraph: {exc}")
 
     if joke_or_riddle:
-        if body and not body.endswith("\n"):
-            body = body.rstrip()
-        body = f"{body}\n\n{joke_or_riddle}" if body else joke_or_riddle
+        if body_html and not body_html.endswith("\n"):
+            body_html = body_html.rstrip()
+            body_plain = body_plain.rstrip()
+        body_html = f"{body_html}\n\n{joke_or_riddle}" if body_html else joke_or_riddle
+        body_plain = f"{body_plain}\n\n{joke_or_riddle}" if body_plain else joke_or_riddle
 
     # Strip any emojis from AI-generated text (keep emojis only in data tables)
     subject = strip_emojis(subject)
     headline = strip_emojis(headline)
-    body = strip_emojis(body)
+    body_html = strip_emojis(body_html)
+    body_plain = strip_emojis(body_plain)
+    
+    # Store narrator model in sensor_data for debug footer
+    sensor_data["_narrator_model"] = model_name
 
-    return subject, headline, body, sensor_data
+    return subject, headline, body_html, body_plain, sensor_data
 
 
 if __name__ == "__main__":

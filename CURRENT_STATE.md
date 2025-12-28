@@ -1,7 +1,7 @@
 # Project Chlorophyll: Current System State
 
 **Status:** ✅ Operational (via Tailscale) — Production-Hardened  
-**Last Updated:** Dec 22, 2025 @ 10:30 AM EST  
+**Last Updated:** Dec 27, 2025 @ 11:30 PM EST  
 **Next Milestone:** On-site deployment at Mom's house
 
 ---
@@ -54,7 +54,8 @@ docker compose up -d --force-recreate storyteller
 | `ingestion.py` | `greenhouse/+/image` | ✅ Receiving camera images |
 | `curator.py` | Archive queue | ✅ Processing to `data/archive/` |
 | `scheduler.py` | 07:00 daily, monthly/yearly timelapses | ✅ Running |
-| `status_daemon.py` | `greenhouse/+/sensor/+/state` | ✅ Writing `status.json` |
+| `status_daemon.py` | `greenhouse/+/sensor/+/state` | ✅ Writing `status.json` + device monitoring |
+| `device_monitor.py` | Every 5 min | ✅ Online/offline alerts via email |
 | `web_server.py` | Port 8080 | ✅ Serving timelapses |
 
 ---
@@ -81,15 +82,16 @@ docker compose up -d --force-recreate storyteller
 
 | Sensor | Location | Last Value | Status |
 |--------|----------|------------|--------|
-| `interior_temp` | Greenhouse inside | 61°F | ✅ |
-| `interior_humidity` | Greenhouse inside | 78% | ✅ |
-| `exterior_temp` | Greenhouse outside | 72°F | ✅ |
-| `exterior_humidity` | Greenhouse outside | 74% | ✅ |
-| `satellite-2` | Ready for deploy | 21.2°C | ✅ Flashed & tested |
-| `satellite-2_battery` | FireBeetle | 4.2V | ✅ Fully charged |
+| `interior_temp` | Greenhouse inside | — | ⚠️ Pi offline (solar) |
+| `interior_humidity` | Greenhouse inside | — | ⚠️ Pi offline (solar) |
+| `exterior_temp` | Greenhouse outside | — | ⚠️ Pi offline (solar) |
+| `exterior_humidity` | Greenhouse outside | — | ⚠️ Pi offline (solar) |
+| `satellite-2_battery` | FireBeetle | 4.0V | ✅ Reporting |
+| `satellite-2_temp/humidity` | FireBeetle BME280 | — | ⚠️ Needs investigation |
 | `sensor1_greenhouse` | Broken hardware | — | ❌ Offline |
 
-> ✅ **FireBeetle satellite flashed and tested!** Battery at 4.2V (100%). Ready for greenhouse deployment.
+> ⚠️ **Greenhouse Pi offline** since Dec 23 (solar battery depleted). Will auto-recover with sunlight.
+> ⚠️ **FireBeetle BME280** not publishing temp/humidity (battery OK). Needs ESPHome investigation.
 
 ---
 
@@ -97,7 +99,7 @@ docker compose up -d --force-recreate storyteller
 
 1. **Camera:** Hardware device mapping COMMENTED OUT - images via MQTT bridge
 2. **MQTT:** Using legacy `mqtt.Client()` API for Paho 1.x/2.x compatibility
-3. **AI Model:** `gemini-3-flash-preview` primary, `gemini-2.0-flash-lite` fallback
+3. **AI Model:** `gemini-2.5-flash` primary, `gemini-2.0-flash-lite` fallback
 4. **Weather:** OpenWeatherMap One Call 3.0 API
 5. **Temps:** Auto-convert Celsius to Fahrenheit when < 50
 6. **Sensor Keys:** Zone-prefixed format (`interior_temp`, `exterior_temp`)
@@ -114,8 +116,8 @@ docker compose up -d --force-recreate storyteller
 - [x] **Weather integration** - OpenWeatherMap One Call 3.0
 - [x] **AI narrative** - Gemini 3 Flash with punchy prose (migrated to new google-genai SDK)
 - [x] **Comic Relief** - Daily joke or riddle (thematically related to narrative, dry/observational tone)
-- [x] **Riddle continuity** - Riddle answers revealed in next day's email
-- [x] **Bold alerts** - `<b>` tags render in email body
+- [x] **Riddle continuity** - Riddle answers revealed in next day's email (always riddle mode, no jokes)
+- [x] **Bold alerts** - `<b>` tags render in email body (HTML version only, plain text stripped)
 - [x] **Integer display** - All temps/humidity/wind rounded (no decimals)
 - [x] **Urgency subjects** - Dynamic subject lines based on conditions
 - [x] **Battery column** - Color-coded battery status in sensor table
@@ -135,6 +137,10 @@ docker compose up -d --force-recreate storyteller
 - [x] **Visibility gating** - clouds_pct, precip_prob for meteor shower recommendations
 - [x] **Sensor data persistence** - History cache survives container restarts
 - [x] **Long-term sensor logs** - Monthly JSONL files in `data/sensor_log/` for analysis
+- [x] **Device monitoring** - Email alerts when greenhouse-pi or satellite-2 goes online/offline
+- [x] **Sentence case** - All AI-generated subject lines and headlines use sentence case (not Title Case)
+- [x] **Notable tides only** - Narrator only mentions king tides, negative tides, or >3.5ft tides
+- [x] **Separate HTML/plain text** - Email body has proper HTML version and clean plain text version
 - [x] **Sunrise/Sunset compact** - Combined into single row in weather table
 - [x] **Production hardening** - Security audit complete (Dec 21):
   - Buffer overflow protection (sensor log cap)
@@ -172,6 +178,7 @@ docker compose up -d --force-recreate storyteller
 - [ ] Add more microclimate sensors
 - [x] **NVMe migration** - 1TB NVMe installed ✅
 - [ ] Web dashboard
+- [ ] Investigate FireBeetle BME280 not publishing (battery works, temp/humidity don't)
 
 ---
 
@@ -193,6 +200,7 @@ docker pull jcrow333/greenhouse-storyteller:latest  # Pull latest image
 # === Manual Actions ===
 docker exec greenhouse-storyteller python scripts/publisher.py --test  # Test email (you only)
 docker exec greenhouse-storyteller python scripts/publisher.py         # Full email (all recipients)
+docker exec greenhouse-storyteller python scripts/device_monitor.py    # Check device online/offline status
 cat data/status.json | jq                # Check sensor data
 
 # === SSH to Greenhouse Pi ===
