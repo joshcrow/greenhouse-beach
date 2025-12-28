@@ -266,7 +266,7 @@ def _generate_joke_or_riddle_paragraph(narrative_body: str) -> str:
         "",
         "THEME:",
         "- Read the NARRATIVE below for today's theme.",
-        "- Make the riddle SUBTLY related (gardening, weather, plants, greenhouse life).",
+        "- Make the riddle SUBTLY related (gardening, weather, plants, greenhouse life, the Outer Banks, dogs, complaining about tourists).",
         "- Do NOT reference specific numbers or sensor data.",
         "",
         "FORBIDDEN:",
