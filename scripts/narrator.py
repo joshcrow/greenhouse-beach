@@ -15,26 +15,26 @@ _RIDDLE_STATE_PATH = os.getenv("RIDDLE_STATE_PATH", "/app/data/riddle_state.json
 
 def strip_emojis(text: str) -> str:
     """Remove emojis from text while preserving other characters.
-    
+
     Used to ensure subject/headline/body are emoji-free while
     keeping emojis in data tables for good UX.
     """
     # Regex pattern covering common emoji Unicode ranges
     emoji_pattern = re.compile(
         "["
-        "\U0001F600-\U0001F64F"  # emoticons
-        "\U0001F300-\U0001F5FF"  # symbols & pictographs
-        "\U0001F680-\U0001F6FF"  # transport & map symbols
-        "\U0001F1E0-\U0001F1FF"  # flags
-        "\U00002702-\U000027B0"  # dingbats
-        "\U000024C2-\U0001F251"  # enclosed characters
-        "\U0001F900-\U0001F9FF"  # supplemental symbols
-        "\U0001FA00-\U0001FA6F"  # chess symbols
-        "\U0001FA70-\U0001FAFF"  # symbols extended-A
-        "\U00002600-\U000026FF"  # misc symbols (sun, moon, etc)
-        "\U0000FE0F"             # variation selector
+        "\U0001f600-\U0001f64f"  # emoticons
+        "\U0001f300-\U0001f5ff"  # symbols & pictographs
+        "\U0001f680-\U0001f6ff"  # transport & map symbols
+        "\U0001f1e0-\U0001f1ff"  # flags
+        "\U00002702-\U000027b0"  # dingbats
+        "\U000024c2-\U0001f251"  # enclosed characters
+        "\U0001f900-\U0001f9ff"  # supplemental symbols
+        "\U0001fa00-\U0001fa6f"  # chess symbols
+        "\U0001fa70-\U0001faff"  # symbols extended-A
+        "\U00002600-\U000026ff"  # misc symbols (sun, moon, etc)
+        "\U0000fe0f"  # variation selector
         "]+",
-        flags=re.UNICODE
+        flags=re.UNICODE,
     )
     return emoji_pattern.sub("", text).strip()
 
@@ -51,7 +51,7 @@ _client: genai.Client | None = None
 
 def _get_client() -> genai.Client:
     """Get or create the Gemini client using GEMINI_API_KEY from the environment.
-    
+
     Raises:
         ValueError: If GEMINI_API_KEY is not set (fail-fast).
     """
@@ -84,15 +84,26 @@ def sanitize_data(sensor_data: Dict[str, Any]) -> Dict[str, Any]:
 
     # Temperature keys to sanitize (all variants used in the system)
     temp_keys = [
-        "temp", "interior_temp", "exterior_temp", "outdoor_temp",
-        "satellite_2_temperature", "satellite-2_satellite_2_temperature",
-        "high_temp", "low_temp", "tomorrow_high", "tomorrow_low",
+        "temp",
+        "interior_temp",
+        "exterior_temp",
+        "outdoor_temp",
+        "satellite_2_temperature",
+        "satellite-2_satellite_2_temperature",
+        "high_temp",
+        "low_temp",
+        "tomorrow_high",
+        "tomorrow_low",
     ]
-    
+
     # Humidity keys to sanitize
     humidity_keys = [
-        "humidity", "interior_humidity", "exterior_humidity", "humidity_out",
-        "satellite_2_humidity", "satellite-2_satellite_2_humidity",
+        "humidity",
+        "interior_humidity",
+        "exterior_humidity",
+        "humidity_out",
+        "satellite_2_humidity",
+        "satellite-2_satellite_2_humidity",
     ]
 
     # Sanitize all temperature values
@@ -143,7 +154,7 @@ def build_prompt(sanitized_data: Dict[str, Any]) -> str:
         "- Do NOT list every sensor reading. The email already has data tables.",
         "- Only mention specific numbers if they represent significant conditions:",
         "  * Freezing temps (below 35°F)",
-        "  * Extreme heat (above 90°F)", 
+        "  * Extreme heat (above 90°F)",
         "  * High winds (above 20 mph)",
         "  * Very low humidity (below 30%)",
         "  * Very high humidity (above 85%)",
@@ -301,7 +312,9 @@ def _generate_joke_or_riddle_paragraph(narrative_body: str) -> str:
     if not raw_text:
         fallback_model = "gemini-2.0-flash-lite"
         try:
-            response = client.models.generate_content(model=fallback_model, contents=prompt)
+            response = client.models.generate_content(
+                model=fallback_model, contents=prompt
+            )
             raw_text = _extract_text(response)
         except Exception as exc:  # noqa: BLE001
             log(f"Error during joke/riddle generation with {fallback_model}: {exc}")
@@ -327,17 +340,23 @@ def _generate_joke_or_riddle_paragraph(narrative_body: str) -> str:
         answer_prompt = "\n".join(answer_prompt_lines)
         answer_raw = None
         try:
-            answer_resp = client.models.generate_content(model=model_name, contents=answer_prompt)
+            answer_resp = client.models.generate_content(
+                model=model_name, contents=answer_prompt
+            )
             answer_raw = _extract_text(answer_resp)
         except Exception as exc:  # noqa: BLE001
             log(f"Error during riddle answer generation with {model_name}: {exc}")
 
         if not answer_raw:
             try:
-                answer_resp = client.models.generate_content(model="gemini-2.0-flash-lite", contents=answer_prompt)
+                answer_resp = client.models.generate_content(
+                    model="gemini-2.0-flash-lite", contents=answer_prompt
+                )
                 answer_raw = _extract_text(answer_resp)
             except Exception as exc:  # noqa: BLE001
-                log(f"Error during riddle answer generation with gemini-2.0-flash-lite: {exc}")
+                log(
+                    f"Error during riddle answer generation with gemini-2.0-flash-lite: {exc}"
+                )
 
         answer = strip_emojis((answer_raw or "").strip())
         answer = answer.replace("\n", " ").strip()
@@ -352,14 +371,18 @@ def _generate_joke_or_riddle_paragraph(narrative_body: str) -> str:
         )
     else:
         if yesterday_answer:
-            _save_riddle_state({"pending_riddle": False, "date": datetime.now().date().isoformat()})
+            _save_riddle_state(
+                {"pending_riddle": False, "date": datetime.now().date().isoformat()}
+            )
 
     return paragraph
 
 
-def generate_update(sensor_data: Dict[str, Any], is_weekly: bool = False) -> tuple[str, str, str, Dict[str, Any]]:
+def generate_update(
+    sensor_data: Dict[str, Any], is_weekly: bool = False
+) -> tuple[str, str, str, Dict[str, Any]]:
     """Sanitize data and request a narrative update from Gemini.
-    
+
     Args:
         sensor_data: Sensor and weather data dict
         is_weekly: If True, generate Sunday "Week in Review" edition
@@ -413,13 +436,12 @@ def generate_update(sensor_data: Dict[str, Any], is_weekly: bool = False) -> tup
     client = _get_client()
     model_name = get_model_name()
     try:
-        response = client.models.generate_content(
-            model=model_name,
-            contents=prompt
-        )
+        response = client.models.generate_content(model=model_name, contents=prompt)
         raw_text = _extract_text(response)
         if not raw_text:
-            log("WARNING: Primary Gemini model response had no text; will try fallback model.")
+            log(
+                "WARNING: Primary Gemini model response had no text; will try fallback model."
+            )
     except Exception as exc:  # noqa: BLE001
         log(f"Error during Gemini generation with {model_name}: {exc}")
 
@@ -429,12 +451,13 @@ def generate_update(sensor_data: Dict[str, Any], is_weekly: bool = False) -> tup
         try:
             log(f"Attempting fallback generation with model '{fallback_model}'.")
             response = client.models.generate_content(
-                model=fallback_model,
-                contents=prompt
+                model=fallback_model, contents=prompt
             )
             raw_text = _extract_text(response)
             if not raw_text:
-                log(f"WARNING: Gemini ({fallback_model}) response had no text; returning fallback message.")
+                log(
+                    f"WARNING: Gemini ({fallback_model}) response had no text; returning fallback message."
+                )
         except Exception as exc:  # noqa: BLE001
             log(f"Error during Gemini generation with {fallback_model}: {exc}")
 
@@ -445,8 +468,12 @@ def generate_update(sensor_data: Dict[str, Any], is_weekly: bool = False) -> tup
 
     if raw_text:
         # Clean markdown bolding
-        clean_text = raw_text.replace("**SUBJECT:**", "SUBJECT:").replace("**HEADLINE:**", "HEADLINE:").replace("**BODY:**", "BODY:")
-        
+        clean_text = (
+            raw_text.replace("**SUBJECT:**", "SUBJECT:")
+            .replace("**HEADLINE:**", "HEADLINE:")
+            .replace("**BODY:**", "BODY:")
+        )
+
         # We need to parse SUBJECT, HEADLINE, and BODY
         # A robust way is to split by keys
         try:
@@ -456,7 +483,7 @@ def generate_update(sensor_data: Dict[str, Any], is_weekly: bool = False) -> tup
                 # Split between SUBJECT and HEADLINE
                 part1, remainder = clean_text.split("HEADLINE:", 1)
                 subject_part = part1.replace("SUBJECT:", "").strip()
-                
+
                 # Split between HEADLINE and BODY (if BODY exists)
                 if "BODY:" in remainder:
                     part2, body_part = remainder.split("BODY:", 1)
@@ -465,7 +492,7 @@ def generate_update(sensor_data: Dict[str, Any], is_weekly: bool = False) -> tup
                 else:
                     # No BODY marker, assume everything after HEADLINE is the body
                     # But first line might be the headline text itself
-                    lines = remainder.strip().split('\n', 1)
+                    lines = remainder.strip().split("\n", 1)
                     headline_part = lines[0].strip()
                     if len(lines) > 1:
                         body = lines[1].strip()
@@ -493,10 +520,11 @@ def generate_update(sensor_data: Dict[str, Any], is_weekly: bool = False) -> tup
 
     # Convert markdown bold (**text**) to HTML bold (<b>text</b>)
     import re
-    body_html = re.sub(r'\*\*([^*]+)\*\*', r'<b>\1</b>', body)
-    
+
+    body_html = re.sub(r"\*\*([^*]+)\*\*", r"<b>\1</b>", body)
+
     # Create plain text version by stripping HTML tags
-    body_plain = re.sub(r'<[^>]+>', '', body_html)
+    body_plain = re.sub(r"<[^>]+>", "", body_html)
 
     joke_or_riddle = ""
     try:
@@ -509,14 +537,16 @@ def generate_update(sensor_data: Dict[str, Any], is_weekly: bool = False) -> tup
             body_html = body_html.rstrip()
             body_plain = body_plain.rstrip()
         body_html = f"{body_html}\n\n{joke_or_riddle}" if body_html else joke_or_riddle
-        body_plain = f"{body_plain}\n\n{joke_or_riddle}" if body_plain else joke_or_riddle
+        body_plain = (
+            f"{body_plain}\n\n{joke_or_riddle}" if body_plain else joke_or_riddle
+        )
 
     # Strip any emojis from AI-generated text (keep emojis only in data tables)
     subject = strip_emojis(subject)
     headline = strip_emojis(headline)
     body_html = strip_emojis(body_html)
     body_plain = strip_emojis(body_plain)
-    
+
     # Store narrator model in sensor_data for debug footer
     sensor_data["_narrator_model"] = model_name
 
@@ -550,4 +580,3 @@ if __name__ == "__main__":
     print(summary)
     print("\n--- Augmented Data ---\n")
     print(augmented)
-

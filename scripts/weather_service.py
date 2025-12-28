@@ -84,7 +84,9 @@ def get_current_weather() -> Dict[str, Any]:
     try:
         # Build a redacted URL string for logging (never expose the API key)
         try:
-            from urllib.parse import urlencode  # local import to avoid global dependency
+            from urllib.parse import (
+                urlencode,
+            )  # local import to avoid global dependency
 
             redacted_params = dict(params)
             if "appid" in redacted_params:
@@ -114,7 +116,7 @@ def get_current_weather() -> Dict[str, Any]:
             result["condition"] = str(condition)
         if "humidity" in current:
             result["humidity_out"] = round(float(current["humidity"]))
-        
+
         # Cloud cover and pressure (for visibility gating and storm context)
         if "clouds" in current:
             result["clouds_pct"] = round(float(current["clouds"]))
@@ -151,19 +153,23 @@ def get_current_weather() -> Dict[str, Any]:
                 result["sunset"] = _format_local_time(float(first["sunset"]))
             elif "sunset" in current:
                 result["sunset"] = _format_local_time(float(current["sunset"]))
-            
+
             # Daily wind (more representative for "Today's Weather" summary, round to integers)
             if "wind_speed" in first:
                 result["daily_wind_mph"] = round(float(first["wind_speed"]))
             if "wind_deg" in first:
                 result["daily_wind_deg"] = float(first["wind_deg"])
-                result["daily_wind_direction"] = _wind_direction(result["daily_wind_deg"])
+                result["daily_wind_direction"] = _wind_direction(
+                    result["daily_wind_deg"]
+                )
                 result["daily_wind_arrow"] = _wind_arrow(result["daily_wind_deg"])
-            
+
             # Precipitation probability (for meteor shower visibility gating)
             if "pop" in first:
-                result["precip_prob"] = round(float(first["pop"]) * 100)  # Convert 0-1 to 0-100%
-        
+                result["precip_prob"] = round(
+                    float(first["pop"]) * 100
+                )  # Convert 0-1 to 0-100%
+
         # Tomorrow's forecast (lookahead for narrative, round to integers)
         if len(daily_list) > 1:
             tomorrow = daily_list[1] or {}

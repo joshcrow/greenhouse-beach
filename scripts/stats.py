@@ -3,6 +3,7 @@ import os
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
 
+
 def log(msg: str) -> None:
     """Simple logger with timestamp."""
     timestamp = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")

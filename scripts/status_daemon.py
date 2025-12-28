@@ -10,6 +10,7 @@ import paho.mqtt.client as mqtt
 # Import device monitor (for online/offline alerts)
 try:
     import device_monitor
+
     DEVICE_MONITOR_ENABLED = True
 except ImportError:
     DEVICE_MONITOR_ENABLED = False
@@ -38,7 +39,9 @@ CACHE_WRITE_INTERVAL_SECONDS = int(os.getenv("HISTORY_WRITE_INTERVAL", "300"))
 SENSOR_LOG_INTERVAL_SECONDS = int(os.getenv("SENSOR_LOG_INTERVAL", "300"))  # 5 minutes
 
 # Device monitor check interval (check for online/offline state changes)
-DEVICE_MONITOR_INTERVAL_SECONDS = int(os.getenv("DEVICE_MONITOR_INTERVAL", "300"))  # 5 minutes
+DEVICE_MONITOR_INTERVAL_SECONDS = int(
+    os.getenv("DEVICE_MONITOR_INTERVAL", "300")
+)  # 5 minutes
 
 SPIKE_WINDOW_SECONDS = int(os.getenv("SENSOR_SPIKE_WINDOW_SECONDS", "600"))
 TEMP_SPIKE_F = float(os.getenv("TEMP_SPIKE_F", "20"))
@@ -77,14 +80,14 @@ sensor_log_buffer: List[Dict[str, Any]] = []
 def _load_history_cache() -> None:
     """Load history from disk cache on startup to survive restarts."""
     global history, latest_values
-    
+
     if not os.path.exists(HISTORY_CACHE_PATH):
         return
-    
+
     try:
         with open(HISTORY_CACHE_PATH, "r", encoding="utf-8") as f:
             cache = json.load(f)
-        
+
         # Restore latest values
         if "latest_values" in cache:
             latest_values.update(cache["latest_values"])
@@ -92,11 +95,13 @@ def _load_history_cache() -> None:
         if "last_seen" in cache and isinstance(cache["last_seen"], dict):
             for key, ts_str in cache["last_seen"].items():
                 try:
-                    ts = datetime.fromisoformat(str(ts_str).replace("Z", "+00:00")).replace(tzinfo=None)
+                    ts = datetime.fromisoformat(
+                        str(ts_str).replace("Z", "+00:00")
+                    ).replace(tzinfo=None)
                     last_seen[key] = ts
                 except Exception:
                     continue
-        
+
         # Restore history (convert ISO strings back to datetime)
         if "history" in cache:
             now = datetime.utcnow()
@@ -104,14 +109,18 @@ def _load_history_cache() -> None:
             for key, samples in cache["history"].items():
                 for ts_str, val in samples:
                     try:
-                        ts = datetime.fromisoformat(ts_str.replace("Z", "+00:00")).replace(tzinfo=None)
+                        ts = datetime.fromisoformat(
+                            ts_str.replace("Z", "+00:00")
+                        ).replace(tzinfo=None)
                         # Only restore samples within last 24h
                         if ts >= window_start:
                             history[key].append((ts, float(val)))
                     except (ValueError, TypeError):
                         continue
-        
-        log(f"Restored history cache: {len(latest_values)} values, {sum(len(v) for v in history.values())} samples")
+
+        log(
+            f"Restored history cache: {len(latest_values)} values, {sum(len(v) for v in history.values())} samples"
+        )
     except Exception as exc:  # noqa: BLE001
         log(f"Failed to load history cache: {exc}")
 
@@ -125,14 +134,14 @@ def _save_history_cache() -> None:
             history_serializable[key] = [
                 (ts.isoformat() + "Z", val) for ts, val in samples
             ]
-        
+
         cache = {
             "latest_values": latest_values,
             "last_seen": {k: (v.isoformat() + "Z") for k, v in last_seen.items()},
             "history": history_serializable,
             "saved_at": datetime.utcnow().isoformat() + "Z",
         }
-        
+
         os.makedirs(os.path.dirname(HISTORY_CACHE_PATH), exist_ok=True)
         tmp_path = HISTORY_CACHE_PATH + ".tmp"
         with open(tmp_path, "w", encoding="utf-8") as f:
@@ -146,28 +155,28 @@ def _save_history_cache() -> None:
 
 def _write_sensor_log() -> None:
     """Write buffered sensor readings to monthly JSONL file for long-term analysis.
-    
+
     File format: /app/data/sensor_log/YYYY-MM.jsonl
     Each line is a JSON object: {"ts": "ISO8601", "sensors": {...}}
     """
     global sensor_log_buffer
-    
+
     if not sensor_log_buffer:
         return
-    
+
     try:
         os.makedirs(SENSOR_LOG_DIR, exist_ok=True)
-        
+
         # Monthly file naming: 2025-12.jsonl
         now = datetime.utcnow()
         filename = now.strftime("%Y-%m") + ".jsonl"
         filepath = os.path.join(SENSOR_LOG_DIR, filename)
-        
+
         # Append buffered entries to the log file
         with open(filepath, "a", encoding="utf-8") as f:
             for entry in sensor_log_buffer:
                 f.write(json.dumps(entry, separators=(",", ":")) + "\n")
-        
+
         log(f"Appended {len(sensor_log_buffer)} entries to sensor log {filepath}")
         sensor_log_buffer.clear()
     except Exception as exc:  # noqa: BLE001
@@ -176,17 +185,17 @@ def _write_sensor_log() -> None:
 
 def _buffer_sensor_reading(now: datetime) -> None:
     """Add current sensor state to the log buffer.
-    
+
     Caps buffer size to prevent OOM if writes fail repeatedly.
     """
     if not latest_values:
         return
-    
+
     # Evict oldest entries if buffer is full (H2: prevent unbounded growth)
     while len(sensor_log_buffer) >= MAX_SENSOR_LOG_BUFFER:
         sensor_log_buffer.pop(0)
         log("WARNING: Sensor log buffer full, evicting oldest entry")
-    
+
     entry = {
         "ts": now.isoformat() + "Z",
         "sensors": dict(latest_values),
@@ -241,7 +250,9 @@ def _temp_to_f(device_id: str, value: float) -> float:
     return value
 
 
-def _validate_numeric(device_id: str, sensor_key: str, value: float) -> Tuple[bool, float]:
+def _validate_numeric(
+    device_id: str, sensor_key: str, value: float
+) -> Tuple[bool, float]:
     if _is_temp_sensor(sensor_key):
         v_f = _temp_to_f(device_id, value)
         return (TEMP_MIN_F <= v_f <= TEMP_MAX_F), v_f
@@ -250,7 +261,9 @@ def _validate_numeric(device_id: str, sensor_key: str, value: float) -> Tuple[bo
     return True, value
 
 
-def _is_spike(key: str, now: datetime, comparable_value: float, sensor_key: str) -> bool:
+def _is_spike(
+    key: str, now: datetime, comparable_value: float, sensor_key: str
+) -> bool:
     prev_ts = last_seen.get(key)
     prev_val = last_numeric_value.get(key)
     if prev_ts is None or prev_val is None:
@@ -306,11 +319,15 @@ def _prune_key_history(now: datetime, key: str) -> None:
 
 
 def _write_files_if_due(now: datetime) -> None:
-    global last_write, last_cache_write, last_sensor_log_write, last_device_monitor_check
+    global \
+        last_write, \
+        last_cache_write, \
+        last_sensor_log_write, \
+        last_device_monitor_check
 
     if (now - last_write).total_seconds() < WRITE_INTERVAL_SECONDS:
         return
-    
+
     # Buffer current sensor state for long-term logging
     _buffer_sensor_reading(now)
 
@@ -360,7 +377,11 @@ def _write_files_if_due(now: datetime) -> None:
         last_sensor_log_write = now
 
     # Check device online/offline status and send alerts
-    if DEVICE_MONITOR_ENABLED and (now - last_device_monitor_check).total_seconds() >= DEVICE_MONITOR_INTERVAL_SECONDS:
+    if (
+        DEVICE_MONITOR_ENABLED
+        and (now - last_device_monitor_check).total_seconds()
+        >= DEVICE_MONITOR_INTERVAL_SECONDS
+    ):
         try:
             device_monitor.check_devices()
             last_device_monitor_check = now
@@ -440,18 +461,19 @@ def run_client_loop() -> None:
 
     log(f"Attempting MQTT connection to {BROKER_HOST}:{BROKER_PORT}")
     client.reconnect_delay_set(min_delay=1, max_delay=60)
-    
+
     # M4: Use connect with timeout via socket options
     # connect() itself doesn't have timeout, but we can set socket timeout
     import socket
+
     client.socket().settimeout(30.0) if client.socket() else None
-    
+
     try:
         client.connect(BROKER_HOST, BROKER_PORT, keepalive=60)
     except (socket.timeout, OSError) as exc:
         log(f"MQTT connection timeout/error: {exc}")
         raise
-    
+
     log("Starting MQTT network loop (loop_forever)")
     client.loop_forever()
 
@@ -459,7 +481,7 @@ def run_client_loop() -> None:
 def main() -> None:
     # Load any cached history from previous run
     _load_history_cache()
-    
+
     while True:
         try:
             run_client_loop()

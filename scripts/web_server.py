@@ -23,12 +23,12 @@ WEB_PORT = int(os.getenv("WEB_PORT", "8080"))
 
 class QuietHandler(http.server.SimpleHTTPRequestHandler):
     """HTTP handler with quieter logging."""
-    
+
     def log_message(self, format, *args):
         # Only log actual file requests, not every connection
         if args and "200" in str(args):
             log(f"{self.address_string()} - {args[0]}")
-    
+
     def log_error(self, format, *args):
         log(f"ERROR: {format % args}")
 
@@ -36,7 +36,7 @@ class QuietHandler(http.server.SimpleHTTPRequestHandler):
 def main():
     # Ensure www directories exist
     os.makedirs(os.path.join(WWW_ROOT, "timelapses"), exist_ok=True)
-    
+
     # Create index.html for the root
     index_path = os.path.join(WWW_ROOT, "index.html")
     if not os.path.exists(index_path):
@@ -61,12 +61,12 @@ def main():
 </body>
 </html>
 """)
-    
+
     # Change to www root directory
     os.chdir(WWW_ROOT)
-    
+
     handler = partial(QuietHandler, directory=WWW_ROOT)
-    
+
     with socketserver.TCPServer(("0.0.0.0", WEB_PORT), handler) as httpd:
         log(f"Serving {WWW_ROOT} on port {WEB_PORT}")
         log(f"Access via Tailscale: http://100.94.172.114:{WEB_PORT}/")

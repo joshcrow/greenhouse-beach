@@ -54,11 +54,13 @@ def on_message(client: mqtt.Client, userdata, msg: mqtt.MQTTMessage):  # type: i
         temp_filepath = filepath + ".tmp"
         with open(temp_filepath, "wb") as f:
             f.write(msg.payload)
-        
+
         # Atomic rename to final filename
         os.rename(temp_filepath, filepath)
 
-        log(f"Saved image from topic '{msg.topic}' to '{filepath}' (size={len(msg.payload)} bytes)")
+        log(
+            f"Saved image from topic '{msg.topic}' to '{filepath}' (size={len(msg.payload)} bytes)"
+        )
     except Exception as exc:  # noqa: BLE001
         log(f"Error handling message on topic '{msg.topic}': {exc}")
 
@@ -96,4 +98,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

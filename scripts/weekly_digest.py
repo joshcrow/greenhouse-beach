@@ -11,7 +11,6 @@ from datetime import datetime
 from typing import Any, Dict
 
 
-
 def log(message: str) -> None:
     ts = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
     print(f"[{ts}] [weekly] {message}", flush=True)
@@ -44,40 +43,40 @@ def save_weekly_stats(stats: Dict[str, Any]) -> None:
 
 def record_daily_snapshot() -> None:
     """Record today's stats to the weekly accumulator.
-    
+
     Call this daily (e.g., at end of day or during daily email).
     """
     weekly = load_weekly_stats()
-    
+
     # Load current 24h stats
     if not os.path.exists(STATS_PATH):
         log("No 24h stats found, skipping daily snapshot")
         return
-    
+
     try:
         with open(STATS_PATH, "r") as f:
             daily_stats = json.load(f)
     except Exception as e:
         log(f"Error loading 24h stats: {e}")
         return
-    
+
     today = datetime.now().strftime("%Y-%m-%d")
-    
+
     # Add today's snapshot
     snapshot = {
         "date": today,
         "stats": daily_stats,
-        "recorded_at": datetime.utcnow().isoformat()
+        "recorded_at": datetime.utcnow().isoformat(),
     }
-    
+
     # Keep only last 7 days
     weekly["days"] = [d for d in weekly.get("days", []) if d["date"] != today]
     weekly["days"].append(snapshot)
     weekly["days"] = weekly["days"][-7:]  # Keep last 7 days
-    
+
     if not weekly.get("week_start"):
         weekly["week_start"] = today
-    
+
     save_weekly_stats(weekly)
     log(f"Recorded daily snapshot for {today}")
 
@@ -87,17 +86,17 @@ def compute_weekly_summary(weekly: Dict[str, Any]) -> Dict[str, Any]:
     days = weekly.get("days", [])
     if not days:
         return {}
-    
+
     summary = {
         "days_recorded": len(days),
         "week_start": days[0]["date"] if days else None,
         "week_end": days[-1]["date"] if days else None,
     }
-    
+
     # Aggregate temperature stats
     all_temps = []
     all_humidities = []
-    
+
     for day in days:
         stats = day.get("stats", {})
         # Handle nested metrics structure
@@ -108,15 +107,15 @@ def compute_weekly_summary(weekly: Dict[str, Any]) -> Dict[str, Any]:
                 all_temps.append(val)
             if "humidity" in key.lower() and isinstance(val, (int, float)):
                 all_humidities.append(val)
-    
+
     if all_temps:
         summary["temp_min"] = round(min(all_temps))
         summary["temp_max"] = round(max(all_temps))
         summary["temp_avg"] = round(sum(all_temps) / len(all_temps))
-    
+
     if all_humidities:
         summary["humidity_min"] = round(min(all_humidities))
         summary["humidity_max"] = round(max(all_humidities))
         summary["humidity_avg"] = round(sum(all_humidities) / len(all_humidities))
-    
+
     return summary

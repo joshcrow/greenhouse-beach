@@ -10,8 +10,8 @@ INCOMING_DIR = "/app/data/incoming"
 ARCHIVE_ROOT = "/app/data/archive"
 
 # L2: Image quality thresholds (brightness 0-255 scale)
-BRIGHTNESS_MIN_NIGHT = 10.0      # Below this = night image, archive separately
-BRIGHTNESS_MIN_DIM = 30.0       # Below this = dim but valid, log warning
+BRIGHTNESS_MIN_NIGHT = 10.0  # Below this = night image, archive separately
+BRIGHTNESS_MIN_DIM = 30.0  # Below this = dim but valid, log warning
 BRIGHTNESS_MAX_OVEREXPOSED = 250.0  # Above this = overexposed, reject
 
 
@@ -36,7 +36,7 @@ def list_candidate_files() -> list[str]:
     for name in os.listdir(INCOMING_DIR):
         if name.endswith(".tmp"):
             continue
-            
+
         ext = os.path.splitext(name)[1].lower()
         if ext not in valid_exts:
             continue
@@ -85,17 +85,23 @@ def process_file(path: str) -> None:
             ensure_directory(dest_dir)
             dest = os.path.join(dest_dir, basename)
             shutil.move(path, dest)
-            log(f"Archived night image '{path}' -> '{dest}' (mean luminance {mean_brightness:.2f}).")
+            log(
+                f"Archived night image '{path}' -> '{dest}' (mean luminance {mean_brightness:.2f})."
+            )
             return
 
         if mean_brightness > BRIGHTNESS_MAX_OVEREXPOSED:
-            log(f"Rejected: Luminance {mean_brightness:.2f} too high (overexposed) for '{path}', deleting.")
+            log(
+                f"Rejected: Luminance {mean_brightness:.2f} too high (overexposed) for '{path}', deleting."
+            )
             os.remove(path)
             return
-        
+
         # Log warning for dim images but still archive them
         if mean_brightness < BRIGHTNESS_MIN_DIM:
-            log(f"Note: Low-light image '{path}' (luminance {mean_brightness:.2f}) - archiving anyway.")
+            log(
+                f"Note: Low-light image '{path}' (luminance {mean_brightness:.2f}) - archiving anyway."
+            )
 
         # Passed luminance gates -> archive
         dest = archive_path_for(path)
@@ -136,4 +142,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

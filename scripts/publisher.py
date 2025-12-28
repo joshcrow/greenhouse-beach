@@ -39,7 +39,9 @@ def find_latest_image() -> Optional[str]:
 
     pattern_jpg = os.path.join(ARCHIVE_ROOT, "**", "*.jpg")
     pattern_jpeg = os.path.join(ARCHIVE_ROOT, "**", "*.jpeg")
-    candidates = glob.glob(pattern_jpg, recursive=True) + glob.glob(pattern_jpeg, recursive=True)
+    candidates = glob.glob(pattern_jpg, recursive=True) + glob.glob(
+        pattern_jpeg, recursive=True
+    )
 
     if not candidates:
         log("No archived JPG images found; proceeding without hero image.")
@@ -55,33 +57,40 @@ def load_image_bytes(path: str) -> bytes:
         return f.read()
 
 
-def check_stale_data(last_seen: Dict[str, str], key: str, threshold_hours: float = 2.0, test_mode: bool = False) -> bool:
+def check_stale_data(
+    last_seen: Dict[str, str],
+    key: str,
+    threshold_hours: float = 2.0,
+    test_mode: bool = False,
+) -> bool:
     """Check if sensor data is stale (older than threshold).
-    
+
     Args:
         last_seen: Dictionary mapping sensor keys to ISO timestamp strings
         key: Sensor key to check
         threshold_hours: Maximum age in hours before data is considered stale
         test_mode: If True, uses a much longer threshold for testing
-    
+
     Returns:
         True if data is stale or missing, False if fresh
     """
     # In test mode, use 48 hours threshold to avoid false positives
     if test_mode:
         threshold_hours = 48.0
-    
+
     if key not in last_seen:
         log(f"WARNING: No timestamp found for sensor '{key}' - marking as stale")
         return True
-    
+
     try:
         timestamp_str = last_seen[key]
-        timestamp = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+        timestamp = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
         age = datetime.now(timestamp.tzinfo) - timestamp
         is_stale = age.total_seconds() > (threshold_hours * 3600)
         if is_stale:
-            log(f"WARNING: Sensor '{key}' is stale (age: {age.total_seconds()/3600:.1f}h)")
+            log(
+                f"WARNING: Sensor '{key}' is stale (age: {age.total_seconds() / 3600:.1f}h)"
+            )
         return is_stale
     except (ValueError, TypeError) as exc:
         log(f"WARNING: Failed to parse timestamp for '{key}': {exc}")
@@ -132,23 +141,23 @@ def load_latest_sensor_snapshot() -> Dict[str, Any]:
 
 def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional[str]]:
     """Construct the email message and return it along with the image path (if any).
-    
+
     Args:
         status_snapshot: Full status.json structure with 'sensors' and 'last_seen' keys
     """
-    
+
     # Extract sensors and timestamps
     sensor_data = status_snapshot.get("sensors", {})
     last_seen = status_snapshot.get("last_seen", {})
-    
+
     # SENSOR REMAPPING: Map physical reality to logical roles
     # Physical Reality:
     # - exterior_* keys = Actually INSIDE the greenhouse (main interior sensor)
     # - satellite-2_* keys = Actually OUTSIDE the greenhouse (weather/exterior)
     # - interior_* keys = BROKEN hardware, suppress from email
-    
+
     remapped_data: Dict[str, Any] = {}
-    
+
     # Define sensor mapping: (raw_key, logical_key)
     sensor_mapping = [
         ("exterior_temp", "interior_temp"),
@@ -156,7 +165,7 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
         ("satellite-2_temperature", "exterior_temp"),
         ("satellite-2_humidity", "exterior_humidity"),
     ]
-    
+
     # Apply mapping with stale data checking
     for raw_key, logical_key in sensor_mapping:
         if raw_key in sensor_data:
@@ -165,7 +174,7 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
             else:
                 remapped_data[logical_key] = None
                 remapped_data[f"{logical_key}_stale"] = True
-    
+
     # Satellite battery (keep for monitoring, check staleness)
     for key in ["satellite-2_battery"]:
         if key in sensor_data:
@@ -174,30 +183,40 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
             else:
                 remapped_data[key] = None
                 remapped_data[f"{key}_stale"] = True
-    
+
     # SUPPRESS old interior_* keys (broken hardware)
     # Do NOT copy interior_temp or interior_humidity to remapped_data
-    
+
     # Copy any other sensor data that isn't being remapped
     for key, value in sensor_data.items():
-        if key not in remapped_data and not key.startswith("interior_") and not key.startswith("exterior_") and not key.startswith("satellite-2_"):
+        if (
+            key not in remapped_data
+            and not key.startswith("interior_")
+            and not key.startswith("exterior_")
+            and not key.startswith("satellite-2_")
+        ):
             remapped_data[key] = value
-    
+
     # Use remapped data for the rest of the function
     sensor_data = remapped_data
     log(f"Remapped sensor data: {sensor_data}")
 
     # NOTE: Satellite temperature is already in Fahrenheit from ESPHome config
     # No conversion needed - the BME280 filter in ESPHome converts C->F
-    
+
     # Round all sensor values to integers for cleaner AI narrative and display
-    for key in ["interior_temp", "interior_humidity", "exterior_temp", "exterior_humidity"]:
+    for key in [
+        "interior_temp",
+        "interior_humidity",
+        "exterior_temp",
+        "exterior_humidity",
+    ]:
         if key in sensor_data and sensor_data[key] is not None:
             try:
                 sensor_data[key] = round(float(sensor_data[key]))
             except (ValueError, TypeError):
                 pass
-    
+
     # For narrator: Pass None for stale values so AI doesn't write narratives based on old data
     narrator_data = dict(sensor_data)
     for key in list(narrator_data.keys()):
@@ -207,10 +226,14 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
             if base_key in narrator_data:
                 log(f"Suppressing stale data from narrator: {base_key}")
                 narrator_data[base_key] = None
-    
+
     # Satellite battery voltage is already calibrated in ESPHome (no *2 needed)
     # Just flag if critical for AI to mention
-    for key in ["satellite-2_battery", "satellite-2_satellite_2_battery", "satellite_2_battery"]:
+    for key in [
+        "satellite-2_battery",
+        "satellite-2_satellite_2_battery",
+        "satellite_2_battery",
+    ]:
         if key in sensor_data and sensor_data[key] is not None:
             try:
                 voltage = float(sensor_data[key])
@@ -222,7 +245,7 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
     # Check if this is Weekly Edition (Sunday)
     weekly_mode = is_weekly_edition()
     weekly_summary = None
-    
+
     # Get weekly stats if Sunday and merge into narrator_data
     if weekly_mode:
         log("Weekly Edition: Loading weekly stats for narrator")
@@ -235,14 +258,18 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
             narrator_data["weekly_avg_humidity"] = weekly_data.get("humidity_avg")
             narrator_data["weekly_max_humidity"] = weekly_data.get("humidity_max")
             narrator_data["weekly_min_humidity"] = weekly_data.get("humidity_min")
-            log(f"Added weekly stats to narrator: high={narrator_data.get('weekly_high')}, low={narrator_data.get('weekly_low')}")
-    
+            log(
+                f"Added weekly stats to narrator: high={narrator_data.get('weekly_high')}, low={narrator_data.get('weekly_low')}"
+            )
+
     # Narrative content and augmented data (includes weather)
     augmented_data = {}  # Initialize to ensure it's defined even if narrator fails
     body_html = ""
     body_plain = ""
     try:
-        subject, headline, body_html, body_plain, augmented_data = narrator.generate_update(narrator_data, is_weekly=weekly_mode)
+        subject, headline, body_html, body_plain, augmented_data = (
+            narrator.generate_update(narrator_data, is_weekly=weekly_mode)
+        )
         # Merge augmented data back (weather info) but preserve stale flags
         stale_flags = {k: v for k, v in sensor_data.items() if k.endswith("_stale")}
         sensor_data = {**augmented_data, **stale_flags}
@@ -252,12 +279,12 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
         headline = "Greenhouse Update"
         body_html = "Error generating update."
         body_plain = "Error generating update."
-    
+
     # Clean subject line - remove any HTML/markdown formatting (AI sometimes adds it)
-    subject = re.sub(r'<[^>]+>', '', subject)  # Remove HTML tags
-    subject = re.sub(r'\*+', '', subject)  # Remove markdown bold/italic
+    subject = re.sub(r"<[^>]+>", "", subject)  # Remove HTML tags
+    subject = re.sub(r"\*+", "", subject)  # Remove markdown bold/italic
     subject = subject.strip()
-    
+
     if weekly_mode:
         log("Weekly Edition: Including weekly summary and timelapse")
         # Don't override subject if narrator already made it weekly-themed
@@ -273,7 +300,7 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
     image_bytes: Optional[bytes] = None
     image_cid: Optional[str] = None
     image_type = "jpeg"  # Default to jpeg, may change to gif for timelapse
-    
+
     if weekly_mode:
         # Weekly Edition: Use existing weekly timelapse logic (golden hour stitch)
         log("Creating weekly timelapse GIF (golden hour stitch)...")
@@ -286,7 +313,9 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
             log("Weekly timelapse creation failed, falling back to static image")
     else:
         # Daily Edition: Use new daily timelapse (yesterday's daylight images)
-        log("Daily Edition: Creating daily timelapse from yesterday's daylight images...")
+        log(
+            "Daily Edition: Creating daily timelapse from yesterday's daylight images..."
+        )
         image_bytes = timelapse.create_daily_timelapse()
         if image_bytes:
             image_cid = make_msgid(domain="greenhouse")[1:-1]
@@ -294,7 +323,7 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
             log(f"Daily timelapse created: {len(image_bytes)} bytes")
         else:
             log("Daily timelapse creation failed, falling back to static image")
-    
+
     # Fall back to static image if no timelapse was created
     if image_bytes is None:
         image_path = find_latest_image()
@@ -316,7 +345,7 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
     msg = EmailMessage()
     msg["From"] = smtp_from
     # Handle multiple recipients separated by commas
-    recipients = [addr.strip() for addr in smtp_to.split(',') if addr.strip()]
+    recipients = [addr.strip() for addr in smtp_to.split(",") if addr.strip()]
     msg["To"] = ", ".join(recipients)  # Display all recipients in header
     msg["Date"] = formatdate(localtime=True)
     msg["Subject"] = subject
@@ -327,21 +356,25 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
     # Extract vitals with graceful fallbacks (support both old and new key formats)
     # Interior sensors (from HA bridge or direct MQTT)
     indoor_temp = sensor_data.get("interior_temp") or sensor_data.get("temp")
-    indoor_humidity = sensor_data.get("interior_humidity") or sensor_data.get("humidity")
-    
+    indoor_humidity = sensor_data.get("interior_humidity") or sensor_data.get(
+        "humidity"
+    )
+
     # Exterior sensors (from HA bridge)
     exterior_temp = sensor_data.get("exterior_temp")
     exterior_humidity = sensor_data.get("exterior_humidity")
-    
+
     # Weather API outdoor conditions
     _outdoor_temp = sensor_data.get("outdoor_temp") or sensor_data.get("outside_temp")  # noqa: F841
-    outdoor_humidity = sensor_data.get("humidity_out") or sensor_data.get("outside_humidity")  # noqa: F841
+    _outdoor_humidity = sensor_data.get("humidity_out") or sensor_data.get(
+        "outside_humidity"
+    )
     outdoor_condition = sensor_data.get("condition")
 
     # Extended weather details from weather_service (if available)
     high_temp = sensor_data.get("high_temp")
     low_temp = sensor_data.get("low_temp")
-    
+
     # Use Daily Wind forecast if available (more representative), otherwise current
     wind_mph = sensor_data.get("daily_wind_mph")
     if wind_mph is None:
@@ -366,25 +399,29 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
     # Keys match status_daemon.py format: {device}_{sensor}_min/max
     # NOTE: Stats are based on RAW MQTT keys (exterior_*, satellite-2_*) not remapped keys
     stats_24h = stats.get_24h_stats(datetime.utcnow())
-    
+
     # Extract 24h stats for display
     indoor_temp_min = stats_24h.get("interior_temp_min")
     indoor_temp_max = stats_24h.get("interior_temp_max")
     indoor_humidity_min = stats_24h.get("interior_humidity_min")
     indoor_humidity_max = stats_24h.get("interior_humidity_max")
-    
+
     exterior_temp_min = stats_24h.get("exterior_temp_min")
     exterior_temp_max = stats_24h.get("exterior_temp_max")
     exterior_humidity_min = stats_24h.get("exterior_humidity_min")
     exterior_humidity_max = stats_24h.get("exterior_humidity_max")
-    exterior_temp_min = round(exterior_temp_min * 9/5 + 32) if exterior_temp_min is not None else None
-    exterior_temp_max = round(exterior_temp_max * 9/5 + 32) if exterior_temp_max is not None else None
+    exterior_temp_min = (
+        round(exterior_temp_min * 9 / 5 + 32) if exterior_temp_min is not None else None
+    )
+    exterior_temp_max = (
+        round(exterior_temp_max * 9 / 5 + 32) if exterior_temp_max is not None else None
+    )
     exterior_humidity_min = stats_24h.get("satellite-2_humidity_min")
     exterior_humidity_max = stats_24h.get("satellite-2_humidity_max")
 
     def fmt(value, stale_flag=None):
         """Format value for display as integer, returning N/A for None.
-        
+
         Args:
             value: The sensor value to format
             stale_flag: Optional key to check for staleness in sensor_data
@@ -399,10 +436,10 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
             return formatted
         except (ValueError, TypeError):
             return str(value)
-    
+
     def fmt_battery(voltage, stale_flag=None):
         """Format battery voltage with color coding based on level.
-        
+
         Battery levels (LiPo):
         - 4.2V = Full (100%)
         - 3.7V = Nominal (50%)
@@ -414,7 +451,7 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
         # Check if battery data is stale
         if stale_flag and sensor_data.get(stale_flag):
             return '<span style="color:#9ca3af;">⚠️ OFFLINE</span>'
-        
+
         if voltage is None:
             return "—"
         v = float(voltage)
@@ -428,15 +465,23 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
             color = "#dc2626"  # Red - critical
             icon = "🪫"
         return f'<span style="color:{color};">{icon} {v:.1f}V</span>'
-    
+
     def fmt_temp_high_low(high_val, low_val):
         """Format high/low temps with red/blue color styling."""
         if high_val is None and low_val is None:
             return "N/A"
-        high_str = f'<span style="color:#dc2626;" class="dark-text-high">{fmt(high_val)}°</span>' if high_val is not None else "N/A"
-        low_str = f'<span style="color:#2563eb;" class="dark-text-low">{fmt(low_val)}°</span>' if low_val is not None else "N/A"
+        high_str = (
+            f'<span style="color:#dc2626;" class="dark-text-high">{fmt(high_val)}°</span>'
+            if high_val is not None
+            else "N/A"
+        )
+        low_str = (
+            f'<span style="color:#2563eb;" class="dark-text-low">{fmt(low_val)}°</span>'
+            if low_val is not None
+            else "N/A"
+        )
         return f"{high_str} / {low_str}"
-    
+
     def get_condition_emoji(condition):
         """Map weather condition to emoji."""
         if not condition:
@@ -498,94 +543,105 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
 
     def fmt_tide_rows():
         """Format tide information rows for Today's Weather table.
-        
+
         Returns HTML rows for high tide and low tide if available.
         """
         tide_summary = sensor_data.get("tide_summary", {})
         if not tide_summary:
             return ""
-        
+
         today_highs = tide_summary.get("today_high_tides", [])
         today_lows = tide_summary.get("today_low_tides", [])
-        
+
         rows = []
-        
+
         # High Tide row
         if today_highs:
             # Find the highest tide of the day
             max_high = max(today_highs, key=lambda t: t.get("height_ft", 0))
             time_str = max_high.get("time_local", "")
             height_ft = max_high.get("height_ft", 0)
-            
+
             # Format time (extract HH:MM AM/PM from ISO timestamp)
             try:
                 dt = datetime.fromisoformat(time_str)
                 time_display = dt.strftime("%-I:%M %p")
             except (ValueError, TypeError):
                 time_display = "N/A"
-            
-            rows.append(f'''<tr>
+
+            rows.append(f"""<tr>
                                         <td class="dark-text-secondary dark-border" style="padding: 12px 0; border-bottom:1px solid #588157; color:#4b5563; vertical-align:middle; mso-line-height-rule: exactly;">High Tide</td>
                                         <td class="dark-text-primary dark-border" style="padding: 12px 0; border-bottom:1px solid #588157; color:#1e1e1e; text-align: right; vertical-align:middle; mso-line-height-rule: exactly;">{time_display} ({height_ft:.1f} ft)</td>
-                                    </tr>''')
-        
+                                    </tr>""")
+
         # Low Tide row
         if today_lows:
             # Find the lowest tide of the day
             min_low = min(today_lows, key=lambda t: t.get("height_ft", 0))
             time_str = min_low.get("time_local", "")
             height_ft = min_low.get("height_ft", 0)
-            
+
             # Format time
             try:
                 dt = datetime.fromisoformat(time_str)
                 time_display = dt.strftime("%-I:%M %p")
             except (ValueError, TypeError):
                 time_display = "N/A"
-            
-            rows.append(f'''<tr>
+
+            rows.append(f"""<tr>
                                         <td class="dark-text-secondary dark-border" style="padding: 12px 0; border-bottom:1px solid #588157; color:#4b5563; vertical-align:middle; mso-line-height-rule: exactly;">Low Tide</td>
                                         <td class="dark-text-primary dark-border" style="padding: 12px 0; border-bottom:1px solid #588157; color:#1e1e1e; text-align: right; vertical-align:middle; mso-line-height-rule: exactly;">{time_display} ({height_ft:.1f} ft)</td>
-                                    </tr>''')
-        
-        return '\n'.join(rows)
-    
+                                    </tr>""")
+
+        return "\n".join(rows)
+
     def build_debug_footer(status_snapshot, sensor_data, augmented_data=None):
         """Build debug footer for test emails only.
-        
+
         Shows data timestamp, battery voltage, and narrator model.
         Only displayed when --test flag is used.
         """
         # Check if we're in test mode
         import sys
+
         if "--test" not in sys.argv:
             return ""
-        
+
         # Get debug info
         data_timestamp = status_snapshot.get("updated_at", "N/A")
         battery_raw = sensor_data.get("satellite-2_battery", "N/A")
-        narrator_model = augmented_data.get("_narrator_model", "N/A") if augmented_data else "N/A"
-        
-        return f'''
+        narrator_model = (
+            augmented_data.get("_narrator_model", "N/A") if augmented_data else "N/A"
+        )
+
+        return f"""
     <!-- DEBUG FOOTER (Test Mode Only) -->
     <div style="margin-top: 40px; padding: 20px; text-align: center; font-family: 'Courier New', monospace; font-size: 10px; color: #9ca3af; border-top: 1px solid #e5e7eb;">
         <div>Data Timestamp: {data_timestamp}</div>
         <div>Battery Voltage: {battery_raw}V</div>
         <div>Narrator Model: {narrator_model}</div>
     </div>
-'''
+"""
 
     def fmt_time(value):
         if value is None:
             return "N/A"
         return str(value)
-    
+
     def fmt_temp_range():
         """Format high/low temp range with color styling."""
         if high_temp is None and low_temp is None:
             return "N/A"
-        high_str = f'<span style="color:#dc2626;" class="dark-text-high">{high_temp}°</span>' if high_temp is not None else "N/A"
-        low_str = f'<span style="color:#2563eb;" class="dark-text-low">{low_temp}°</span>' if low_temp is not None else "N/A"
+        high_str = (
+            f'<span style="color:#dc2626;" class="dark-text-high">{high_temp}°</span>'
+            if high_temp is not None
+            else "N/A"
+        )
+        low_str = (
+            f'<span style="color:#2563eb;" class="dark-text-low">{low_temp}°</span>'
+            if low_temp is not None
+            else "N/A"
+        )
         return f"{high_str} / {low_str}"
 
     # Date subheadline
@@ -594,11 +650,15 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
     # Allow only safe HTML tags (<b>, <i>, <br>) in body HTML, escape everything else
     # First escape all HTML, then restore safe tags
     body_html_escaped = html.escape(body_html)
-    body_html_escaped = body_html_escaped.replace('&lt;b&gt;', '<b>').replace('&lt;/b&gt;', '</b>')
-    body_html_escaped = body_html_escaped.replace('&lt;i&gt;', '<i>').replace('&lt;/i&gt;', '</i>')
+    body_html_escaped = body_html_escaped.replace("&lt;b&gt;", "<b>").replace(
+        "&lt;/b&gt;", "</b>"
+    )
+    body_html_escaped = body_html_escaped.replace("&lt;i&gt;", "<i>").replace(
+        "&lt;/i&gt;", "</i>"
+    )
 
     # Convert paragraph breaks (double newlines) to HTML with spacing for readability
-    body_html_escaped = body_html_escaped.replace('\n\n', '<br><br>')
+    body_html_escaped = body_html_escaped.replace("\n\n", "<br><br>")
 
     # Build hero image section if available
     hero_section = ""
@@ -645,18 +705,42 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
                                         <th class="dark-text-secondary dark-border-table" style="text-align:left; padding:12px 0; border-bottom:1px solid #588157; color:#4b5563; font-weight: normal; mso-line-height-rule: exactly;">Temp (°F) High / Low</th>
                                         <th class="dark-text-secondary dark-border-table" style="text-align:left; padding:12px 0; border-bottom:1px solid #588157; color:#4b5563; font-weight: normal; mso-line-height-rule: exactly;">Humidity (%) High / Low</th>
                                     </tr>
-                                    {''.join([
-                                        f'''<tr>
+                                    {
+            "".join(
+                [
+                    f'''<tr>
                                         <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #588157; color:#1e1e1e;">Greenhouse</td>
                                         <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #588157; color:#1e1e1e;">{fmt_temp_high_low(indoor_temp_max, indoor_temp_min)}</td>
                                         <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #588157; color:#1e1e1e;">{fmt(indoor_humidity_max)}% / {fmt(indoor_humidity_min)}%</td>
-                                    </tr>''' if any(x is not None for x in [indoor_temp_min, indoor_temp_max, indoor_humidity_min, indoor_humidity_max]) else '',
-                                        f'''<tr>
+                                    </tr>'''
+                    if any(
+                        x is not None
+                        for x in [
+                            indoor_temp_min,
+                            indoor_temp_max,
+                            indoor_humidity_min,
+                            indoor_humidity_max,
+                        ]
+                    )
+                    else "",
+                    f'''<tr>
                                         <td class="dark-text-primary" style="padding:12px 0; border-bottom:none; color:#1e1e1e;">Outside</td>
                                         <td class="dark-text-primary" style="padding:12px 0; border-bottom:none; color:#1e1e1e;">{fmt_temp_high_low(exterior_temp_max, exterior_temp_min)}</td>
                                         <td class="dark-text-primary" style="padding:12px 0; border-bottom:none; color:#1e1e1e;">{fmt(exterior_humidity_max)}% / {fmt(exterior_humidity_min)}%</td>
-                                    </tr>''' if any(x is not None for x in [exterior_temp_min, exterior_temp_max, exterior_humidity_min, exterior_humidity_max]) else ''
-                                    ])}
+                                    </tr>'''
+                    if any(
+                        x is not None
+                        for x in [
+                            exterior_temp_min,
+                            exterior_temp_max,
+                            exterior_humidity_min,
+                            exterior_humidity_max,
+                        ]
+                    )
+                    else "",
+                ]
+            )
+        }
                                 </table>
                             </td>
                         </tr>
@@ -686,17 +770,17 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
                                     </tr>
                                     <tr>
                                         <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #588157; color:#1e1e1e;">Temperature</td>
-                                        <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #588157; color:#1e1e1e;">{fmt(ws.get('temp_min'))}° – {fmt(ws.get('temp_max'))}°</td>
-                                        <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #588157; color:#1e1e1e;">{fmt(ws.get('temp_avg'))}°</td>
+                                        <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #588157; color:#1e1e1e;">{fmt(ws.get("temp_min"))}° – {fmt(ws.get("temp_max"))}°</td>
+                                        <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #588157; color:#1e1e1e;">{fmt(ws.get("temp_avg"))}°</td>
                                     </tr>
                                     <tr>
                                         <td class="dark-text-primary" style="padding:12px 0; color:#1e1e1e;">Humidity</td>
-                                        <td class="dark-text-primary" style="padding:12px 0; color:#1e1e1e;">{fmt(ws.get('humidity_min'))}% – {fmt(ws.get('humidity_max'))}%</td>
-                                        <td class="dark-text-primary" style="padding:12px 0; color:#1e1e1e;">{fmt(ws.get('humidity_avg'))}%</td>
+                                        <td class="dark-text-primary" style="padding:12px 0; color:#1e1e1e;">{fmt(ws.get("humidity_min"))}% – {fmt(ws.get("humidity_max"))}%</td>
+                                        <td class="dark-text-primary" style="padding:12px 0; color:#1e1e1e;">{fmt(ws.get("humidity_avg"))}%</td>
                                     </tr>
                                 </table>
                                 <p class="dark-text-muted" style="color: #9ca3af; font-size: 12px; margin-top: 12px; margin-bottom: 0; text-align: center;">
-                                    Based on {ws.get('days_recorded', 0)} days of data
+                                    Based on {ws.get("days_recorded", 0)} days of data
                                 </p>
                             </td>
                         </tr>
@@ -845,20 +929,32 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
                                         <th class="dark-text-secondary dark-border-table" style="text-align:left; padding:12px 0; border-bottom:1px solid #588157; color:#4b5563; font-weight: normal; mso-line-height-rule: exactly;">Humidity</th>
                                         <th class="dark-text-secondary dark-border-table" style="text-align:left; padding:12px 0; border-bottom:1px solid #588157; color:#4b5563; font-weight: normal; mso-line-height-rule: exactly;">Battery</th>
                                     </tr>
-                                    {''.join([
-                                        f'''<tr>
+                                    {
+        "".join(
+            [
+                f'''<tr>
                                         <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #588157; color:#1e1e1e;">Interior</td>
                                         <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #588157; color:#1e1e1e;">{fmt(indoor_temp, 'interior_temp_stale')}°</td>
                                         <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #588157; color:#1e1e1e;">{fmt(indoor_humidity, 'interior_humidity_stale')}%</td>
                                         <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #588157; color:#1e1e1e;">—</td>
-                                    </tr>''' if indoor_temp is not None or indoor_humidity is not None else '',
-                                        f'''<tr>
+                                    </tr>'''
+                if indoor_temp is not None or indoor_humidity is not None
+                else "",
+                f'''<tr>
                                         <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #588157; color:#1e1e1e;">Outside</td>
                                         <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #588157; color:#1e1e1e;">{fmt(exterior_temp, 'exterior_temp_stale')}°</td>
                                         <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #588157; color:#1e1e1e;">{fmt(exterior_humidity, 'exterior_humidity_stale')}%</td>
                                         <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #588157; color:#1e1e1e;">{fmt_battery(sat_battery, 'satellite-2_battery_stale')}</td>
-                                    </tr>''' if not (sensor_data.get('exterior_temp_stale') and sensor_data.get('exterior_humidity_stale') and sensor_data.get('satellite-2_battery_stale')) else '',
-                                    ])}
+                                    </tr>'''
+                if not (
+                    sensor_data.get("exterior_temp_stale")
+                    and sensor_data.get("exterior_humidity_stale")
+                    and sensor_data.get("satellite-2_battery_stale")
+                )
+                else "",
+            ]
+        )
+    }
                                 </table>
                             </td>
                         </tr>
@@ -877,19 +973,27 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
                                 <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="font-size:14px; border-collapse: collapse;">
                                     <tr>
                                         <td class="dark-text-secondary dark-border" style="padding: 12px 0; border-bottom:1px solid #588157; color:#4b5563; width: 40%; vertical-align:middle; mso-line-height-rule: exactly;">Condition</td>
-                                        <td class="dark-text-primary dark-border" style="padding: 12px 0; border-bottom:1px solid #588157; color:#1e1e1e; text-align: right; vertical-align:middle; mso-line-height-rule: exactly;">{get_condition_emoji(outdoor_condition)} {fmt(outdoor_condition)}</td>
+                                        <td class="dark-text-primary dark-border" style="padding: 12px 0; border-bottom:1px solid #588157; color:#1e1e1e; text-align: right; vertical-align:middle; mso-line-height-rule: exactly;">{
+        get_condition_emoji(outdoor_condition)
+    } {fmt(outdoor_condition)}</td>
                                     </tr>
                                     <tr>
                                         <td class="dark-text-secondary dark-border" style="padding: 12px 0; border-bottom:1px solid #588157; color:#4b5563; vertical-align:middle; mso-line-height-rule: exactly;">High / Low</td>
-                                        <td class="dark-text-primary dark-border" style="padding: 12px 0; border-bottom:1px solid #588157; color:#1e1e1e; text-align: right; vertical-align:middle; mso-line-height-rule: exactly;">{fmt_temp_range()}</td>
+                                        <td class="dark-text-primary dark-border" style="padding: 12px 0; border-bottom:1px solid #588157; color:#1e1e1e; text-align: right; vertical-align:middle; mso-line-height-rule: exactly;">{
+        fmt_temp_range()
+    }</td>
                                     </tr>
                                     <tr>
                                         <td class="dark-text-secondary dark-border" style="padding: 12px 0; border-bottom:1px solid #588157; color:#4b5563; vertical-align:middle; mso-line-height-rule: exactly;">Sunrise / Sunset</td>
-                                        <td class="dark-text-primary dark-border" style="padding: 12px 0; border-bottom:1px solid #588157; color:#1e1e1e; text-align: right; vertical-align:middle; mso-line-height-rule: exactly;">{fmt_time(sunrise)} / {fmt_time(sunset)}</td>
+                                        <td class="dark-text-primary dark-border" style="padding: 12px 0; border-bottom:1px solid #588157; color:#1e1e1e; text-align: right; vertical-align:middle; mso-line-height-rule: exactly;">{
+        fmt_time(sunrise)
+    } / {fmt_time(sunset)}</td>
                                     </tr>
                                     <tr>
                                         <td class="dark-text-secondary dark-border" style="padding: 12px 0; border-bottom:1px solid #588157; color:#4b5563; vertical-align:middle; mso-line-height-rule: exactly;">Wind</td>
-                                        <td class="dark-text-primary dark-border" style="padding: 12px 0; border-bottom:1px solid #588157; color:#1e1e1e; text-align: right; vertical-align:middle; mso-line-height-rule: exactly;">{fmt_wind()}</td>
+                                        <td class="dark-text-primary dark-border" style="padding: 12px 0; border-bottom:1px solid #588157; color:#1e1e1e; text-align: right; vertical-align:middle; mso-line-height-rule: exactly;">{
+        fmt_wind()
+    }</td>
                                     </tr>
                                     {fmt_tide_rows()}
                                     <tr>
@@ -897,8 +1001,12 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
                                         <td class="dark-text-primary" style="padding: 12px 0; color:#1e1e1e; text-align: right; vertical-align:middle; mso-line-height-rule: exactly;">
                                             <table align="right" border="0" cellpadding="0" cellspacing="0" style="border-collapse: collapse;">
                                                 <tr>
-                                                    <td class="dark-text-primary" style="padding-right: 6px; color:#1e1e1e; vertical-align:middle; font-size: 14px; line-height: 1;">{moon_icon}</td>
-                                                    <td class="dark-text-primary" style="color:#1e1e1e; vertical-align:middle; font-size: 14px;">{fmt_moon_phase(moon_phase)}</td>
+                                                    <td class="dark-text-primary" style="padding-right: 6px; color:#1e1e1e; vertical-align:middle; font-size: 14px; line-height: 1;">{
+        moon_icon
+    }</td>
+                                                    <td class="dark-text-primary" style="color:#1e1e1e; vertical-align:middle; font-size: 14px;">{
+        fmt_moon_phase(moon_phase)
+    }</td>
                                                 </tr>
                                             </table>
                                         </td>
@@ -979,11 +1087,11 @@ def run_once() -> None:
     status_snapshot = load_latest_sensor_snapshot()
     log(f"Preparing email with status snapshot: {status_snapshot.get('sensors', {})}")
     msg, weekly_mode = build_email(status_snapshot)
-    
+
     # Parse recipients from environment
     smtp_to = os.getenv("SMTP_TO", "you@example.com")
-    recipients = [addr.strip() for addr in smtp_to.split(',') if addr.strip()]
-    
+    recipients = [addr.strip() for addr in smtp_to.split(",") if addr.strip()]
+
     if weekly_mode:
         log("Sending Weekly Edition with timelapse...")
     else:
@@ -994,25 +1102,26 @@ def run_once() -> None:
 
 if __name__ == "__main__":
     import sys
-    
+
     # Allow --weekly flag to force weekly edition mode for testing
     _force_weekly_mode = "--weekly" in sys.argv
-    
+
     # Allow --test flag to send only to primary recipient (joshcrow1193@gmail.com)
     _test_mode = "--test" in sys.argv
-    
+
     if _force_weekly_mode:
         # Override the module-level function properly
         _original_is_weekly = is_weekly_edition
+
         def is_weekly_edition() -> bool:
             return True
-        globals()['is_weekly_edition'] = is_weekly_edition
+
+        globals()["is_weekly_edition"] = is_weekly_edition
         log("TESTING: Forcing Weekly Edition mode")
-    
+
     if _test_mode:
         # Override SMTP_TO to only send to primary recipient
         os.environ["SMTP_TO"] = "joshcrow1193@gmail.com"
         log("TEST MODE: Sending only to joshcrow1193@gmail.com")
-    
-    run_once()
 
+    run_once()

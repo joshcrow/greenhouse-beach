@@ -16,7 +16,7 @@ def log(message: str) -> None:
 
 def safe_daily_dispatch() -> None:
     """Wrapper around publisher.run_once() with error handling.
-    
+
     On Sundays, this becomes the "Weekly Edition" with merged weekly content.
     Records daily snapshot for weekly stats tracking.
     """
@@ -26,10 +26,10 @@ def safe_daily_dispatch() -> None:
             log("Running Weekly Edition (Sunday daily with weekly content)...")
         else:
             log("Running Daily Dispatch...")
-        
+
         publisher.run_once()
         log("Dispatch completed.")
-        
+
         # Record daily snapshot for weekly stats
         log("Recording daily snapshot for weekly stats...")
         weekly_digest.record_daily_snapshot()
@@ -58,14 +58,15 @@ def generate_monthly_timelapse() -> None:
             filename = result.split("/")[-1]
             url = extended_timelapse.get_timelapse_url(filename)
             log(f"Monthly timelapse created: {url}")
-            
+
             # Get file info for notification
             import os
+
             file_size_mb = os.path.getsize(result) / 1024 / 1024
             # Estimate frame count and duration (500 target at 24fps)
             frame_count = min(500, file_size_mb * 50)  # rough estimate
             duration_sec = frame_count / 24
-            
+
             extended_timelapse.send_timelapse_notification(
                 timelapse_type="monthly",
                 filename=filename,
@@ -88,14 +89,15 @@ def generate_yearly_timelapse() -> None:
             filename = result.split("/")[-1]
             url = extended_timelapse.get_timelapse_url(filename)
             log(f"Yearly timelapse created: {url}")
-            
+
             # Get file info for notification
             import os
+
             file_size_mb = os.path.getsize(result) / 1024 / 1024
             # Estimate frame count and duration (4000 target at 30fps)
             frame_count = min(4000, file_size_mb * 40)  # rough estimate
             duration_sec = frame_count / 30
-            
+
             extended_timelapse.send_timelapse_notification(
                 timelapse_type="yearly",
                 filename=filename,
@@ -115,7 +117,7 @@ def main() -> None:
     # Daily dispatch at 07:00 local time
     # On Sundays, this becomes the "Weekly Edition" with merged content
     schedule.every().day.at("07:00").do(safe_daily_dispatch)
-    
+
     # Golden hour photo capture (seasonal timing)
     gh_time = golden_hour.get_seasonal_golden_hour()
     schedule.every().day.at(gh_time).do(trigger_golden_hour_capture)
@@ -125,13 +127,17 @@ def main() -> None:
     schedule.every().day.at("08:00").do(
         lambda: generate_monthly_timelapse() if datetime.now().day == 1 else None
     )
-    
+
     # Yearly timelapse on Jan 1st at 09:00
     schedule.every().day.at("09:00").do(
-        lambda: generate_yearly_timelapse() if datetime.now().month == 1 and datetime.now().day == 1 else None
+        lambda: generate_yearly_timelapse()
+        if datetime.now().month == 1 and datetime.now().day == 1
+        else None
     )
 
-    log(f"Registered: Daily @ 07:00, Golden Hour @ {gh_time}, Monthly Timelapse @ 08:00 (1st), Yearly @ 09:00 (Jan 1)")
+    log(
+        f"Registered: Daily @ 07:00, Golden Hour @ {gh_time}, Monthly Timelapse @ 08:00 (1st), Yearly @ 09:00 (Jan 1)"
+    )
 
     while True:
         try:

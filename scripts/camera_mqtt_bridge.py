@@ -91,12 +91,17 @@ def capture_from_libcamera() -> Optional[bytes]:
         result = subprocess.run(
             [
                 "libcamera-still",
-                "-o", tmp_path,
-                "--width", "1920",
-                "--height", "1080",
-                "--quality", "85",
+                "-o",
+                tmp_path,
+                "--width",
+                "1920",
+                "--height",
+                "1080",
+                "--quality",
+                "85",
                 "--nopreview",
-                "-t", "1000",  # 1 second timeout
+                "-t",
+                "1000",  # 1 second timeout
             ],
             capture_output=True,
             timeout=15,
@@ -259,8 +264,18 @@ def load_config() -> dict:
 
 # Seasonal golden hour times (1 hour before sunset for Outer Banks ~36°N)
 SEASONAL_GOLDEN_HOURS = {
-    1: "16:00", 2: "16:30", 3: "17:15", 4: "18:45", 5: "19:15", 6: "19:30",
-    7: "19:30", 8: "19:00", 9: "18:15", 10: "17:30", 11: "15:45", 12: "15:45",
+    1: "16:00",
+    2: "16:30",
+    3: "17:15",
+    4: "18:45",
+    5: "19:15",
+    6: "19:30",
+    7: "19:30",
+    8: "19:00",
+    9: "18:15",
+    10: "17:30",
+    11: "15:45",
+    12: "15:45",
 }
 
 
@@ -273,7 +288,7 @@ def is_golden_hour_time(config: dict) -> bool:
     """Check if current time matches any golden hour capture time."""
     now = datetime.now()
     current_time = now.strftime("%H:%M")
-    
+
     # Check configured times
     gh_times = config.get("golden_hour_times", "")
     if gh_times:
@@ -281,7 +296,7 @@ def is_golden_hour_time(config: dict) -> bool:
     else:
         # Use seasonal default
         times = [get_golden_hour_for_month()]
-    
+
     for t in times:
         if current_time == t:
             return True
@@ -289,17 +304,28 @@ def is_golden_hour_time(config: dict) -> bool:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Camera MQTT Bridge for Greenhouse Gazette")
+    parser = argparse.ArgumentParser(
+        description="Camera MQTT Bridge for Greenhouse Gazette"
+    )
     parser.add_argument("--daemon", action="store_true", help="Run continuously")
-    parser.add_argument("--test", action="store_true", help="Test capture without publishing")
-    parser.add_argument("--interval", type=int, default=60, help="Capture interval in minutes (daemon mode)")
+    parser.add_argument(
+        "--test", action="store_true", help="Test capture without publishing"
+    )
+    parser.add_argument(
+        "--interval",
+        type=int,
+        default=60,
+        help="Capture interval in minutes (daemon mode)",
+    )
     args = parser.parse_args()
 
     config = load_config()
 
     # Validate config
     if not config.get("ha_token") and not USE_LIBCAMERA_FALLBACK:
-        log("ERROR: HA_TOKEN environment variable required (or enable libcamera fallback)")
+        log(
+            "ERROR: HA_TOKEN environment variable required (or enable libcamera fallback)"
+        )
         sys.exit(1)
 
     if args.test:
