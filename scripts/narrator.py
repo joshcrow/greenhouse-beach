@@ -250,10 +250,19 @@ def _extract_text(response: Any) -> str | None:
             return None
 
 
-def _load_riddle_state() -> Dict[str, Any]:
+def _get_riddle_state_path(test_mode: bool = False) -> str:
+    """Get the appropriate riddle state path based on mode."""
+    if test_mode:
+        base = os.path.dirname(_RIDDLE_STATE_PATH) or "."
+        return os.path.join(base, "riddle_state_test.json")
+    return _RIDDLE_STATE_PATH
+
+
+def _load_riddle_state(test_mode: bool = False) -> Dict[str, Any]:
+    path = _get_riddle_state_path(test_mode)
     try:
-        if os.path.exists(_RIDDLE_STATE_PATH):
-            with open(_RIDDLE_STATE_PATH, "r", encoding="utf-8") as f:
+        if os.path.exists(path):
+            with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
             return data if isinstance(data, dict) else {}
     except Exception as exc:  # noqa: BLE001
@@ -261,15 +270,16 @@ def _load_riddle_state() -> Dict[str, Any]:
     return {}
 
 
-def _save_riddle_state(state: Dict[str, Any]) -> None:
+def _save_riddle_state(state: Dict[str, Any], test_mode: bool = False) -> None:
+    path = _get_riddle_state_path(test_mode)
     try:
-        tmp_path = f"{_RIDDLE_STATE_PATH}.tmp"
-        os.makedirs(os.path.dirname(_RIDDLE_STATE_PATH) or ".", exist_ok=True)
+        tmp_path = f"{path}.tmp"
+        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
         with open(tmp_path, "w", encoding="utf-8") as f:
             json.dump(state, f, indent=2)
             f.flush()
             os.fsync(f.fileno())
-        os.replace(tmp_path, _RIDDLE_STATE_PATH)
+        os.replace(tmp_path, path)
     except Exception as exc:  # noqa: BLE001
         log(f"WARNING: Failed to save riddle state: {exc}")
 
@@ -325,9 +335,14 @@ def _save_history(new_entry: Dict[str, Any]) -> None:
         log(f"WARNING: Failed to save narrative history: {exc}")
 
 
-def _generate_joke_or_riddle_paragraph(narrative_body: str) -> str:
-    """Generate a thematically-related joke or riddle based on the narrative."""
-    state = _load_riddle_state()
+def _generate_joke_or_riddle_paragraph(narrative_body: str, test_mode: bool = False) -> str:
+    """Generate a thematically-related joke or riddle based on the narrative.
+    
+    Args:
+        narrative_body: The main narrative text for context
+        test_mode: If True, use separate state file and log answer
+    """
+    state = _load_riddle_state(test_mode=test_mode)
     yesterday_answer = _extract_yesterday_answer(state)
 
     # Always use riddle mode - answer revealed next day
@@ -436,31 +451,39 @@ def _generate_joke_or_riddle_paragraph(narrative_body: str) -> str:
         answer = strip_emojis((answer_raw or "").strip())
         answer = answer.replace("\n", " ").strip()
 
+        # Log answer in test mode so user can verify
+        if test_mode:
+            log(f"[TEST MODE] Riddle: {paragraph}")
+            log(f"[TEST MODE] Answer: {answer}")
+
         _save_riddle_state(
             {
                 "pending_riddle": True,
                 "date": datetime.now().date().isoformat(),
                 "riddle": paragraph,
                 "answer": answer,
-            }
+            },
+            test_mode=test_mode,
         )
     else:
         if yesterday_answer:
             _save_riddle_state(
-                {"pending_riddle": False, "date": datetime.now().date().isoformat()}
+                {"pending_riddle": False, "date": datetime.now().date().isoformat()},
+                test_mode=test_mode,
             )
 
     return paragraph
 
 
 def generate_update(
-    sensor_data: Dict[str, Any], is_weekly: bool = False
+    sensor_data: Dict[str, Any], is_weekly: bool = False, test_mode: bool = False
 ) -> tuple[str, str, str, str, Dict[str, Any]]:
     """Sanitize data and request a narrative update from Gemini.
 
     Args:
         sensor_data: Sensor and weather data dict
         is_weekly: If True, generate Sunday "Week in Review" edition
+        test_mode: If True, use separate riddle state file and log answers
 
     Returns:
         tuple: (subject, headline, narrative_text, augmented_sensor_data)
@@ -609,9 +632,9 @@ def generate_update(
     riddle_text = ""
     yesterday_answer = None
     try:
-        state = _load_riddle_state()
+        state = _load_riddle_state(test_mode=test_mode)
         yesterday_answer = _extract_yesterday_answer(state)
-        riddle_text = _generate_joke_or_riddle_paragraph(body)
+        riddle_text = _generate_joke_or_riddle_paragraph(body, test_mode=test_mode)
     except Exception as exc:  # noqa: BLE001
         log(f"WARNING: Failed generating riddle: {exc}")
 

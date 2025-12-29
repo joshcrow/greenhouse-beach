@@ -271,7 +271,7 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
     body_plain = ""
     try:
         subject, headline, body_html, body_plain, augmented_data = (
-            narrator.generate_update(narrator_data, is_weekly=weekly_mode)
+            narrator.generate_update(narrator_data, is_weekly=weekly_mode, test_mode=_test_mode)
         )
         # Merge augmented data back (weather info) but preserve stale flags
         stale_flags = {k: v for k, v in sensor_data.items() if k.endswith("_stale")}
