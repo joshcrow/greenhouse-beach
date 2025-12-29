@@ -381,9 +381,6 @@ def _generate_joke_or_riddle_paragraph(narrative_body: str, test_mode: bool = Fa
         "",
         f"INTRO: {intro}" if intro else "",
         "",
-        "CURRENT CONTEXT / VIBE:",
-        narrative_body[:1000] if narrative_body else "General coastal gardening chaos.",
-        "",
         "INSTRUCTION:",
         "Write ONE riddle based on the context above. Do not output the answer. Do not output the logic. Return ONLY the riddle text.",
     ]
