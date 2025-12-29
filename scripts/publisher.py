@@ -655,7 +655,7 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
                         <tr>
                             <td style="padding: 16px;">
                                 <div class="dark-text-accent" style="font-size:13px; color:#588157; margin-bottom:12px; font-weight:600; text-transform: uppercase; letter-spacing: 0.5px;">
-                                    🌱 Brain Teaser
+                                    🧩 The Daily Head-Scratcher
                                 </div>
                                 {answer_section}
                                 <p class="dark-text-primary" style="margin: 0; line-height: 1.6; color: #1e1e1e; font-size: 15px; font-style: italic;">
@@ -1007,6 +1007,8 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
                         </tr>
                     </table>
 
+                    {build_riddle_card()}
+
                     <!-- SPACER: 24px -->
                     <div style="height: 24px; line-height: 24px; font-size: 24px; mso-line-height-rule: exactly;">&nbsp;</div>
 
@@ -1123,8 +1125,6 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
                             </td>
                         </tr>
                     </table>
-
-                    {build_riddle_card()}
 
                 </td>
             </tr>
