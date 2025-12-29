@@ -1051,10 +1051,10 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
                 if indoor_temp is not None or indoor_humidity is not None
                 else "",
                 f'''<tr>
-                                        <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #588157; color:#1e1e1e;">Outside</td>
-                                        <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #588157; color:#1e1e1e;">{fmt(exterior_temp, 'exterior_temp_stale')}°</td>
-                                        <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #588157; color:#1e1e1e;">{fmt(exterior_humidity, 'exterior_humidity_stale')}%</td>
-                                        <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #588157; color:#1e1e1e;">{fmt_battery(sat_battery, 'satellite-2_battery_stale')}</td>
+                                        <td class="dark-text-primary" style="padding:12px 0; border-bottom:none; color:#1e1e1e;">Outside</td>
+                                        <td class="dark-text-primary" style="padding:12px 0; border-bottom:none; color:#1e1e1e;">{fmt(exterior_temp, 'exterior_temp_stale')}°</td>
+                                        <td class="dark-text-primary" style="padding:12px 0; border-bottom:none; color:#1e1e1e;">{fmt(exterior_humidity, 'exterior_humidity_stale')}%</td>
+                                        <td class="dark-text-primary" style="padding:12px 0; border-bottom:none; color:#1e1e1e;">{fmt_battery(sat_battery, 'satellite-2_battery_stale')}</td>
                                     </tr>'''
                 if not (
                     sensor_data.get("exterior_temp_stale")
