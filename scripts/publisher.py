@@ -641,7 +641,7 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
         answer_section = ""
         if yesterday_answer:
             answer_section = f"""
-                                <div class="dark-text-muted" style="font-size: 13px; color: #6b7280; margin-bottom: 12px; padding: 10px; background-color: #f3f4f6; border-radius: 6px;" class="dark-riddle-answer-bg">
+                                <div class="dark-text-muted dark-riddle-answer-bg" style="font-size: 13px; color: #6b7280; margin-bottom: 12px; padding: 10px; background-color: #f3f4f6; border-radius: 6px;">
                                     <span style="font-weight: 600;">Yesterday's answer:</span> {yesterday_answer}
                                 </div>
             """
