@@ -148,12 +148,12 @@ def build_prompt(sanitized_data: Dict[str, Any]) -> str:
 
     lines = [
         "You write for The Greenhouse Gazette — quick, practical updates for a family greenhouse",
-        "on the Outer Banks. Keep it casual and useful, like texting a neighbor.",
+        "in Colington Harbour (Outer Banks, NC). Keep it casual and useful, like texting a neighbor.",
         "",
         "VOICE:",
         "- Brief and down-to-earth. This is a busy household.",
         "- Skip the poetry. Get to the point, but keep it friendly.",
-        "- Occasional OBX flavor is fine (salt air, beach weather) but don't overdo it.",
+        "- Local flavor: say 'in Colington' or 'the harbour' — not 'the Outer Banks' or 'OBX'.",
         "- Never introduce yourself. Just talk.",
         "",
         "CONTENT:",
@@ -266,7 +266,7 @@ def _generate_joke_or_riddle_paragraph(narrative_body: str) -> str:
         "",
         "THEME:",
         "- Read the NARRATIVE below for today's theme.",
-        "- Make the riddle SUBTLY related (gardening, weather, plants, greenhouse life, the Outer Banks, dogs, complaining about tourists).",
+        "- Make the riddle SUBTLY related (gardening, weather, plants, greenhouse life, Colington, the harbour, dogs, complaining about tourists).",
         "- Do NOT reference specific numbers or sensor data.",
         "",
         "FORBIDDEN:",
@@ -509,20 +509,19 @@ def generate_update(
     # Create plain text version by stripping HTML tags
     body_plain = re.sub(r"<[^>]+>", "", body_html)
 
-    joke_or_riddle = ""
+    # Generate riddle separately (not appended to body - will be in its own card)
+    riddle_text = ""
+    yesterday_answer = None
     try:
-        joke_or_riddle = _generate_joke_or_riddle_paragraph(body)
+        state = _load_riddle_state()
+        yesterday_answer = _extract_yesterday_answer(state)
+        riddle_text = _generate_joke_or_riddle_paragraph(body)
     except Exception as exc:  # noqa: BLE001
-        log(f"WARNING: Failed generating joke/riddle paragraph: {exc}")
+        log(f"WARNING: Failed generating riddle: {exc}")
 
-    if joke_or_riddle:
-        if body_html and not body_html.endswith("\n"):
-            body_html = body_html.rstrip()
-            body_plain = body_plain.rstrip()
-        body_html = f"{body_html}\n\n{joke_or_riddle}" if body_html else joke_or_riddle
-        body_plain = (
-            f"{body_plain}\n\n{joke_or_riddle}" if body_plain else joke_or_riddle
-        )
+    # Store riddle info in sensor_data for publisher to create dedicated card
+    sensor_data["_riddle_text"] = riddle_text
+    sensor_data["_riddle_yesterday_answer"] = yesterday_answer
 
     # Strip any emojis from AI-generated text (keep emojis only in data tables)
     subject = strip_emojis(subject)

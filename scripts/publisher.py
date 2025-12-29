@@ -626,6 +626,46 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
     </div>
 """
 
+    def build_riddle_card():
+        """Build dedicated riddle card with yesterday's answer reveal.
+        
+        Returns HTML for the riddle card, or empty string if no riddle.
+        """
+        riddle_text = sensor_data.get("_riddle_text", "")
+        yesterday_answer = sensor_data.get("_riddle_yesterday_answer")
+        
+        if not riddle_text:
+            return ""
+        
+        # Build yesterday's answer section if available
+        answer_section = ""
+        if yesterday_answer:
+            answer_section = f"""
+                                <div class="dark-text-muted" style="font-size: 13px; color: #6b7280; margin-bottom: 12px; padding: 10px; background-color: #f3f4f6; border-radius: 6px;" class="dark-riddle-answer-bg">
+                                    <span style="font-weight: 600;">Yesterday's answer:</span> {yesterday_answer}
+                                </div>
+            """
+        
+        return f"""
+                    <!-- SPACER: 24px -->
+                    <div style="height: 24px; line-height: 24px; font-size: 24px; mso-line-height-rule: exactly;">&nbsp;</div>
+
+                    <!-- CARD: RIDDLE -->
+                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: separate; border-spacing: 0; border: 2px solid #588157; border-radius: 12px; overflow: hidden;" class="dark-border dark-bg-card">
+                        <tr>
+                            <td style="padding: 16px;">
+                                <div class="dark-text-accent" style="font-size:13px; color:#588157; margin-bottom:12px; font-weight:600; text-transform: uppercase; letter-spacing: 0.5px;">
+                                    🌱 Brain Teaser
+                                </div>
+                                {answer_section}
+                                <p class="dark-text-primary" style="margin: 0; line-height: 1.6; color: #1e1e1e; font-size: 15px; font-style: italic;">
+                                    {riddle_text}
+                                </p>
+                            </td>
+                        </tr>
+                    </table>
+        """
+
     def build_alert_banner():
         """Build alert banner for critical conditions.
         
@@ -898,6 +938,9 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
             .dark-alert-banner {{ background-color: #451a03 !important; border-color: #b45309 !important; }}
             .dark-alert-text {{ color: #fcd34d !important; }}
             
+            /* Riddle Answer Box: Darker background for dark mode */
+            .dark-riddle-answer-bg {{ background-color: #262626 !important; }}
+            
             /* Gmail Web hack - match color scheme above */
             u + .body .body-bg {{ background-color: #171717 !important; }}
             u + .body .dark-bg-card {{ background-color: #171717 !important; }}
@@ -910,6 +953,7 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
             u + .body .dark-border {{ border-color: #588157 !important; }}
             u + .body .dark-alert-banner {{ background-color: #451a03 !important; border-color: #b45309 !important; }}
             u + .body .dark-alert-text {{ color: #fcd34d !important; }}
+            u + .body .dark-riddle-answer-bg {{ background-color: #262626 !important; }}
         }}
     </style>
     <!--[if mso]>
@@ -1079,6 +1123,8 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
                             </td>
                         </tr>
                     </table>
+
+                    {build_riddle_card()}
 
                 </td>
             </tr>
