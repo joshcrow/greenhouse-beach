@@ -409,16 +409,12 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
     indoor_humidity_min = stats_24h.get("interior_humidity_min")
     indoor_humidity_max = stats_24h.get("interior_humidity_max")
 
+    # Exterior temps from satellite-2 (already in Fahrenheit from HA)
     exterior_temp_min = stats_24h.get("exterior_temp_min")
     exterior_temp_max = stats_24h.get("exterior_temp_max")
-    exterior_humidity_min = stats_24h.get("exterior_humidity_min")
-    exterior_humidity_max = stats_24h.get("exterior_humidity_max")
-    exterior_temp_min = (
-        round(exterior_temp_min * 9 / 5 + 32) if exterior_temp_min is not None else None
-    )
-    exterior_temp_max = (
-        round(exterior_temp_max * 9 / 5 + 32) if exterior_temp_max is not None else None
-    )
+    # Round to integers for display
+    exterior_temp_min = round(exterior_temp_min) if exterior_temp_min is not None else None
+    exterior_temp_max = round(exterior_temp_max) if exterior_temp_max is not None else None
     exterior_humidity_min = stats_24h.get("satellite-2_humidity_min")
     exterior_humidity_max = stats_24h.get("satellite-2_humidity_max")
 

@@ -11,6 +11,7 @@ import weather_service
 
 
 _RIDDLE_STATE_PATH = os.getenv("RIDDLE_STATE_PATH", "/app/data/riddle_state.json")
+_HISTORY_PATH = os.getenv("NARRATIVE_HISTORY_PATH", "/app/data/narrative_history.json")
 
 
 def strip_emojis(text: str) -> str:
@@ -143,8 +144,18 @@ def sanitize_data(sensor_data: Dict[str, Any]) -> Dict[str, Any]:
     return sanitized
 
 
-def build_prompt(sanitized_data: Dict[str, Any]) -> str:
-    """Construct the narrative prompt enforcing persona and safety constraints."""
+def build_prompt(
+    sanitized_data: Dict[str, Any],
+    history: list[Dict[str, Any]] = None,
+    is_weekly: bool = False,
+) -> str:
+    """Construct the narrative prompt enforcing persona and safety constraints.
+    
+    Args:
+        sanitized_data: Sensor and weather data dict
+        history: List of past narrative entries for continuity
+        is_weekly: If True, generate Sunday "Week in Review" edition
+    """
 
     lines = [
         "You write for The Greenhouse Gazette — quick, practical updates for a family greenhouse",
@@ -168,6 +179,49 @@ def build_prompt(sanitized_data: Dict[str, Any]) -> str:
         "- Only if data is present AND notable: king tides, negative tides, meteor showers.",
         "- Normal conditions? Skip it — the table shows tides already.",
         "",
+    ]
+
+    # Add history section for continuity
+    if history:
+        if is_weekly:
+            # Sunday historian mode - review the week
+            lines.append("THE WEEK'S ARCHIVES:")
+            lines.append("This is the Sunday Weekly Edition. Review the past week's narratives:")
+            lines.append("")
+            for entry in history:
+                date = entry.get("date", "Unknown")
+                headline = entry.get("headline", "")
+                body = entry.get("body", "")[:300]  # Truncate for prompt size
+                lines.append(f"[{date}] - {headline}")
+                lines.append(f"  {body}...")
+                lines.append("")
+            lines.append("SUNDAY WEEKLY EDITION INSTRUCTIONS:")
+            lines.append("You're writing the Sunday 'Week in Review'. Structure:")
+            lines.append("1. Paragraph 1: Summarize the week's storylines from the Archives above.")
+            lines.append("   Use specific days and events. Make it narrative, not a list.")
+            lines.append("2. Paragraph 2: Today's current conditions.")
+            lines.append("3. Paragraph 3: Looking ahead to next week (if forecast data available).")
+            lines.append("")
+            lines.append("HEADLINE: Reflect the entire week (e.g., 'A week of wind and sun').")
+            lines.append("SUBJECT: Indicate it's weekly (e.g., 'Weekly recap: stormy start, sunny finish').")
+            lines.append("")
+        else:
+            # Daily mode - reference recent history for continuity
+            lines.append("NARRATIVE HISTORY (for continuity):")
+            lines.append("Recent narratives from the past few days:")
+            lines.append("")
+            for entry in history[-3:]:  # Last 3 days for daily mode
+                date = entry.get("date", "Unknown")
+                headline = entry.get("headline", "")
+                lines.append(f"[{date}] - {headline}")
+            lines.append("")
+            lines.append("CONTINUITY TIPS:")
+            lines.append("- Reference previous weather if relevant ('After yesterday's wind...').")
+            lines.append("- Don't repeat the same phrases or observations from recent days.")
+            lines.append("- Build on the story — this is a serial, not isolated updates.")
+            lines.append("")
+
+    lines.extend([
         "DATA:",
         str(sanitized_data),
         "",
@@ -179,7 +233,7 @@ def build_prompt(sanitized_data: Dict[str, Any]) -> str:
         "HEADLINE: <8-12 words, friendly summary. SENTENCE CASE.>",
         "",
         "BODY: <1-2 short paragraphs. What's the vibe? Anything to watch for?>",
-    ]
+    ])
 
     return "\n".join(lines)
 
@@ -234,6 +288,41 @@ def _extract_yesterday_answer(state: Dict[str, Any]) -> Optional[str]:
         return str(answer).strip() or None
     except Exception:
         return None
+
+
+def _load_history() -> list[Dict[str, Any]]:
+    """Load narrative history from persistent storage (last 7 days)."""
+    try:
+        if os.path.exists(_HISTORY_PATH):
+            with open(_HISTORY_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            return data if isinstance(data, list) else []
+    except Exception as exc:
+        log(f"WARNING: Failed to load narrative history: {exc}")
+    return []
+
+
+def _save_history(new_entry: Dict[str, Any]) -> None:
+    """Save a new narrative entry to history, keeping only last 7 days."""
+    try:
+        history = _load_history()
+        # Avoid duplicates for same date
+        today = new_entry.get("date")
+        history = [h for h in history if h.get("date") != today]
+        history.append(new_entry)
+        # Keep only last 7 entries
+        history = history[-7:]
+        # Atomic write
+        os.makedirs(os.path.dirname(_HISTORY_PATH) or ".", exist_ok=True)
+        tmp_path = f"{_HISTORY_PATH}.tmp"
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump(history, f, indent=2, ensure_ascii=False)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, _HISTORY_PATH)
+        log(f"Saved narrative history: {len(history)} entries")
+    except Exception as exc:
+        log(f"WARNING: Failed to save narrative history: {exc}")
 
 
 def _generate_joke_or_riddle_paragraph(narrative_body: str) -> str:
@@ -412,7 +501,11 @@ def generate_update(
     if "wind_arrow" in sanitized:
         del sanitized["wind_arrow"]
 
-    prompt = build_prompt(sanitized)
+    # Load narrative history for continuity
+    history = _load_history()
+    log(f"Loaded narrative history: {len(history)} entries (weekly_mode={is_weekly})")
+
+    prompt = build_prompt(sanitized, history=history, is_weekly=is_weekly)
 
     log(f"Generating narrative update for data: {sanitized}")
 
@@ -534,6 +627,15 @@ def generate_update(
 
     # Store narrator model in sensor_data for debug footer
     sensor_data["_narrator_model"] = model_name
+
+    # Save narrative to history for rolling memory (continuity across days)
+    today = datetime.now().date().isoformat()
+    _save_history({
+        "date": today,
+        "subject": subject,
+        "headline": headline,
+        "body": body_plain,  # Use plain text for history
+    })
 
     return subject, headline, body_html, body_plain, sensor_data
 
