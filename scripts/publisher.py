@@ -404,14 +404,18 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
     stats_24h = stats.get_24h_stats(datetime.utcnow())
 
     # Extract 24h stats for display
-    indoor_temp_min = stats_24h.get("interior_temp_min")
-    indoor_temp_max = stats_24h.get("interior_temp_max")
-    indoor_humidity_min = stats_24h.get("interior_humidity_min")
-    indoor_humidity_max = stats_24h.get("interior_humidity_max")
+    # NOTE: Must use same remapping as current sensors (lines 165-170):
+    #   - exterior_* in stats = actual greenhouse interior
+    #   - satellite-2_* in stats = actual outdoor
+    #   - interior_* in stats = BROKEN hardware (ignore)
+    indoor_temp_min = stats_24h.get("exterior_temp_min")  # exterior = actual interior
+    indoor_temp_max = stats_24h.get("exterior_temp_max")
+    indoor_humidity_min = stats_24h.get("exterior_humidity_min")
+    indoor_humidity_max = stats_24h.get("exterior_humidity_max")
 
-    # Exterior temps from satellite-2 (already in Fahrenheit from HA)
-    exterior_temp_min = stats_24h.get("exterior_temp_min")
-    exterior_temp_max = stats_24h.get("exterior_temp_max")
+    # Outdoor temps from satellite-2 (actual outdoor sensor, already in Fahrenheit)
+    exterior_temp_min = stats_24h.get("satellite-2_temperature_min")
+    exterior_temp_max = stats_24h.get("satellite-2_temperature_max")
     # Round to integers for display
     exterior_temp_min = round(exterior_temp_min) if exterior_temp_min is not None else None
     exterior_temp_max = round(exterior_temp_max) if exterior_temp_max is not None else None
