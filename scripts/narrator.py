@@ -248,7 +248,7 @@ def _generate_joke_or_riddle_paragraph(narrative_body: str) -> str:
         intro = f"Yesterday's riddle answer: {yesterday_answer}"
 
     prompt_lines = [
-        "You write 'The Daily Head-Scratcher' for a family newsletter.",
+        "You write 'The brain fart' for a family newsletter.",
         "Write ONE clever riddle that'll make someone smirk over their morning coffee.",
         "",
         "TONE:",

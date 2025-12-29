@@ -655,7 +655,7 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
                         <tr>
                             <td style="padding: 16px;">
                                 <div class="dark-text-accent" style="font-size:13px; color:#588157; margin-bottom:12px; font-weight:600; text-transform: uppercase; letter-spacing: 0.5px;">
-                                    🧩 The Daily Head-Scratcher
+                                    💨 Brain fart
                                 </div>
                                 {answer_section}
                                 <p class="dark-text-primary" style="margin: 0; line-height: 1.6; color: #1e1e1e; font-size: 15px; font-style: italic;">
