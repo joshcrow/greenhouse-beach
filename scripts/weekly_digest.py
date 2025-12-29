@@ -82,7 +82,13 @@ def record_daily_snapshot() -> None:
 
 
 def compute_weekly_summary(weekly: Dict[str, Any]) -> Dict[str, Any]:
-    """Compute weekly aggregates from daily snapshots."""
+    """Compute weekly aggregates from daily snapshots.
+    
+    Tracks interior (greenhouse) and exterior (outside) separately.
+    Uses same sensor mapping as publisher.py:
+    - exterior_temp/humidity = actual greenhouse interior
+    - satellite-2_temperature/humidity = actual outside
+    """
     days = weekly.get("days", [])
     if not days:
         return {}
@@ -93,29 +99,51 @@ def compute_weekly_summary(weekly: Dict[str, Any]) -> Dict[str, Any]:
         "week_end": days[-1]["date"] if days else None,
     }
 
-    # Aggregate temperature stats
-    all_temps = []
-    all_humidities = []
+    # Separate collectors for interior vs exterior
+    interior_temps = []
+    interior_humidities = []
+    exterior_temps = []
+    exterior_humidities = []
 
     for day in days:
         stats = day.get("stats", {})
-        # Handle nested metrics structure
         metrics = stats.get("metrics", {})
-        # Collect all temperature values from both direct stats and metrics
-        for key, val in {**stats, **metrics}.items():
-            if "temp" in key.lower() and isinstance(val, (int, float)):
-                all_temps.append(val)
-            if "humidity" in key.lower() and isinstance(val, (int, float)):
-                all_humidities.append(val)
+        all_metrics = {**stats, **metrics}
+        
+        # Interior = exterior_* sensors (due to remapping)
+        for key in ["exterior_temp_min", "exterior_temp_max"]:
+            if key in all_metrics and isinstance(all_metrics[key], (int, float)):
+                interior_temps.append(all_metrics[key])
+        for key in ["exterior_humidity_min", "exterior_humidity_max"]:
+            if key in all_metrics and isinstance(all_metrics[key], (int, float)):
+                interior_humidities.append(all_metrics[key])
+        
+        # Exterior = satellite-2_* sensors
+        for key in ["satellite-2_temperature_min", "satellite-2_temperature_max"]:
+            if key in all_metrics and isinstance(all_metrics[key], (int, float)):
+                exterior_temps.append(all_metrics[key])
+        for key in ["satellite-2_humidity_min", "satellite-2_humidity_max"]:
+            if key in all_metrics and isinstance(all_metrics[key], (int, float)):
+                exterior_humidities.append(all_metrics[key])
 
-    if all_temps:
-        summary["temp_min"] = round(min(all_temps))
-        summary["temp_max"] = round(max(all_temps))
-        summary["temp_avg"] = round(sum(all_temps) / len(all_temps))
+    # Interior stats
+    if interior_temps:
+        summary["interior_temp_min"] = round(min(interior_temps))
+        summary["interior_temp_max"] = round(max(interior_temps))
+        summary["interior_temp_avg"] = round(sum(interior_temps) / len(interior_temps))
+    if interior_humidities:
+        summary["interior_humidity_min"] = round(min(interior_humidities))
+        summary["interior_humidity_max"] = round(max(interior_humidities))
+        summary["interior_humidity_avg"] = round(sum(interior_humidities) / len(interior_humidities))
 
-    if all_humidities:
-        summary["humidity_min"] = round(min(all_humidities))
-        summary["humidity_max"] = round(max(all_humidities))
-        summary["humidity_avg"] = round(sum(all_humidities) / len(all_humidities))
+    # Exterior stats
+    if exterior_temps:
+        summary["exterior_temp_min"] = round(min(exterior_temps))
+        summary["exterior_temp_max"] = round(max(exterior_temps))
+        summary["exterior_temp_avg"] = round(sum(exterior_temps) / len(exterior_temps))
+    if exterior_humidities:
+        summary["exterior_humidity_min"] = round(min(exterior_humidities))
+        summary["exterior_humidity_max"] = round(max(exterior_humidities))
+        summary["exterior_humidity_avg"] = round(sum(exterior_humidities) / len(exterior_humidities))
 
     return summary

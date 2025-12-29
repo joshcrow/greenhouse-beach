@@ -46,7 +46,7 @@ tailscale status
 
 # Note your Tailscale IP (needed for remote access)
 tailscale ip -4
-# Should show: 100.94.172.114
+# Should show: <STORYTELLER_IP>
 ```
 
 ### 1.3 Prepare Static IP Configuration Script
@@ -167,7 +167,7 @@ You can test the full flow at home by:
 3. **Verify connectivity:**
    ```bash
    # From your laptop, SSH via Tailscale
-   ssh joshcrow@100.94.172.114
+   ssh <USER>@<STORYTELLER_IP>
    
    # Check WiFi connection
    iwconfig wlan0
@@ -189,16 +189,16 @@ ip addr show wlan0
 
 ```bash
 # SSH to Greenhouse Pi
-ssh joshcrow@100.110.161.42  # via Tailscale
+ssh <USER>@<GREENHOUSE_PI_IP>  # via Tailscale
 
 # Copy and run the update script
-scp ~/update_bridge_configs.sh joshcrow@greenhouse-pi:~/
-ssh joshcrow@greenhouse-pi "~/update_bridge_configs.sh"
+scp ~/update_bridge_configs.sh <USER>@greenhouse-pi:~/
+ssh <USER>@greenhouse-pi "~/update_bridge_configs.sh"
 ```
 
 **Or manually:**
 ```bash
-ssh joshcrow@greenhouse-pi
+ssh <USER>@greenhouse-pi
 
 # Update configs with Storyteller IP
 sudo sed -i 's/MQTT_HOST=.*/MQTT_HOST=192.168.1.50/' /opt/greenhouse/ha_sensor_bridge.env
@@ -221,7 +221,7 @@ sudo systemctl restart ha-sensor-bridge camera-mqtt-bridge
 The Greenhouse Pi needs to route traffic from the IoT network (10.0.0.x) to Storyteller (192.168.1.50):
 
 ```bash
-ssh joshcrow@greenhouse-pi
+ssh <USER>@greenhouse-pi
 sudo /opt/greenhouse/gateway_nat_setup.sh 192.168.1.50
 ```
 
@@ -273,7 +273,7 @@ sudo chmod +x /opt/greenhouse/gateway_nat_setup.sh
 # From Storyteller
 ping -c 3 192.168.1.1        # Gateway (beachFi router)
 ping -c 3 192.168.1.X        # Greenhouse Pi local IP
-ping -c 3 100.110.161.42     # Greenhouse Pi via Tailscale
+ping -c 3 <GREENHOUSE_PI_IP>     # Greenhouse Pi via Tailscale
 ping -c 3 google.com         # Internet
 ```
 **Expected:** All pings succeed
@@ -290,14 +290,14 @@ docker exec greenhouse-beach-mosquitto-1 mosquitto_sub -t "#" -v &
 ### Test 3: Sensor Bridge (Greenhouse Pi → Storyteller)
 ```bash
 # Check bridge logs on Greenhouse Pi
-ssh joshcrow@greenhouse-pi "journalctl -u ha-sensor-bridge -f"
+ssh <USER>@greenhouse-pi "journalctl -u ha-sensor-bridge -f"
 ```
 **Expected:** "Published to MQTT" messages
 
 ### Test 4: Camera Bridge
 ```bash
 # Test camera capture
-ssh joshcrow@greenhouse-pi "python3 /opt/greenhouse/camera_mqtt_bridge.py --test"
+ssh <USER>@greenhouse-pi "python3 /opt/greenhouse/camera_mqtt_bridge.py --test"
 
 # Check if image arrived on Storyteller
 docker exec greenhouse-beach-storyteller-1 ls -la /app/data/incoming/
@@ -321,8 +321,8 @@ docker exec greenhouse-beach-storyteller-1 cat /app/data/status.json | grep sate
 ### Test 7: Remote Access (Critical!)
 ```bash
 # From your home network (or phone hotspot)
-ssh joshcrow@100.94.172.114  # Storyteller via Tailscale
-ssh joshcrow@100.110.161.42  # Greenhouse Pi via Tailscale
+ssh <USER>@<STORYTELLER_IP>  # Storyteller via Tailscale
+ssh <USER>@<GREENHOUSE_PI_IP>  # Greenhouse Pi via Tailscale
 ```
 **Expected:** Both connections work from anywhere
 
@@ -350,8 +350,8 @@ tailscale status
 sudo tailscale up --ssh
 
 # Your Tailscale IPs:
-# Storyteller: 100.94.172.114
-# Greenhouse Pi: 100.110.161.42
+# Storyteller: <STORYTELLER_IP>
+# Greenhouse Pi: <GREENHOUSE_PI_IP>
 ```
 
 ### 4.2 SSH Key Access
@@ -359,8 +359,8 @@ sudo tailscale up --ssh
 Ensure your SSH keys are set up:
 ```bash
 # From your laptop
-ssh-copy-id joshcrow@100.94.172.114
-ssh-copy-id joshcrow@100.110.161.42
+ssh-copy-id <USER>@<STORYTELLER_IP>
+ssh-copy-id <USER>@<GREENHOUSE_PI_IP>
 ```
 
 ### 4.3 Tailscale Auto-Start
@@ -385,25 +385,25 @@ If Tailscale fails, you can:
 ### Remote Docker Management
 ```bash
 # View logs
-ssh joshcrow@100.94.172.114 "docker logs greenhouse-beach-storyteller-1 --tail 50"
+ssh <USER>@<STORYTELLER_IP> "docker logs greenhouse-beach-storyteller-1 --tail 50"
 
 # Restart services
-ssh joshcrow@100.94.172.114 "cd greenhouse-beach && docker compose restart"
+ssh <USER>@<STORYTELLER_IP> "cd greenhouse-beach && docker compose restart"
 
 # Pull updates and rebuild
-ssh joshcrow@100.94.172.114 "cd greenhouse-beach && git pull && docker compose build && docker compose up -d"
+ssh <USER>@<STORYTELLER_IP> "cd greenhouse-beach && git pull && docker compose build && docker compose up -d"
 ```
 
 ### Monitoring Commands
 ```bash
 # Check sensor data
-ssh joshcrow@100.94.172.114 "docker exec greenhouse-beach-storyteller-1 cat /app/data/status.json"
+ssh <USER>@<STORYTELLER_IP> "docker exec greenhouse-beach-storyteller-1 cat /app/data/status.json"
 
 # Check 24h stats
-ssh joshcrow@100.94.172.114 "docker exec greenhouse-beach-storyteller-1 cat /app/data/stats_24h.json"
+ssh <USER>@<STORYTELLER_IP> "docker exec greenhouse-beach-storyteller-1 cat /app/data/stats_24h.json"
 
 # Watch MQTT in real-time
-ssh joshcrow@100.94.172.114 "docker exec greenhouse-beach-mosquitto-1 mosquitto_sub -t 'greenhouse/#' -v"
+ssh <USER>@<STORYTELLER_IP> "docker exec greenhouse-beach-mosquitto-1 mosquitto_sub -t 'greenhouse/#' -v"
 ```
 
 ### Updating ESPHome Satellite Remotely
@@ -494,8 +494,8 @@ ssh greenhouse-pi "python3 /opt/greenhouse/camera_mqtt_bridge.py --test"
 
 | Device | Local IP | Tailscale IP | Role |
 |--------|----------|--------------|------|
-| Storyteller Pi | 192.168.1.50 | 100.94.172.114 | MQTT broker, AI, Email |
-| Greenhouse Pi | 192.168.1.X | 100.110.161.42 | Camera, HA, IoT gateway |
+| Storyteller Pi | 192.168.1.50 | <STORYTELLER_IP> | MQTT broker, AI, Email |
+| Greenhouse Pi | 192.168.1.X | <GREENHOUSE_PI_IP> | Camera, HA, IoT gateway |
 | Satellite-2 | 10.0.0.20 | N/A | Battery sensor |
 
 | Service | Port | Notes |
@@ -516,10 +516,10 @@ Both Pis are accessible from anywhere via Tailscale:
 
 ```bash
 # Storyteller Pi (runs the email system)
-ssh joshcrow@100.94.172.114
+ssh <USER>@<STORYTELLER_IP>
 
 # Greenhouse Pi (runs camera/sensors)
-ssh joshcrow@100.110.161.42
+ssh <USER>@<GREENHOUSE_PI_IP>
 ```
 
 ### 6.2 Windsurf/VSCode Remote Development
@@ -530,21 +530,21 @@ ssh joshcrow@100.110.161.42
 2. Add hosts to `~/.ssh/config`:
    ```
    Host storyteller
-       HostName 100.94.172.114
+       HostName <STORYTELLER_IP>
        User joshcrow
        
    Host greenhouse-pi
-       HostName 100.110.161.42
+       HostName <GREENHOUSE_PI_IP>
        User joshcrow
    ```
 3. Connect: `Cmd+Shift+P` → "Remote-SSH: Connect to Host" → `storyteller`
-4. Open folder: `/home/joshcrow/greenhouse-beach`
+4. Open folder: `/home/<USER>/greenhouse-beach`
 
 **Option B: SFTP Mount (for quick edits)**
 
 ```bash
 # Mount Storyteller's project folder locally
-sshfs joshcrow@100.94.172.114:/home/joshcrow/greenhouse-beach ~/mnt/storyteller
+sshfs <USER>@<STORYTELLER_IP>:/home/<USER>/greenhouse-beach ~/mnt/storyteller
 ```
 
 ### 6.3 Common Development Tasks
@@ -588,7 +588,7 @@ The satellite can be OTA-updated via Home Assistant or ESPHome CLI:
 esphome run satellite-sensor-2.yaml --device 10.0.0.20
 
 # Or via Home Assistant's ESPHome dashboard
-# Navigate to: http://100.110.161.42:8123 → ESPHome → Update
+# Navigate to: http://<GREENHOUSE_PI_IP>:8123 → ESPHome → Update
 ```
 
 ### 6.5 Network Topology Reference
@@ -633,7 +633,7 @@ If something breaks remotely:
 
 1. **Can you reach the Pi?**
    ```bash
-   ping 100.94.172.114
+   ping <STORYTELLER_IP>
    ```
 
 2. **Is Docker running?**

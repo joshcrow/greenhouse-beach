@@ -8,7 +8,7 @@ This document covers the development workflow, CI/CD pipeline, and testing for t
 
 ```bash
 # Clone and setup
-git clone git@github.com:joshcrow/greenhouse-beach.git
+git clone git@github.com:<USER>/greenhouse-beach.git
 cd greenhouse-beach
 python3 -m venv .venv
 source .venv/bin/activate
@@ -156,7 +156,7 @@ gh run watch  # Live output
 
 ### Fast Deploy (Pre-built Image)
 ```bash
-ssh joshcrow@100.94.172.114
+ssh <USER>@<STORYTELLER_IP>
 cd ~/greenhouse-beach
 docker pull jcrow333/greenhouse-storyteller:latest
 docker compose up -d
@@ -164,7 +164,7 @@ docker compose up -d
 
 ### Manual Build (Slow)
 ```bash
-ssh joshcrow@100.94.172.114
+ssh <USER>@<STORYTELLER_IP>
 cd ~/greenhouse-beach
 git pull
 docker compose build

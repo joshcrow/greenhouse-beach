@@ -3,6 +3,7 @@ from datetime import datetime
 
 import schedule
 
+import broadcast_email
 import publisher
 import weekly_digest
 import golden_hour
@@ -135,8 +136,11 @@ def main() -> None:
         else None
     )
 
+    # Broadcast email polling every 5 minutes
+    schedule.every(5).minutes.do(broadcast_email.poll_broadcast_inbox)
+
     log(
-        f"Registered: Daily @ 07:00, Golden Hour @ {gh_time}, Monthly Timelapse @ 08:00 (1st), Yearly @ 09:00 (Jan 1)"
+        f"Registered: Daily @ 07:00, Golden Hour @ {gh_time}, Monthly Timelapse @ 08:00 (1st), Yearly @ 09:00 (Jan 1), Broadcast Poll @ 5min"
     )
 
     while True:

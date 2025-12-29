@@ -1,8 +1,8 @@
 # Project Chlorophyll: Current System State
 
 **Status:** ✅ Operational (via Tailscale) — Production-Hardened  
-**Last Updated:** Dec 28, 2025 @ 6:15 PM EST  
-**Next Milestone:** On-site deployment at Mom's house
+**Last Updated:** Dec 29, 2025 @ 12:00 AM EST  
+**Next Milestone:** First production broadcast (7 AM)
 
 ---
 
@@ -10,7 +10,7 @@
 
 | Component | Status |
 |-----------|--------|
-| **GitHub Repo** | [joshcrow/greenhouse-beach](https://github.com/joshcrow/greenhouse-beach) |
+| **GitHub Repo** | [<USER>/greenhouse-beach](https://github.com/<USER>/greenhouse-beach) |
 | **Docker Hub** | [jcrow333/greenhouse-storyteller](https://hub.docker.com/r/jcrow333/greenhouse-storyteller) |
 | **CI/CD** | GitHub Actions ✅ |
 | **Tests** | 109 passed, 8 skipped (49% coverage) |
@@ -38,7 +38,7 @@ docker compose up -d --force-recreate storyteller
 |----------|-------|
 | **Hostname** | `greenhouse-storyteller` |
 | **Location** | Josh's home network (192.168.1.151) |
-| **Tailscale IP** | `100.94.172.114` |
+| **Tailscale IP** | `<STORYTELLER_IP>` |
 | **Storage** | NVMe (1TB) ✅ |
 | **Docker** | 2 containers running |
 
@@ -53,7 +53,7 @@ docker compose up -d --force-recreate storyteller
 |---------|----------------|--------|
 | `ingestion.py` | `greenhouse/+/image` | ✅ Receiving camera images |
 | `curator.py` | Archive queue | ✅ Processing to `data/archive/` |
-| `scheduler.py` | 07:00 daily, monthly/yearly timelapses | ✅ Running |
+| `scheduler.py` | 07:00 daily, monthly/yearly timelapses, broadcast poll | ✅ Running |
 | `status_daemon.py` | `greenhouse/+/sensor/+/state` | ✅ Writing `status.json` + device monitoring |
 | `device_monitor.py` | Every 5 min | ✅ Online/offline alerts via email |
 | `web_server.py` | Port 8080 | ✅ Serving timelapses |
@@ -66,7 +66,7 @@ docker compose up -d --force-recreate storyteller
 |----------|-------|
 | **Hostname** | `greenhouse-pi` |
 | **Location** | Mom's house (beachFi network) |
-| **Tailscale IP** | `100.110.161.42` |
+| **Tailscale IP** | `<GREENHOUSE_PI_IP>` |
 | **SSH** | Key auth configured ✅ |
 
 ### Services Running
@@ -130,7 +130,7 @@ docker compose up -d --force-recreate storyteller
 - [x] **Weekly timelapse** - 100-frame GIF in Sunday edition
 - [x] **Monthly timelapse** - 500-frame MP4 generated on 1st of month, email notification
 - [x] **Yearly timelapse** - 4000-frame MP4 generated Jan 1st, email notification
-- [x] **Timelapse web server** - http://100.94.172.114:8080/timelapses/
+- [x] **Timelapse web server** - http://<STORYTELLER_IP>:8080/timelapses/
 - [x] **Golden hour capture** - Seasonal timing for optimal photos (Dec: 3:45 PM)
 - [x] **Coast & Sky integration** - NOAA tides (Jennette's Pier), meteor showers, named moon events
 - [x] **Emoji policy** - No emojis in AI-generated subject/headline/body; kept in data tables
@@ -142,6 +142,13 @@ docker compose up -d --force-recreate storyteller
 - [x] **Notable tides only** - Narrator only mentions king tides, negative tides, or >3.5ft tides
 - [x] **Separate HTML/plain text** - Email body has proper HTML version and clean plain text version
 - [x] **Sunrise/Sunset compact** - Combined into single row in weather table
+- [x] **Broadcast feature** - One-time editor messages via email command (Dec 29)
+  - Send email to Gazette inbox with `BROADCAST: Title` subject
+  - Polls every 5 minutes, appears in next email with ⚠️ prefix
+  - Sender whitelist, HTML sanitization, auto-cleanup
+- [x] **Weekly summary fix** - Now shows Greenhouse vs Outside breakdown
+- [x] **Visual consistency** - All card headers moved outside cards
+- [x] **Dark mode polish** - Lighter green (#6b9b5a) for better contrast
 - [x] **Production hardening** - Security audit complete (Dec 21):
   - Buffer overflow protection (sensor log cap)
   - Fail-fast API key validation
@@ -185,6 +192,7 @@ docker compose up -d --force-recreate storyteller
 - [x] **NVMe migration** - 1TB NVMe installed ✅
 - [ ] Web dashboard
 - [ ] Investigate FireBeetle BME280 not publishing (battery works, temp/humidity don't)
+- [x] **Security cleanup** - Scrubbed IPs/usernames from docs, removed cruft files
 
 ---
 
@@ -210,8 +218,8 @@ docker exec greenhouse-storyteller python scripts/device_monitor.py    # Check d
 cat data/status.json | jq                # Check sensor data
 
 # === SSH to Greenhouse Pi ===
-ssh joshcrow@100.110.161.42
+ssh <USER>@<GREENHOUSE_PI_IP>
 
 # === Greenhouse Pi Services ===
-ssh joshcrow@100.110.161.42 "systemctl status camera-mqtt-bridge ha-sensor-bridge --no-pager"
+ssh <USER>@<GREENHOUSE_PI_IP> "systemctl status camera-mqtt-bridge ha-sensor-bridge --no-pager"
 ```

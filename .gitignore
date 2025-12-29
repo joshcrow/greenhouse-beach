@@ -23,6 +23,11 @@ data/stats_24h.json
 data/stats_weekly.json
 data/history_cache.json
 data/coast_sky_cache.json
+data/broadcast.json
+data/riddle_state.json
+data/riddle_state_test.json
+data/narrative_history.json
+data/device_monitor_state.json
 
 # Long-term sensor logs (can get large)
 data/sensor_log/

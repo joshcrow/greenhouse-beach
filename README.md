@@ -22,9 +22,14 @@ Transform passive greenhouse monitoring into an active, narrative-driven experie
 
 **Weekly Edition (Sundays 7:00 AM)**
 - Everything from the daily email, plus:
-- **Week Summary** – Temperature and humidity ranges with averages
+- **Week Summary** – Greenhouse vs Outside temperature and humidity ranges
 - **Timelapse GIF** – Animated loop of all photos from the past week
 - **📊 Weekly Edition** – Subject line clearly marked
+
+**Broadcast Messages**
+- **One-time announcements** – Send email to Gazette inbox with `BROADCAST: Title` subject
+- **Automatic polling** – Checks every 5 minutes, appears in next email
+- **Security** – Sender whitelist, HTML sanitization, auto-cleanup after use
 
 ---
 
