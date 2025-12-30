@@ -960,62 +960,61 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
     
     current_conditions_section = f"""
                     <!-- CURRENT CONDITIONS HEADER -->
-                    <div class="dark-text-accent" style="font-size:12px; color:#6b9b5a; margin-bottom:12px; font-weight:600; text-transform: uppercase; letter-spacing: 0.5px;">
+                    <div class="dark-text-accent" style="font-size:12px; color:#4ade80; margin-bottom:12px; font-weight:600; text-transform: uppercase; letter-spacing: 0.5px;">
                         📍 Current Conditions
                     </div>
                     
-                    <!-- Two-column layout: Greenhouse | Outside + Weather -->
-                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" class="conditions-table" style="border-collapse: collapse;">
-                        <tr>
-                            <!-- LEFT: Greenhouse -->
-                            <td width="48%" class="conditions-col" style="vertical-align: top; padding-right: 8px;">
-                                <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" class="dark-bg-card" style="background-color: #f3f4f6; border-radius: 8px; border-collapse: collapse;">
-                                    <tr>
-                                        <td style="padding: 20px; text-align: center;">
-                                            <div class="dark-text-muted" style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">Greenhouse</div>
-                                            <div class="dark-text-accent" style="font-size: 42px; font-weight: 700; line-height: 1;">{fmt(indoor_temp)}°</div>
-                                            <div class="dark-text-muted" style="font-size: 13px; margin-top: 6px;">{fmt(indoor_humidity)}% humidity</div>
-                                        </td>
-                                    </tr>
-                                </table>
-                            </td>
-                            <!-- RIGHT: Outside + Weather Details -->
-                            <td width="52%" class="conditions-col" style="vertical-align: top; padding-left: 8px;">
-                                <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" class="dark-bg-card" style="background-color: #f3f4f6; border-radius: 8px; border-collapse: collapse;">
-                                    <tr>
-                                        <td style="padding: 16px;">
-                                            <!-- Outside Temp -->
-                                            <div style="text-align: center; margin-bottom: 12px;">
-                                                <div class="dark-text-muted" style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Outside</div>
-                                                <div class="dark-text-low" style="font-size: 36px; font-weight: 700; line-height: 1;">{fmt(exterior_temp)}°</div>
-                                                <div class="dark-text-muted" style="font-size: 12px; margin-top: 4px;">{fmt(exterior_humidity)}% · {get_condition_emoji(outdoor_condition)} {fmt(outdoor_condition)}</div>
-                                            </div>
-                                            <!-- Weather Details -->
-                                            <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; font-size: 12px; border-top: 1px solid #374151;">
-                                                <tr>
-                                                    <td class="dark-text-muted" style="padding: 8px 0 4px 0;">
-                                                        H: {fmt(high_temp)}° / L: {fmt(low_temp)}°
-                                                    </td>
-                                                    <td class="dark-text-muted" style="padding: 8px 0 4px 0; text-align: right;">
-                                                        {fmt_wind()}
-                                                    </td>
-                                                </tr>
-                                                <tr>
-                                                    <td class="dark-text-muted" style="padding: 4px 0;">
-                                                        🌅 {fmt_time(sunrise)} – {fmt_time(sunset)}
-                                                    </td>
-                                                    <td class="dark-text-muted" style="padding: 4px 0; text-align: right;">
-                                                        {moon_icon} {fmt_moon_phase(moon_phase)}
-                                                    </td>
-                                                </tr>
-                                                {tide_display}
-                                            </table>
-                                        </td>
-                                    </tr>
-                                </table>
-                            </td>
-                        </tr>
-                    </table>
+                    <!-- Two-column layout with equal height: Greenhouse | Outside + Weather -->
+                    <!-- Using wrapper div with flex for equal height cards -->
+                    <div class="conditions-flex" style="display: flex; align-items: stretch; gap: 12px;">
+                        <!-- LEFT: Greenhouse (centered content for visual balance) -->
+                        <div class="conditions-col" style="flex: 1; min-width: 0;">
+                            <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" height="100%" class="dark-bg-card" style="background-color: #f3f4f6; border-radius: 8px; border-collapse: collapse; height: 100%;">
+                                <tr>
+                                    <td style="padding: 24px 16px; text-align: center; vertical-align: middle;">
+                                        <div class="dark-text-muted" style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Greenhouse</div>
+                                        <div class="dark-text-accent" style="font-size: 48px; font-weight: 700; line-height: 1; color: #4ade80;">{fmt(indoor_temp)}°</div>
+                                        <div class="dark-text-muted" style="font-size: 14px; margin-top: 10px;">{fmt(indoor_humidity)}% humidity</div>
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+                        <!-- RIGHT: Outside + Weather Details -->
+                        <div class="conditions-col" style="flex: 1; min-width: 0;">
+                            <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" height="100%" class="dark-bg-card" style="background-color: #f3f4f6; border-radius: 8px; border-collapse: collapse; height: 100%;">
+                                <tr>
+                                    <td style="padding: 16px; vertical-align: top;">
+                                        <!-- Outside Temp -->
+                                        <div style="text-align: center; margin-bottom: 12px;">
+                                            <div class="dark-text-muted" style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Outside</div>
+                                            <div class="dark-text-low" style="font-size: 36px; font-weight: 700; line-height: 1;">{fmt(exterior_temp)}°</div>
+                                            <div class="dark-text-muted" style="font-size: 12px; margin-top: 4px;">{fmt(exterior_humidity)}% · {get_condition_emoji(outdoor_condition)} {fmt(outdoor_condition)}</div>
+                                        </div>
+                                        <!-- Weather Details -->
+                                        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; font-size: 12px; border-top: 1px solid #374151;">
+                                            <tr>
+                                                <td class="dark-text-muted" style="padding: 8px 0 4px 0;">
+                                                    H: {fmt(high_temp)}° / L: {fmt(low_temp)}°
+                                                </td>
+                                                <td class="dark-text-muted" style="padding: 8px 0 4px 0; text-align: right;">
+                                                    {fmt_wind()}
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td class="dark-text-muted" style="padding: 4px 0;">
+                                                    🌅 {fmt_time(sunrise)} – {fmt_time(sunset)}
+                                                </td>
+                                                <td class="dark-text-muted" style="padding: 4px 0; text-align: right;">
+                                                    {moon_icon} {fmt_moon_phase(moon_phase)}
+                                                </td>
+                                            </tr>
+                                            {tide_display}
+                                        </table>
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
     """
     
     # Build "Trends" section (Chart + H/L summary) - UNIFIED STYLING
@@ -1027,17 +1026,17 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
                     <div style="height: 24px;">&nbsp;</div>
                     
                     <!-- TRENDS SECTION -->
-                    <div class="dark-text-accent" style="font-size:12px; color:#6b9b5a; margin-bottom:12px; font-weight:600; text-transform: uppercase; letter-spacing: 0.5px;">
+                    <div class="dark-text-accent" style="font-size:12px; color:#4ade80; margin-bottom:12px; font-weight:600; text-transform: uppercase; letter-spacing: 0.5px;">
                         📈 24-Hour Trends
                     </div>
                     
-                    {f'<img src="cid:{temp_chart_cid}" alt="24h Trends" style="display:block; width:100%; max-width:560px; height:auto; border:0; border-radius:8px; margin-bottom: 16px;">' if temp_chart_cid else ''}
+                    {f'<img class="chart-blend" src="cid:{temp_chart_cid}" alt="24h Trends" style="display:block; width:100%; max-width:560px; height:auto; border:0; border-radius:8px; margin-bottom: 16px;">' if temp_chart_cid else ''}
                     
                     <!-- H/L Summary: Two-column format (matches weekly) -->
                     <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; font-size: 13px;">
                         <tr>
                             <td class="dark-text-muted" style="padding: 8px 0; border-bottom: 1px solid #374151;">
-                                <span style="color: #6b9b5a; font-weight: 600;">●</span> Greenhouse
+                                <span style="color: #4ade80; font-weight: 600;">●</span> Greenhouse
                             </td>
                             <td class="dark-text-primary" style="padding: 8px 0; border-bottom: 1px solid #374151; text-align: right;">
                                 {fmt_temp_high_low(indoor_temp_max, indoor_temp_min)} &nbsp;|&nbsp; {fmt(indoor_humidity_min)}–{fmt(indoor_humidity_max)}% RH
@@ -1069,17 +1068,17 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
                     <div style="height: 24px;">&nbsp;</div>
 
                     <!-- WEEKLY TRENDS SECTION -->
-                    <div class="dark-text-accent" style="font-size:12px; color:#6b9b5a; margin-bottom:12px; font-weight:600; text-transform: uppercase; letter-spacing: 0.5px;">
+                    <div class="dark-text-accent" style="font-size:12px; color:#4ade80; margin-bottom:12px; font-weight:600; text-transform: uppercase; letter-spacing: 0.5px;">
                         📈 This Week's Trends
                     </div>
 
-                    {f'<img src="cid:{temp_chart_cid}" alt="Weekly Trends" style="display:block; width:100%; max-width:560px; height:auto; border:0; border-radius:8px; margin-bottom: 16px;">' if temp_chart_cid else ''}
+                    {f'<img class="chart-blend" src="cid:{temp_chart_cid}" alt="Weekly Trends" style="display:block; width:100%; max-width:560px; height:auto; border:0; border-radius:8px; margin-bottom: 16px;">' if temp_chart_cid else ''}
 
                     <!-- Weekly H/L Summary: Two-column format (matches daily) -->
                     <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; font-size: 13px;">
                         <tr>
                             <td class="dark-text-muted" style="padding: 8px 0; border-bottom: 1px solid #374151;">
-                                <span style="color: #6b9b5a; font-weight: 600;">●</span> Greenhouse
+                                <span style="color: #4ade80; font-weight: 600;">●</span> Greenhouse
                             </td>
                             <td class="dark-text-primary" style="padding: 8px 0; border-bottom: 1px solid #374151; text-align: right;">
                                 {fmt(ws.get("interior_temp_min"))}° – {fmt(ws.get("interior_temp_max"))}° &nbsp;|&nbsp; {fmt(ws.get("interior_humidity_min"))}–{fmt(ws.get("interior_humidity_max"))}% RH
@@ -1130,11 +1129,14 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
             .mobile-padding {{ padding-left: 16px !important; padding-right: 16px !important; }}
         }}
         
-        /* Mobile stacking for conditions columns */
+        /* Mobile stacking for conditions flex layout */
         @media screen and (max-width: 480px) {{
-            .conditions-table {{ display: block !important; }}
-            .conditions-col {{ display: block !important; width: 100% !important; padding: 0 0 12px 0 !important; }}
+            .conditions-flex {{ display: block !important; }}
+            .conditions-col {{ display: block !important; width: 100% !important; margin-bottom: 12px !important; }}
         }}
+        
+        /* Chart blend mode for seamless dark mode integration */
+        .chart-blend {{ mix-blend-mode: screen; }}
 
         @media (prefers-color-scheme: dark) {{
             /* Main Background: Neutral Dark (#171717) */
@@ -1149,9 +1151,9 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
             .dark-text-high {{ color: #f87171 !important; }}  /* Lighter red for dark mode */
             .dark-text-low {{ color: #60a5fa !important; }}   /* Lighter blue for dark mode */
             
-            /* Accents: Main Green (#6b9b5a) */
-            .dark-text-accent {{ color: #6b9b5a !important; }}
-            .dark-border {{ border-color: #6b9b5a !important; }}
+            /* Accents: Mint Green (#4ade80) - Release Candidate */
+            .dark-text-accent {{ color: #4ade80 !important; }}
+            .dark-border {{ border-color: #4ade80 !important; }}
             
             /* Cards: Subtle elevated fill in dark mode */
             .dark-bg-card {{ background-color: #1f1f1f !important; }}
