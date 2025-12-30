@@ -795,7 +795,7 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
         
         return f"""
                     <!-- ALERT BANNER -->
-                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; background-color: #2a1515; border: 1px solid #991b1b; border-radius: 8px; margin-bottom: 16px;">
+                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: separate; border-spacing: 0; background-color: #2a1515; border: 1px solid #991b1b; border-radius: 12px; margin-bottom: 16px; overflow: hidden;">
                         {alert_rows}
                     </table>
         """
@@ -837,7 +837,7 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
                     </div>
 
                     <!-- BROADCAST CARD -->
-                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; background-color: #1f1f1f; border: 1px solid #7c3aed; border-radius: 8px;">
+                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: separate; border-spacing: 0; background-color: #1f1f1f; border: 1px solid #7c3aed; border-radius: 12px; overflow: hidden;">
                         <tr>
                             <td style="padding: 14px 16px;">
                                 <p style="margin: 0; line-height: 1.6; color: #e9d5ff; font-size: 15px;">
