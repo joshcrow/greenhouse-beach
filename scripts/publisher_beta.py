@@ -622,7 +622,7 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
         return ""
 
     def _get_tide_display(sensor_data):
-        """Get full tide display for Outside column (high and low tides)."""
+        """Get compact tide display for details card."""
         tide_data = sensor_data.get("tide_summary", {})
         if not tide_data:
             return ""
@@ -639,7 +639,7 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
             h = today_highs[0]
             try:
                 dt = datetime.fromisoformat(h.get("time_local", ""))
-                high_str = f"🌊 High {dt.strftime('%-I:%M %p')} ({h.get('height_ft', 0):.1f}ft)"
+                high_str = f"🌊 High {dt.strftime('%-I:%M %p')}"
             except (ValueError, TypeError):
                 high_str = f"🌊 High {h.get('time_local', '')[-5:]}"
         
@@ -649,16 +649,14 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
             l = today_lows[0]
             try:
                 dt = datetime.fromisoformat(l.get("time_local", ""))
-                low_str = f"Low {dt.strftime('%-I:%M %p')} ({l.get('height_ft', 0):.1f}ft)"
+                low_str = f"Low {dt.strftime('%-I:%M %p')}"
             except (ValueError, TypeError):
                 low_str = f"Low {l.get('time_local', '')[-5:]}"
         
-        return f"""
-                                                <tr>
-                                                    <td class="dark-text-muted" style="padding: 4px 0;" colspan="2">
-                                                        {high_str} · {low_str}
-                                                    </td>
-                                                </tr>"""
+        # Return compact string for details card
+        if high_str and low_str:
+            return f"{high_str} · {low_str}"
+        return high_str or low_str
 
     def build_debug_footer(status_snapshot, sensor_data, augmented_data=None):
         """Build debug footer for test emails only.
@@ -703,7 +701,7 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
         answer_section = ""
         if yesterday_answer:
             answer_section = f"""
-                                <div class="dark-text-muted dark-riddle-answer-bg" style="font-size: 13px; color: #6b7280; margin-bottom: 12px; padding: 10px; background-color: #f3f4f6; border-radius: 6px;">
+                                <div style="font-size: 13px; color: #a3a3a3; margin-bottom: 12px; padding: 10px; background-color: #262626; border-radius: 6px;">
                                     <span style="font-weight: 600;">Yesterday's answer:</span> {yesterday_answer}
                                 </div>
             """
@@ -712,19 +710,19 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
                     <!-- SPACER: 24px -->
                     <div style="height: 24px; line-height: 24px; font-size: 24px; mso-line-height-rule: exactly;">&nbsp;</div>
 
-                    <!-- RIDDLE SECTION: Blockquote style -->
+                    <!-- RIDDLE SECTION -->
                     <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse;">
                         <tr>
                             <td style="padding: 0;">
-                                <div class="dark-text-accent" style="font-size:12px; color:#6b9b5a; margin-bottom:10px; font-weight:600; text-transform: uppercase; letter-spacing: 0.5px;">
-                                    🧠 Brain Fart
+                                <div style="font-size:12px; color:#6b9b5a; margin-bottom:10px; font-weight:600; text-transform: uppercase; letter-spacing: 0.5px;">
+                                    Brain Fart
                                 </div>
                                 {answer_section}
-                                <!-- Riddle box with subtle background -->
-                                <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" class="dark-bg-subtle" style="border-collapse: collapse; background-color: #f3f4f6; border-radius: 8px;">
+                                <!-- Riddle box -->
+                                <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; background-color: #1f1f1f; border-radius: 8px;">
                                     <tr>
                                         <td style="padding: 14px 16px;">
-                                            <p class="dark-text-primary" style="margin: 0; line-height: 1.6; color: #374151; font-size: 15px; font-family: Arial, sans-serif;">
+                                            <p style="margin: 0; line-height: 1.6; color: #f5f5f5; font-size: 15px; font-family: Arial, sans-serif;">
                                                 {riddle_text}
                                             </p>
                                         </td>
@@ -774,30 +772,30 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
         if not alert_items:
             return ""
         
-        # Build individual alert rows with icon anchoring and clear separation
+        # Build individual alert rows
         alert_rows = ""
         for i, alert in enumerate(alert_items):
             is_last = i == len(alert_items) - 1
-            border_style = "border-bottom: 1px solid rgba(245, 158, 11, 0.25);" if not is_last else ""
-            margin_style = "padding-bottom: 12px; margin-bottom: 8px;" if not is_last else ""
+            border_style = "border-bottom: 1px solid rgba(251, 191, 36, 0.3);" if not is_last else ""
+            margin_style = "padding-bottom: 12px;" if not is_last else ""
             alert_rows += f"""
                         <tr>
                             <td style="padding: 12px 0; {border_style} {margin_style} vertical-align: top; width: 40px; text-align: center; font-size: 22px;">
                                 {alert["icon"]}
                             </td>
                             <td style="padding: 12px 8px; {border_style} {margin_style} vertical-align: middle;">
-                                <div class="dark-alert-text" style="font-weight: 600; font-size: 14px; color: #b45309;">
+                                <div style="font-weight: 600; font-size: 14px; color: #fcd34d;">
                                     {alert["warning"]}
                                 </div>
-                                <div class="dark-alert-text" style="font-size: 13px; color: #b45309; margin-top: 2px;">
+                                <div style="font-size: 13px; color: #fcd34d; margin-top: 2px;">
                                     {alert["detail"]}
                                 </div>
                             </td>
                         </tr>"""
         
         return f"""
-                    <!-- ALERT BANNER: Icon-anchored warnings -->
-                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; background-color: #fef3c7; border-radius: 8px; margin-bottom: 16px;" class="dark-alert-banner">
+                    <!-- ALERT BANNER -->
+                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; background-color: #451a03; border-radius: 8px; margin-bottom: 16px;">
                         {alert_rows}
                     </table>
         """
@@ -907,16 +905,16 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
             hero_caption = "Daily Timelapse"
         
         hero_section = f"""
-        <!-- CARD 0: HERO IMAGE -->
-        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: separate; border-spacing: 0;" class="dark-bg-card">
+        <!-- HERO IMAGE -->
+        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse;">
             <tr>
                 <td style="padding: 0;">
                     <!-- Caption -->
-                    <div class="dark-text-accent" style="font-size:13px; color:#6b9b5a; margin-bottom:8px; font-weight:600; text-transform: uppercase; letter-spacing: 0.5px;">
+                    <div style="font-size:12px; color:#6b9b5a; margin-bottom:8px; font-weight:600; text-transform: uppercase; letter-spacing: 0.5px;">
                         {hero_caption}
                     </div>
-                    <!-- Image with shadow and border -->
-                    <div style="border-radius: 12px; overflow: hidden; border: 2px solid #6b9b5a; box-shadow: 0 4px 12px rgba(0,0,0,0.1);" class="dark-border">
+                    <!-- Image with enhanced shadow -->
+                    <div style="border-radius: 12px; overflow: hidden; border: 2px solid #6b9b5a; box-shadow: 0 8px 24px rgba(0,0,0,0.4);">
                         <img src="cid:{image_cid}" alt="Greenhouse timelapse" style="display:block; width:100%; height:auto; border:0;">
                     </div>
                 </td>
@@ -955,103 +953,117 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
     # CONSOLIDATED DATA DASHBOARD (Redesigned for cleaner UX)
     # =========================================================================
     
-    # Build "Current Conditions" card (Greenhouse left, Outside+Weather right)
-    tide_display = _get_tide_display(sensor_data)  # Full tide display
+    # Build "Current Conditions" - 3 card layout (Greenhouse | Outside | Details)
+    tide_display = _get_tide_display(sensor_data)
     
     current_conditions_section = f"""
                     <!-- CURRENT CONDITIONS HEADER -->
-                    <div class="dark-text-accent" style="font-size:12px; color:#6b9b5a; margin-bottom:12px; font-weight:600; text-transform: uppercase; letter-spacing: 0.5px;">
-                        📍 Current Conditions
+                    <div style="font-size:12px; color:#6b9b5a; margin-bottom:12px; font-weight:600; text-transform: uppercase; letter-spacing: 0.5px;">
+                        Current Conditions
                     </div>
                     
-                    <!-- Two-column layout with equal height: Greenhouse | Outside + Weather -->
-                    <!-- Using wrapper div with flex for equal height cards -->
-                    <div class="conditions-flex" style="display: flex; align-items: stretch; gap: 12px;">
-                        <!-- LEFT: Greenhouse (centered content for visual balance) -->
-                        <div class="conditions-col" style="flex: 1; min-width: 0;">
-                            <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" height="100%" class="dark-bg-card" style="background-color: #f3f4f6; border-radius: 8px; border-collapse: collapse; height: 100%;">
-                                <tr>
-                                    <td style="padding: 24px 16px; text-align: center; vertical-align: middle;">
-                                        <div class="dark-text-muted" style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Greenhouse</div>
-                                        <div class="dark-text-accent" style="font-size: 48px; font-weight: 700; line-height: 1; color: #6b9b5a;">{fmt(indoor_temp)}°</div>
-                                        <div class="dark-text-muted" style="font-size: 14px; margin-top: 10px;">{fmt(indoor_humidity)}% humidity</div>
-                                    </td>
-                                </tr>
-                            </table>
-                        </div>
-                        <!-- RIGHT: Outside + Weather Details -->
-                        <div class="conditions-col" style="flex: 1; min-width: 0;">
-                            <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" height="100%" class="dark-bg-card" style="background-color: #f3f4f6; border-radius: 8px; border-collapse: collapse; height: 100%;">
-                                <tr>
-                                    <td style="padding: 16px; vertical-align: top;">
-                                        <!-- Outside Temp -->
-                                        <div style="text-align: center; margin-bottom: 12px;">
-                                            <div class="dark-text-muted" style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Outside</div>
-                                            <div class="dark-text-low" style="font-size: 36px; font-weight: 700; line-height: 1;">{fmt(exterior_temp)}°</div>
-                                            <div class="dark-text-muted" style="font-size: 12px; margin-top: 4px;">{fmt(exterior_humidity)}% · {get_condition_emoji(outdoor_condition)} {fmt(outdoor_condition)}</div>
-                                        </div>
-                                        <!-- Weather Details -->
-                                        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; font-size: 12px; border-top: 1px solid #374151;">
-                                            <tr>
-                                                <td class="dark-text-muted" style="padding: 8px 0 4px 0;">
-                                                    H: {fmt(high_temp)}° / L: {fmt(low_temp)}°
-                                                </td>
-                                                <td class="dark-text-muted" style="padding: 8px 0 4px 0; text-align: right;">
-                                                    {fmt_wind()}
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td class="dark-text-muted" style="padding: 4px 0;">
-                                                    🌅 {fmt_time(sunrise)} – {fmt_time(sunset)}
-                                                </td>
-                                                <td class="dark-text-muted" style="padding: 4px 0; text-align: right;">
-                                                    {moon_icon} {fmt_moon_phase(moon_phase)}
-                                                </td>
-                                            </tr>
+                    <!-- ROW 1: Greenhouse + Outside (matching cards) -->
+                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" class="conditions-row" style="border-collapse: separate; border-spacing: 12px 0;">
+                        <tr>
+                            <!-- GREENHOUSE CARD -->
+                            <td width="50%" class="conditions-card" style="vertical-align: top;">
+                                <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #1f1f1f; border-radius: 8px; border-collapse: collapse;">
+                                    <tr>
+                                        <td style="padding: 24px 16px; text-align: center;">
+                                            <div style="font-size: 11px; color: #a3a3a3; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Greenhouse</div>
+                                            <div style="font-size: 48px; font-weight: 700; line-height: 1; color: #6b9b5a;">{fmt(indoor_temp)}°</div>
+                                            <div style="font-size: 14px; color: #a3a3a3; margin-top: 10px;">{fmt(indoor_humidity)}% humidity</div>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </td>
+                            <!-- OUTSIDE CARD (matching style) -->
+                            <td width="50%" class="conditions-card" style="vertical-align: top;">
+                                <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #1f1f1f; border-radius: 8px; border-collapse: collapse;">
+                                    <tr>
+                                        <td style="padding: 24px 16px; text-align: center;">
+                                            <div style="font-size: 11px; color: #a3a3a3; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Outside</div>
+                                            <div style="font-size: 48px; font-weight: 700; line-height: 1; color: #60a5fa;">{fmt(exterior_temp)}°</div>
+                                            <div style="font-size: 14px; color: #a3a3a3; margin-top: 10px;">{fmt(exterior_humidity)}% humidity</div>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </td>
+                        </tr>
+                    </table>
+                    
+                    <!-- SPACER -->
+                    <div style="height: 12px;">&nbsp;</div>
+                    
+                    <!-- ROW 2: WEATHER DETAILS CARD -->
+                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #1f1f1f; border-radius: 8px; border-collapse: collapse;">
+                        <tr>
+                            <td style="padding: 16px;">
+                                <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; font-size: 13px; color: #d4d4d4;">
+                                    <tr>
+                                        <td style="padding: 6px 0;">
+                                            {get_condition_emoji(outdoor_condition)} {fmt(outdoor_condition)}
+                                        </td>
+                                        <td style="padding: 6px 0; text-align: right;">
+                                            H: {fmt(high_temp)}° / L: {fmt(low_temp)}°
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 6px 0; border-top: 1px solid #374151;">
+                                            {fmt_wind()}
+                                        </td>
+                                        <td style="padding: 6px 0; border-top: 1px solid #374151; text-align: right;">
+                                            🌅 {fmt_time(sunrise)} – {fmt_time(sunset)}
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 6px 0; border-top: 1px solid #374151;">
+                                            {moon_icon} {fmt_moon_phase(moon_phase)}
+                                        </td>
+                                        <td style="padding: 6px 0; border-top: 1px solid #374151; text-align: right;">
                                             {tide_display}
-                                        </table>
-                                    </td>
-                                </tr>
-                            </table>
-                        </div>
-                    </div>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </td>
+                        </tr>
+                    </table>
     """
     
-    # Build "Trends" section (Chart + H/L summary) - UNIFIED STYLING
+    # Build "Trends" section (Chart + H/L summary) - DARK MODE
     trends_section = ""
     if not weekly_mode and has_24h_stats:
-        # Daily: 24h trends (matching weekly format for consistency)
         trends_section = f"""
                     <!-- SPACER -->
                     <div style="height: 24px;">&nbsp;</div>
                     
                     <!-- TRENDS SECTION -->
-                    <div class="dark-text-accent" style="font-size:12px; color:#6b9b5a; margin-bottom:12px; font-weight:600; text-transform: uppercase; letter-spacing: 0.5px;">
-                        📈 24-Hour Trends
+                    <div style="font-size:12px; color:#6b9b5a; margin-bottom:12px; font-weight:600; text-transform: uppercase; letter-spacing: 0.5px;">
+                        24-Hour Trends
                     </div>
                     
                     {f'<img src="cid:{temp_chart_cid}" alt="24h Trends" style="display:block; width:100%; max-width:560px; height:auto; border:0; border-radius:8px; margin-bottom: 16px;">' if temp_chart_cid else ''}
                     
-                    <!-- H/L Summary: Two-column format (matches weekly) -->
+                    <!-- H/L Summary -->
                     <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; font-size: 13px;">
                         <tr>
-                            <td class="dark-text-muted" style="padding: 8px 0; border-bottom: 1px solid #374151;">
+                            <td style="padding: 8px 0; color: #a3a3a3; border-bottom: 1px solid #374151;">
                                 <span style="color: #6b9b5a; font-weight: 600;">●</span> Greenhouse
                             </td>
-                            <td class="dark-text-primary" style="padding: 8px 0; border-bottom: 1px solid #374151; text-align: right;">
+                            <td style="padding: 8px 0; color: #f5f5f5; border-bottom: 1px solid #374151; text-align: right;">
                                 {fmt_temp_high_low(indoor_temp_max, indoor_temp_min)} &nbsp;|&nbsp; {fmt(indoor_humidity_min)}–{fmt(indoor_humidity_max)}% RH
                             </td>
                         </tr>
                         <tr>
-                            <td class="dark-text-muted" style="padding: 8px 0;">
+                            <td style="padding: 8px 0; color: #a3a3a3;">
                                 <span style="color: #60a5fa; font-weight: 600;">●</span> Outside
                             </td>
-                            <td class="dark-text-primary" style="padding: 8px 0; text-align: right;">
+                            <td style="padding: 8px 0; color: #f5f5f5; text-align: right;">
                                 {fmt_temp_high_low(exterior_temp_max, exterior_temp_min)} &nbsp;|&nbsp; {fmt(exterior_humidity_min)}–{fmt(exterior_humidity_max)}% RH
                             </td>
                         </tr>
                     </table>
-                    <p class="dark-text-muted" style="font-size: 11px; margin-top: 8px; margin-bottom: 0; text-align: center;">
+                    <p style="font-size: 11px; color: #a3a3a3; margin-top: 8px; margin-bottom: 0; text-align: center;">
                         Last 24 hours
                     </p>
         """
@@ -1059,7 +1071,7 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
     # Combine for the vitals section variable (used in template)
     vitals_24h_section = current_conditions_section + trends_section
 
-    # Build Weekly Summary section for Sunday emails (UNIFIED STYLING)
+    # Build Weekly Summary section - DARK MODE
     weekly_summary_section = ""
     if weekly_mode and weekly_summary:
         ws = weekly_summary
@@ -1068,133 +1080,82 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
                     <div style="height: 24px;">&nbsp;</div>
 
                     <!-- WEEKLY TRENDS SECTION -->
-                    <div class="dark-text-accent" style="font-size:12px; color:#6b9b5a; margin-bottom:12px; font-weight:600; text-transform: uppercase; letter-spacing: 0.5px;">
-                        📈 This Week's Trends
+                    <div style="font-size:12px; color:#6b9b5a; margin-bottom:12px; font-weight:600; text-transform: uppercase; letter-spacing: 0.5px;">
+                        This Week's Trends
                     </div>
 
                     {f'<img src="cid:{temp_chart_cid}" alt="Weekly Trends" style="display:block; width:100%; max-width:560px; height:auto; border:0; border-radius:8px; margin-bottom: 16px;">' if temp_chart_cid else ''}
 
-                    <!-- Weekly H/L Summary: Two-column format (matches daily) -->
+                    <!-- Weekly H/L Summary -->
                     <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; font-size: 13px;">
                         <tr>
-                            <td class="dark-text-muted" style="padding: 8px 0; border-bottom: 1px solid #374151;">
+                            <td style="padding: 8px 0; color: #a3a3a3; border-bottom: 1px solid #374151;">
                                 <span style="color: #6b9b5a; font-weight: 600;">●</span> Greenhouse
                             </td>
-                            <td class="dark-text-primary" style="padding: 8px 0; border-bottom: 1px solid #374151; text-align: right;">
+                            <td style="padding: 8px 0; color: #f5f5f5; border-bottom: 1px solid #374151; text-align: right;">
                                 {fmt(ws.get("interior_temp_min"))}° – {fmt(ws.get("interior_temp_max"))}° &nbsp;|&nbsp; {fmt(ws.get("interior_humidity_min"))}–{fmt(ws.get("interior_humidity_max"))}% RH
                             </td>
                         </tr>
                         <tr>
-                            <td class="dark-text-muted" style="padding: 8px 0;">
+                            <td style="padding: 8px 0; color: #a3a3a3;">
                                 <span style="color: #60a5fa; font-weight: 600;">●</span> Outside
                             </td>
-                            <td class="dark-text-primary" style="padding: 8px 0; text-align: right;">
+                            <td style="padding: 8px 0; color: #f5f5f5; text-align: right;">
                                 {fmt(ws.get("exterior_temp_min"))}° – {fmt(ws.get("exterior_temp_max"))}° &nbsp;|&nbsp; {fmt(ws.get("exterior_humidity_min"))}–{fmt(ws.get("exterior_humidity_max"))}% RH
                             </td>
                         </tr>
                     </table>
-                    <p class="dark-text-muted" style="font-size: 11px; margin-top: 8px; margin-bottom: 0; text-align: center;">
+                    <p style="font-size: 11px; color: #a3a3a3; margin-top: 8px; margin-bottom: 0; text-align: center;">
                         Based on {ws.get("days_recorded", 0)} days of data
                     </p>
         """
 
-    # HTML body with light/dark mode support
+    # HTML body - DARK MODE ONLY (simplified, optimized)
     html_body = f"""<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="light dark" />
-    <meta name="supported-color-schemes" content="light dark" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="supported-color-schemes" content="dark" />
     <title>Update</title>
     <style type="text/css">
-        /* RESET STYLES */
-        body {{ margin: 0; padding: 0; min-width: 100%; background-color: #ffffff; font-family: Arial, sans-serif; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }}
+        /* ===========================================
+           GREENHOUSE GAZETTE - DARK MODE THEME
+           Design System: Professional Industrial
+           =========================================== */
+        
+        /* RESET */
+        body {{ margin: 0; padding: 0; min-width: 100%; font-family: Arial, sans-serif; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }}
         table {{ border-spacing: 0; border-collapse: collapse; }}
         td, th {{ padding: 0; vertical-align: top; }}
         img {{ border: 0; outline: none; text-decoration: none; -ms-interpolation-mode: bicubic; display: block; }}
+        a[x-apple-data-detectors] {{ color: inherit !important; text-decoration: none !important; }}
         
-        /* PREVENT BLUE LINKS IN APPLE MAIL */
-        a[x-apple-data-detectors] {{ color: inherit !important; text-decoration: none !important; font-size: inherit !important; font-family: inherit !important; font-weight: inherit !important; line-height: inherit !important; }}
+        /* COLOR PALETTE */
+        :root {{ color-scheme: dark; }}
         
-        /* DARK MODE SUPPORT */
-        :root {{
-            color-scheme: light dark;
-            supported-color-schemes: light dark;
-        }}
-
-        /* CLIENT SPECIFIC OVERRIDES */
+        /* MOBILE RESPONSIVE */
         @media screen and (max-width: 600px) {{
             .container {{ width: 100% !important; max-width: 100% !important; }}
             .mobile-padding {{ padding-left: 16px !important; padding-right: 16px !important; }}
         }}
-        
-        /* Mobile stacking for conditions flex layout */
         @media screen and (max-width: 480px) {{
-            .conditions-flex {{ display: block !important; }}
-            .conditions-col {{ display: block !important; width: 100% !important; margin-bottom: 12px !important; }}
-        }}
-
-        @media (prefers-color-scheme: dark) {{
-            /* Main Background: Neutral Dark (#171717) */
-            body, .body-bg {{ background-color: #171717 !important; color: #f5f5f5 !important; }}
-            
-            /* Text Colors: Neutral Grays */
-            .dark-text-primary {{ color: #f5f5f5 !important; }}
-            .dark-text-secondary {{ color: #d4d4d4 !important; }}
-            .dark-text-muted {{ color: #a3a3a3 !important; }}
-            
-            /* Temperature Colors */
-            .dark-text-high {{ color: #f87171 !important; }}  /* Lighter red for dark mode */
-            .dark-text-low {{ color: #60a5fa !important; }}   /* Lighter blue for dark mode */
-            
-            /* Accents: Greenhouse Green (#6b9b5a) */
-            .dark-text-accent {{ color: #6b9b5a !important; }}
-            .dark-border {{ border-color: #6b9b5a !important; }}
-            
-            /* Cards: Subtle elevated fill in dark mode */
-            .dark-bg-card {{ background-color: #1f1f1f !important; }}
-            .dark-bg-subtle {{ background-color: #262626 !important; }}
-            
-            /* Alert Banner: Amber tones for dark mode */
-            .dark-alert-banner {{ background-color: #451a03 !important; border-color: #b45309 !important; }}
-            .dark-alert-text {{ color: #fcd34d !important; }}
-            
-            /* Narrative bold text: Amber accent in dark mode */
-            .narrative-text b, .narrative-text strong {{ color: #fcd34d !important; }}
-            
-            /* Riddle Answer Box: Darker background for dark mode */
-            .dark-riddle-answer-bg {{ background-color: #262626 !important; }}
-            
-            /* Gmail Web hack - match color scheme above */
-            u + .body .body-bg {{ background-color: #171717 !important; }}
-            u + .body .dark-bg-card {{ background-color: #1f1f1f !important; }}
-            u + .body .dark-bg-subtle {{ background-color: #262626 !important; }}
-            u + .body .dark-text-primary {{ color: #f5f5f5 !important; }}
-            u + .body .dark-text-secondary {{ color: #d4d4d4 !important; }}
-            u + .body .dark-text-muted {{ color: #a3a3a3 !important; }}
-            u + .body .dark-text-high {{ color: #f87171 !important; }}
-            u + .body .dark-text-low {{ color: #60a5fa !important; }}
-            u + .body .dark-text-accent {{ color: #6b9b5a !important; }}
-            u + .body .dark-border {{ border-color: #6b9b5a !important; }}
-            u + .body .dark-alert-banner {{ background-color: #451a03 !important; border-color: #b45309 !important; }}
-            u + .body .dark-alert-text {{ color: #fcd34d !important; }}
-            u + .body .dark-riddle-answer-bg {{ background-color: #262626 !important; }}
-            u + .body .narrative-text b, u + .body .narrative-text strong {{ color: #fcd34d !important; }}
+            .conditions-row {{ display: block !important; }}
+            .conditions-card {{ display: block !important; width: 100% !important; margin-bottom: 12px !important; }}
         }}
     </style>
     <!--[if mso]>
     <style type="text/css">
         body, table, td, th, p, div {{ font-family: Arial, sans-serif !important; }}
-        /* Fix for Outlook vertical rhythm */
         td {{ mso-line-height-rule: exactly; }}
     </style>
     <![endif]-->
 </head>
-<body class="body-bg" style="margin:0; padding:0; background-color:#ffffff; color:#1e1e1e;">
+<body style="margin:0; padding:0; background-color:#171717; color:#f5f5f5;">
     
     <!-- WRAPPER -->
-    <center role="article" aria-roledescription="email" lang="en" style="width:100%; background-color:#ffffff;" class="body-bg">
+    <center role="article" aria-roledescription="email" lang="en" style="width:100%; background-color:#171717;">
         
         <!--[if mso]>
         <table role="presentation" align="center" border="0" cellpadding="0" cellspacing="0" width="600">
@@ -1209,12 +1170,12 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
                     <!-- HEADER -->
                     <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
                         <tr>
-                            <td class="dark-text-accent" style="font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding-bottom: 4px; font-size:28px; font-weight: bold; color:#6b9b5a; line-height: 1.1; mso-line-height-rule: exactly;">
+                            <td style="font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding-bottom: 4px; font-size:28px; font-weight: bold; color:#6b9b5a; line-height: 1.1; mso-line-height-rule: exactly;">
                                 {headline}
                             </td>
                         </tr>
                         <tr>
-                            <td class="dark-text-muted" style="padding-bottom: 16px; font-size:13px; color:#6b7280; mso-line-height-rule: exactly;">
+                            <td style="padding-bottom: 16px; font-size:13px; color:#a3a3a3; mso-line-height-rule: exactly;">
                                 {date_subheadline}
                             </td>
                         </tr>
@@ -1224,11 +1185,11 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
 
                     {build_broadcast_card()}
 
-                    <!-- NARRATIVE TEXT: Improved readability -->
+                    <!-- NARRATIVE TEXT -->
                     <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse;">
                         <tr>
                             <td style="padding: 0;">
-                                <div class="dark-text-primary narrative-text" style="margin:0; line-height:1.7; color:#1e1e1e; font-size: 16px;">
+                                <div style="margin:0; line-height:1.7; color:#f5f5f5; font-size: 16px;">
                                     {body_html_escaped}
                                 </div>
                             </td>
