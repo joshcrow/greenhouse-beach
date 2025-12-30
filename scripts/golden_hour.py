@@ -11,9 +11,9 @@ from typing import Optional
 import requests
 
 
-def log(message: str) -> None:
-    ts = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-    print(f"[{ts}] [golden_hour] {message}", flush=True)
+from utils.logger import create_logger
+
+log = create_logger("golden_hour")
 
 
 def get_sunset_time() -> Optional[datetime]:

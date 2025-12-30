@@ -18,10 +18,11 @@ from typing import List, Optional
 
 from PIL import Image
 
+from utils.logger import create_logger
+from utils.image_utils import sample_frames_evenly
 
-def log(message: str) -> None:
-    ts = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-    print(f"[{ts}] [extended_timelapse] {message}", flush=True)
+
+log = create_logger("extended_timelapse")
 
 
 ARCHIVE_ROOT = os.getenv("ARCHIVE_ROOT", "/app/data/archive")
@@ -73,17 +74,7 @@ def get_images_for_year(year: int) -> List[str]:
     return images
 
 
-def sample_frames_evenly(images: List[str], target_count: int) -> List[str]:
-    """Sample frames evenly from the list to reach target count."""
-    if len(images) <= target_count:
-        return images
-
-    step = len(images) / target_count
-    indices = [int(i * step) for i in range(target_count)]
-    sampled = [images[i] for i in indices]
-
-    log(f"Sampled {len(sampled)} frames from {len(images)} images")
-    return sampled
+# sample_frames_evenly imported from utils.image_utils
 
 
 def prepare_frames(images: List[str], temp_dir: str, max_width: int = 1280) -> int:

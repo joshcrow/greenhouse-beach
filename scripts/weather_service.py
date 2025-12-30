@@ -6,10 +6,10 @@ from zoneinfo import ZoneInfo
 import requests
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
+from utils.logger import create_logger
 
-def log(message: str) -> None:
-    ts = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-    print(f"[{ts}] [weather] {message}", flush=True)
+
+log = create_logger("weather")
 
 
 def _moon_phase_icon(phase: float) -> str:

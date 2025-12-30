@@ -17,6 +17,7 @@ import smtplib
 import stats
 import timelapse
 import weekly_digest
+from utils.logger import create_logger
 
 
 ARCHIVE_ROOT = "/app/data/archive"
@@ -30,9 +31,7 @@ def is_weekly_edition() -> bool:
     return datetime.now().weekday() == 6
 
 
-def log(message: str) -> None:
-    ts = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-    print(f"[{ts}] [publisher] {message}", flush=True)
+log = create_logger("publisher")
 
 
 def find_latest_image() -> Optional[str]:

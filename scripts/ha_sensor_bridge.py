@@ -15,9 +15,9 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 
-def log(message: str) -> None:
-    ts = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-    print(f"[{ts}] [sensor_bridge] {message}", flush=True)
+from utils.logger import create_logger
+
+log = create_logger("sensor_bridge")
 
 
 # Sensor mapping: HA entity_id -> (mqtt_device, mqtt_key)

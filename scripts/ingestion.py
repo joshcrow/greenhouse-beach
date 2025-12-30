@@ -14,10 +14,9 @@ TOPIC_FILTER = "greenhouse/+/image"
 INCOMING_DIR = "/app/data/incoming"
 
 
-def log(message: str) -> None:
-    """Simple timestamped logger."""
-    ts = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-    print(f"[{ts}] [ingestion] {message}", flush=True)
+from utils.logger import create_logger
+
+log = create_logger("ingestion")
 
 
 def ensure_incoming_dir() -> None:

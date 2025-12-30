@@ -12,9 +12,9 @@ from datetime import datetime
 from functools import partial
 
 
-def log(message: str) -> None:
-    ts = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-    print(f"[{ts}] [web_server] {message}", flush=True)
+from utils.logger import create_logger
+
+log = create_logger("web_server")
 
 
 WWW_ROOT = os.getenv("WWW_ROOT", "/app/data/www")

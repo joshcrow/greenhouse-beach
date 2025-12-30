@@ -11,6 +11,9 @@ from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
 from typing import Dict, Optional, Any
 
+from utils.logger import create_logger
+from utils.io import atomic_write_json, atomic_read_json
+
 # Configuration
 DEVICE_OFFLINE_THRESHOLD_MINUTES = int(
     os.getenv("DEVICE_OFFLINE_THRESHOLD_MINUTES", "10")
@@ -18,15 +21,20 @@ DEVICE_OFFLINE_THRESHOLD_MINUTES = int(
 MONITOR_STATE_PATH = os.getenv(
     "MONITOR_STATE_PATH", "/app/data/device_monitor_state.json"
 )
+UPTIME_LOG_PATH = os.getenv(
+    "UPTIME_LOG_PATH", "/app/data/uptime_log.json"
+)
 STATUS_PATH = os.getenv("STATUS_PATH", "/app/data/status.json")
 
-# Email configuration (reuse from publisher)
-SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
+# Email configuration (reuse from publisher - support multiple env var names)
+SMTP_HOST = os.getenv("SMTP_SERVER") or os.getenv("SMTP_HOST", "smtp.gmail.com")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "465"))
-SMTP_USER = os.getenv("SMTP_USER", "")
-SMTP_PASS = os.getenv("SMTP_PASS", "")
+SMTP_USER = os.getenv("SMTP_USER") or os.getenv("SMTP_USERNAME", "")
+SMTP_PASS = os.getenv("SMTP_PASSWORD") or os.getenv("SMTP_PASS", "")
 SMTP_FROM = os.getenv("SMTP_FROM", "Greenhouse Monitor <greenhouse@example.com>")
-ALERT_EMAIL = os.getenv("ALERT_EMAIL", os.getenv("SMTP_TO", ""))
+# Alert email defaults to first recipient in SMTP_TO list
+_smtp_to = os.getenv("SMTP_TO", "")
+ALERT_EMAIL = os.getenv("ALERT_EMAIL") or (_smtp_to.split(",")[0].strip() if _smtp_to else "")
 
 # Device definitions: device_id -> list of sensor key prefixes
 MONITORED_DEVICES = {
@@ -35,9 +43,7 @@ MONITORED_DEVICES = {
 }
 
 
-def log(message: str) -> None:
-    ts = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-    print(f"[{ts}] [monitor] {message}", flush=True)
+log = create_logger("monitor")
 
 
 def _load_monitor_state() -> Dict[str, Any]:
@@ -54,15 +60,48 @@ def _load_monitor_state() -> Dict[str, Any]:
 def _save_monitor_state(state: Dict[str, Any]) -> None:
     """Save the current device state to disk."""
     try:
-        os.makedirs(os.path.dirname(MONITOR_STATE_PATH) or ".", exist_ok=True)
-        tmp_path = MONITOR_STATE_PATH + ".tmp"
-        with open(tmp_path, "w", encoding="utf-8") as f:
-            json.dump(state, f, indent=2)
-            f.flush()
-            os.fsync(f.fileno())
-        os.replace(tmp_path, MONITOR_STATE_PATH)
+        atomic_write_json(MONITOR_STATE_PATH, state)
     except Exception as exc:
         log(f"Error saving monitor state: {exc}")
+
+
+def _load_uptime_log() -> Dict[str, Any]:
+    """Load the uptime event log from disk."""
+    try:
+        if os.path.exists(UPTIME_LOG_PATH):
+            with open(UPTIME_LOG_PATH, "r", encoding="utf-8") as f:
+                return json.load(f)
+    except Exception as exc:
+        log(f"Error loading uptime log: {exc}")
+    return {"events": [], "daily_stats": {}}
+
+
+def _save_uptime_log(log_data: Dict[str, Any]) -> None:
+    """Save the uptime event log to disk."""
+    try:
+        atomic_write_json(UPTIME_LOG_PATH, log_data)
+    except Exception as exc:
+        log(f"Error saving uptime log: {exc}")
+
+
+def _log_state_change(device_id: str, is_online: bool, timestamp: datetime) -> None:
+    """Log a device state change event for uptime tracking."""
+    log_data = _load_uptime_log()
+    events = log_data.get("events", [])
+    
+    event = {
+        "device": device_id,
+        "state": "online" if is_online else "offline",
+        "timestamp": timestamp.isoformat(),
+    }
+    events.append(event)
+    
+    # Keep only last 1000 events to prevent unbounded growth
+    if len(events) > 1000:
+        events = events[-1000:]
+    
+    log_data["events"] = events
+    _save_uptime_log(log_data)
 
 
 def _load_status() -> Dict[str, Any]:
@@ -159,6 +198,9 @@ def check_devices() -> Dict[str, bool]:
 
         # Detect state changes
         if was_online is not None and was_online != is_online:
+            # Log state change for uptime tracking
+            _log_state_change(device_id, is_online, now)
+            
             if is_online:
                 # Device came online
                 subject = f"🟢 {device_id} is back ONLINE"
@@ -241,6 +283,76 @@ def get_device_status() -> Dict[str, Dict[str, Any]]:
     return result
 
 
+def get_uptime_stats(hours: int = 24) -> Dict[str, Dict[str, Any]]:
+    """Calculate uptime statistics for each device over the given time window.
+    
+    Args:
+        hours: Number of hours to look back (default 24)
+    
+    Returns:
+        Dict mapping device_id to stats including:
+        - uptime_pct: Percentage of time online
+        - downtime_minutes: Total minutes offline
+        - outages: Number of offline events
+        - longest_outage_minutes: Duration of longest outage
+    """
+    log_data = _load_uptime_log()
+    events = log_data.get("events", [])
+    
+    now = datetime.now(timezone.utc)
+    window_start = now - timedelta(hours=hours)
+    
+    stats = {}
+    for device_id in MONITORED_DEVICES.keys():
+        # Filter events for this device within the window
+        device_events = [
+            e for e in events
+            if e.get("device") == device_id
+            and datetime.fromisoformat(e["timestamp"]) >= window_start
+        ]
+        
+        # Sort by timestamp
+        device_events.sort(key=lambda e: e["timestamp"])
+        
+        # Calculate downtime
+        total_downtime = timedelta(0)
+        outages = 0
+        longest_outage = timedelta(0)
+        current_outage_start = None
+        
+        for event in device_events:
+            ts = datetime.fromisoformat(event["timestamp"])
+            if event["state"] == "offline":
+                current_outage_start = ts
+                outages += 1
+            elif event["state"] == "online" and current_outage_start:
+                outage_duration = ts - current_outage_start
+                total_downtime += outage_duration
+                if outage_duration > longest_outage:
+                    longest_outage = outage_duration
+                current_outage_start = None
+        
+        # If currently in an outage, count time until now
+        if current_outage_start:
+            outage_duration = now - current_outage_start
+            total_downtime += outage_duration
+            if outage_duration > longest_outage:
+                longest_outage = outage_duration
+        
+        window_duration = timedelta(hours=hours)
+        uptime_duration = window_duration - total_downtime
+        uptime_pct = (uptime_duration / window_duration) * 100 if window_duration.total_seconds() > 0 else 100
+        
+        stats[device_id] = {
+            "uptime_pct": round(uptime_pct, 1),
+            "downtime_minutes": round(total_downtime.total_seconds() / 60, 1),
+            "outages": outages,
+            "longest_outage_minutes": round(longest_outage.total_seconds() / 60, 1),
+        }
+    
+    return stats
+
+
 if __name__ == "__main__":
     # When run directly, check devices and print status
     print("Checking device status...")
@@ -257,3 +369,12 @@ if __name__ == "__main__":
         print(f"    Online: {info['online']}")
         print(f"    Last seen: {info['last_seen']}")
         print(f"    Age: {info['age']}")
+    
+    print("\n24h Uptime Stats:")
+    uptime = get_uptime_stats(24)
+    for device_id, stats in uptime.items():
+        print(f"  {device_id}:")
+        print(f"    Uptime: {stats['uptime_pct']}%")
+        print(f"    Downtime: {stats['downtime_minutes']} minutes")
+        print(f"    Outages: {stats['outages']}")
+        print(f"    Longest outage: {stats['longest_outage_minutes']} minutes")

@@ -17,6 +17,9 @@ from zoneinfo import ZoneInfo
 import requests
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
+from utils.logger import create_logger
+from utils.io import atomic_write_json
+
 
 # NOAA CO-OPS configuration
 NOAA_STATION_ID = os.getenv("NOAA_TIDE_STATION", "8652226")
@@ -34,9 +37,7 @@ CALENDARS_DIR = os.getenv("CALENDARS_DIR", "/app/data/calendars")
 TZ_NAME = os.getenv("TZ", "America/New_York")
 
 
-def log(message: str) -> None:
-    ts = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-    print(f"[{ts}] [coast_sky] {message}", flush=True)
+log = create_logger("coast_sky")
 
 
 def _get_local_tz() -> ZoneInfo:
@@ -69,10 +70,7 @@ def _save_cache(data: Dict[str, Any]) -> None:
             "cached_at": datetime.utcnow().isoformat(),
             "data": data,
         }
-        tmp_path = CACHE_PATH + ".tmp"
-        with open(tmp_path, "w", encoding="utf-8") as f:
-            json.dump(cache, f)
-        os.replace(tmp_path, CACHE_PATH)
+        atomic_write_json(CACHE_PATH, cache, indent=None)
     except Exception as exc:
         log(f"Cache write error: {exc}")
 

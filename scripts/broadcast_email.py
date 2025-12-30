@@ -15,9 +15,9 @@ from datetime import datetime
 from email.header import decode_header
 
 
-def log(message: str) -> None:
-    ts = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-    print(f"[{ts}] [broadcast_email] {message}", flush=True)
+from utils.logger import create_logger
+
+log = create_logger("broadcast_email")
 
 
 def decode_email_subject(subject) -> str:

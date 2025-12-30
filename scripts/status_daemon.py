@@ -6,6 +6,8 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List, Tuple
 
 import paho.mqtt.client as mqtt
+from utils.logger import create_logger
+from utils.io import atomic_write_json
 
 # Import device monitor (for online/offline alerts)
 try:
@@ -58,9 +60,7 @@ MAX_SAMPLES_PER_KEY = int(os.getenv("MAX_SAMPLES_PER_KEY", "3000"))
 MAX_SENSOR_LOG_BUFFER = int(os.getenv("MAX_SENSOR_LOG_BUFFER", "1000"))
 
 
-def log(message: str) -> None:
-    ts = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-    print(f"[{ts}] [status] {message}", flush=True)
+log = create_logger("status")
 
 
 # In-memory latest values and history
@@ -142,13 +142,7 @@ def _save_history_cache() -> None:
             "saved_at": datetime.utcnow().isoformat() + "Z",
         }
 
-        os.makedirs(os.path.dirname(HISTORY_CACHE_PATH), exist_ok=True)
-        tmp_path = HISTORY_CACHE_PATH + ".tmp"
-        with open(tmp_path, "w", encoding="utf-8") as f:
-            json.dump(cache, f)
-            f.flush()
-            os.fsync(f.fileno())  # M3: Ensure data is on disk before rename
-        os.replace(tmp_path, HISTORY_CACHE_PATH)
+        atomic_write_json(HISTORY_CACHE_PATH, cache, indent=None)
     except OSError as exc:
         log(f"Failed to save history cache: {exc}")
 
@@ -338,13 +332,7 @@ def _write_files_if_due(now: datetime) -> None:
         "updated_at": now.isoformat() + "Z",
     }
     try:
-        os.makedirs(os.path.dirname(STATUS_PATH), exist_ok=True)
-        tmp_path = STATUS_PATH + ".tmp"
-        with open(tmp_path, "w", encoding="utf-8") as f:
-            json.dump(snapshot, f, indent=2, sort_keys=True)
-            f.flush()
-            os.fsync(f.fileno())  # M3: Ensure data is on disk before rename
-        os.replace(tmp_path, STATUS_PATH)
+        atomic_write_json(STATUS_PATH, snapshot)
         log(f"Wrote latest sensor snapshot to {STATUS_PATH}: {latest_values}")
     except OSError as exc:
         log(f"Error writing status snapshot to {STATUS_PATH}: {exc}")
@@ -357,12 +345,7 @@ def _write_files_if_due(now: datetime) -> None:
         "metrics": metrics,
     }
     try:
-        tmp_path = STATS_24H_PATH + ".tmp"
-        with open(tmp_path, "w", encoding="utf-8") as f:
-            json.dump(stats_payload, f, indent=2, sort_keys=True)
-            f.flush()
-            os.fsync(f.fileno())  # M3: Ensure data is on disk before rename
-        os.replace(tmp_path, STATS_24H_PATH)
+        atomic_write_json(STATS_24H_PATH, stats_payload)
         log(f"Wrote 24h stats to {STATS_24H_PATH}: {metrics}")
     except OSError as exc:
         log(f"Error writing 24h stats to {STATS_24H_PATH}: {exc}")

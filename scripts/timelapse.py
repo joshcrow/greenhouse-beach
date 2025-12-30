@@ -5,18 +5,20 @@ Creates animated GIFs from archived greenhouse images.
 """
 
 import glob
+import io
 import os
 import re
 from datetime import datetime, timedelta
 from typing import List, Optional
-from PIL import Image
-import io
+
 import requests
+from PIL import Image
+
+from utils.logger import create_logger
+from utils.image_utils import sample_frames_evenly
 
 
-def log(message: str) -> None:
-    ts = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-    print(f"[{ts}] [timelapse] {message}", flush=True)
+log = create_logger("timelapse")
 
 
 ARCHIVE_ROOT = os.getenv("ARCHIVE_ROOT", "/app/data/archive")
@@ -143,19 +145,7 @@ def get_yesterday_images() -> List[str]:
     return daylight_images
 
 
-def sample_frames_evenly(images: List[str], target_count: int) -> List[str]:
-    """Sample frames evenly from the list to reach target count."""
-    if len(images) <= target_count:
-        return images
-
-    # Calculate step size to get even distribution
-    step = len(images) / target_count
-    sampled_indices = [int(i * step) for i in range(target_count)]
-
-    sampled_images = [images[i] for i in sampled_indices]
-    log(f"Sampled {len(sampled_images)} frames from {len(images)} daylight images")
-
-    return sampled_images
+# sample_frames_evenly imported from utils.image_utils
 
 
 def get_images_for_period(days: int = 7) -> List[str]:

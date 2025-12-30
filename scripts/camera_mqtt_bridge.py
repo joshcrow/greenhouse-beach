@@ -24,10 +24,9 @@ from typing import Optional
 USE_LIBCAMERA_FALLBACK = True
 
 
-def log(message: str) -> None:
-    """Simple timestamped logger."""
-    ts = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-    print(f"[{ts}] [camera_bridge] {message}", flush=True)
+from utils.logger import create_logger
+
+log = create_logger("camera_bridge")
 
 
 def capture_from_home_assistant(

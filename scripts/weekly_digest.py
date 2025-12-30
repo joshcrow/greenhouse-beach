@@ -11,9 +11,9 @@ from datetime import datetime
 from typing import Any, Dict
 
 
-def log(message: str) -> None:
-    ts = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-    print(f"[{ts}] [weekly] {message}", flush=True)
+from utils.logger import create_logger
+
+log = create_logger("weekly")
 
 
 STATS_PATH = os.getenv("STATS_PATH", "/app/data/stats_24h.json")

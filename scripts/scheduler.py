@@ -10,9 +10,9 @@ import golden_hour
 import extended_timelapse
 
 
-def log(message: str) -> None:
-    ts = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-    print(f"[{ts}] [scheduler] {message}", flush=True)
+from utils.logger import create_logger
+
+log = create_logger("scheduler")
 
 
 def safe_daily_dispatch() -> None:

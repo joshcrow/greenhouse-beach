@@ -15,10 +15,9 @@ BRIGHTNESS_MIN_DIM = 30.0  # Below this = dim but valid, log warning
 BRIGHTNESS_MAX_OVEREXPOSED = 250.0  # Above this = overexposed, reject
 
 
-def log(message: str) -> None:
-    """Simple timestamped logger (same format as ingestion)."""
-    ts = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-    print(f"[{ts}] [curator] {message}", flush=True)
+from utils.logger import create_logger
+
+log = create_logger("curator")
 
 
 def ensure_directory(path: str) -> None:

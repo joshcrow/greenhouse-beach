@@ -39,6 +39,8 @@ import os
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
+from utils.logger import create_logger
+
 # Lazy imports to reduce startup time on Pi
 _plt = None
 _mdates = None
@@ -60,10 +62,7 @@ def _get_imports():
     return _plt, _mdates, _np
 
 
-def log(msg: str) -> None:
-    """Simple logging with timestamp."""
-    ts = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-    print(f"[{ts}] [chart] {msg}")
+log = create_logger("chart")
 
 
 # =============================================================================

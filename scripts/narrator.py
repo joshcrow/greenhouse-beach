@@ -8,10 +8,35 @@ from google import genai
 
 import coast_sky_service
 import weather_service
+from utils.logger import create_logger
+from utils.io import atomic_write_json, atomic_read_json
 
 
 _RIDDLE_STATE_PATH = os.getenv("RIDDLE_STATE_PATH", "/app/data/riddle_state.json")
 _HISTORY_PATH = os.getenv("NARRATIVE_HISTORY_PATH", "/app/data/narrative_history.json")
+
+
+def to_sentence_case(text: str) -> str:
+    """Convert text to sentence case (first letter caps, rest lowercase).
+    
+    Preserves capitalization of known proper nouns and abbreviations.
+    """
+    if not text:
+        return text
+    
+    # Known proper nouns/abbreviations to preserve
+    preserve = {'Colington', 'Harbour', 'OBX', 'NC', 'Outer Banks', 'Jennette'}
+    
+    # First, lowercase everything then capitalize first letter
+    result = text[0].upper() + text[1:].lower() if len(text) > 1 else text.upper()
+    
+    # Restore preserved words
+    for word in preserve:
+        # Case-insensitive replacement
+        pattern = re.compile(re.escape(word), re.IGNORECASE)
+        result = pattern.sub(word, result)
+    
+    return result
 
 
 def strip_emojis(text: str) -> str:
@@ -40,10 +65,7 @@ def strip_emojis(text: str) -> str:
     return emoji_pattern.sub("", text).strip()
 
 
-def log(message: str) -> None:
-    """Simple timestamped logger (aligned with ingestion/curator)."""
-    ts = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-    print(f"[{ts}] [narrator] {message}", flush=True)
+log = create_logger("narrator")
 
 
 # Global client instance (lazy init)
@@ -176,8 +198,8 @@ def build_prompt(
         "- No emojis.",
         "",
         "COAST & SKY:",
-        "- Only if data is present AND notable: king tides, negative tides, meteor showers.",
-        "- Normal conditions? Skip it — the table shows tides already.",
+        "- Only if data is present AND notable: king tides (>5.5ft), very negative tides (<-0.75ft), meteor showers.",
+        "- Tides between -0.75ft and +5.5ft are normal — skip mentioning them, the table shows tides already.",
         "",
     ]
 
@@ -273,13 +295,7 @@ def _load_riddle_state(test_mode: bool = False) -> Dict[str, Any]:
 def _save_riddle_state(state: Dict[str, Any], test_mode: bool = False) -> None:
     path = _get_riddle_state_path(test_mode)
     try:
-        tmp_path = f"{path}.tmp"
-        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-        with open(tmp_path, "w", encoding="utf-8") as f:
-            json.dump(state, f, indent=2)
-            f.flush()
-            os.fsync(f.fileno())
-        os.replace(tmp_path, path)
+        atomic_write_json(path, state)
     except Exception as exc:  # noqa: BLE001
         log(f"WARNING: Failed to save riddle state: {exc}")
 
@@ -323,13 +339,7 @@ def _save_history(new_entry: Dict[str, Any]) -> None:
         # Keep only last 7 entries
         history = history[-7:]
         # Atomic write
-        os.makedirs(os.path.dirname(_HISTORY_PATH) or ".", exist_ok=True)
-        tmp_path = f"{_HISTORY_PATH}.tmp"
-        with open(tmp_path, "w", encoding="utf-8") as f:
-            json.dump(history, f, indent=2, ensure_ascii=False)
-            f.flush()
-            os.fsync(f.fileno())
-        os.replace(tmp_path, _HISTORY_PATH)
+        atomic_write_json(_HISTORY_PATH, history)
         log(f"Saved narrative history: {len(history)} entries")
     except Exception as exc:
         log(f"WARNING: Failed to save narrative history: {exc}")
@@ -408,6 +418,11 @@ def _generate_joke_or_riddle_paragraph(narrative_body: str, test_mode: bool = Fa
     paragraph = (raw_text or "").strip()
     paragraph = strip_emojis(paragraph)
     paragraph = paragraph.replace("\n", " ").strip()
+    
+    # Strip any "Yesterday's riddle answer: X" prefix that AI might include
+    # (this is shown separately in the answer box)
+    paragraph = re.sub(r"^Yesterday'?s\s+(riddle\s+)?answer:\s*\S+\s*", "", paragraph, flags=re.IGNORECASE).strip()
+    
     if not paragraph:
         return ""
 
@@ -617,8 +632,6 @@ def generate_update(
             body = raw_text  # type: ignore[assignment]
 
     # Convert markdown bold (**text**) to HTML bold (<b>text</b>)
-    import re
-
     body_html = re.sub(r"\*\*([^*]+)\*\*", r"<b>\1</b>", body)
 
     # Create plain text version by stripping HTML tags
@@ -641,6 +654,9 @@ def generate_update(
     # Strip any emojis from AI-generated text (keep emojis only in data tables)
     subject = strip_emojis(subject)
     headline = strip_emojis(headline)
+    
+    # Enforce sentence case on subject (AI sometimes uses ALL CAPS)
+    subject = to_sentence_case(subject)
     body_html = strip_emojis(body_html)
     body_plain = strip_emojis(body_plain)
 
