@@ -75,11 +75,11 @@ THEME = {
     "bg": "#171717",              # CSS: --bg-dark (Neutral 900)
     "text_main": "#f5f5f5",       # CSS: --text-primary-dark (Neutral 50)
     "text_muted": "#a3a3a3",      # CSS: --text-muted-dark (Neutral 400)
-    "grid_color": "#4ade80",      # CSS: --accent (Mint Green - Release Candidate)
+    "grid_color": "#6b9b5a",      # CSS: --accent (Greenhouse Green)
     "grid_alpha": 0.10,           # Very subtle grid lines
-    "inside_temp": "#4ade80",     # CSS: --accent (The Hero - Mint Green)
+    "inside_temp": "#6b9b5a",     # CSS: --accent (The Hero - Greenhouse Green)
     "outside_temp": "#60a5fa",    # CSS: --temp-low-dark (The Context - Blue)
-    "inside_humidity": "#4ade80", # CSS: --accent (Mint Green)
+    "inside_humidity": "#6b9b5a", # CSS: --accent (Greenhouse Green)
     "outside_humidity": "#a3a3a3",# CSS: --text-muted-dark (Muted context)
 }
 
@@ -342,8 +342,8 @@ def generate_weather_dashboard(
             if len(ts) > 0:
                 humidity_series[name] = _resample_to_hourly(ts, vals)
     
-    # Brand colors (strict adherence - Release Candidate)
-    COLOR_GREEN = "#4ade80"  # Inside - The Hero (Mint Green)
+    # Brand colors (strict adherence)
+    COLOR_GREEN = "#6b9b5a"  # Inside - The Hero (Greenhouse Green)
     COLOR_BLUE = "#60a5fa"   # Outside - The Context
     COLOR_BG = "#171717"     # Background
     
@@ -634,11 +634,10 @@ def generate_weather_dashboard(
         buf,
         format='png',
         facecolor=COLOR_BG,
-        transparent=True,  # Enable alpha channel for seamless email integration
         edgecolor='none',
         dpi=200,
         bbox_inches='tight',
-        pad_inches=0.12,
+        pad_inches=0.15,  # Extra padding for legend breathing room
     )
     plt.close(fig)
     buf.seek(0)
