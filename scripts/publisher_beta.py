@@ -655,7 +655,7 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
         
         return f"""
                                                 <tr>
-                                                    <td class="dark-text-muted" style="padding: 4px 0; color: #6b7280;" colspan="2">
+                                                    <td class="dark-text-muted" style="padding: 4px 0;" colspan="2">
                                                         {high_str} · {low_str}
                                                     </td>
                                                 </tr>"""
@@ -969,42 +969,42 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
                         <tr>
                             <!-- LEFT: Greenhouse -->
                             <td width="48%" class="conditions-col" style="vertical-align: top; padding-right: 8px;">
-                                <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" class="dark-bg-card" style="background-color: #f9fafb; border-radius: 8px; border-collapse: collapse;">
+                                <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" class="dark-bg-card" style="background-color: #f3f4f6; border-radius: 8px; border-collapse: collapse;">
                                     <tr>
                                         <td style="padding: 20px; text-align: center;">
-                                            <div class="dark-text-muted" style="font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">Greenhouse</div>
-                                            <div class="dark-text-accent" style="font-size: 42px; font-weight: 700; color: #6b9b5a; line-height: 1;">{fmt(indoor_temp)}°</div>
-                                            <div class="dark-text-muted" style="font-size: 13px; color: #9ca3af; margin-top: 6px;">{fmt(indoor_humidity)}% humidity</div>
+                                            <div class="dark-text-muted" style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">Greenhouse</div>
+                                            <div class="dark-text-accent" style="font-size: 42px; font-weight: 700; line-height: 1;">{fmt(indoor_temp)}°</div>
+                                            <div class="dark-text-muted" style="font-size: 13px; margin-top: 6px;">{fmt(indoor_humidity)}% humidity</div>
                                         </td>
                                     </tr>
                                 </table>
                             </td>
                             <!-- RIGHT: Outside + Weather Details -->
                             <td width="52%" class="conditions-col" style="vertical-align: top; padding-left: 8px;">
-                                <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" class="dark-bg-card" style="background-color: #f9fafb; border-radius: 8px; border-collapse: collapse;">
+                                <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" class="dark-bg-card" style="background-color: #f3f4f6; border-radius: 8px; border-collapse: collapse;">
                                     <tr>
                                         <td style="padding: 16px;">
                                             <!-- Outside Temp -->
                                             <div style="text-align: center; margin-bottom: 12px;">
-                                                <div class="dark-text-muted" style="font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Outside</div>
-                                                <div class="dark-text-low" style="font-size: 36px; font-weight: 700; color: #60a5fa; line-height: 1;">{fmt(exterior_temp)}°</div>
-                                                <div class="dark-text-muted" style="font-size: 12px; color: #9ca3af; margin-top: 4px;">{fmt(exterior_humidity)}% · {get_condition_emoji(outdoor_condition)} {fmt(outdoor_condition)}</div>
+                                                <div class="dark-text-muted" style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Outside</div>
+                                                <div class="dark-text-low" style="font-size: 36px; font-weight: 700; line-height: 1;">{fmt(exterior_temp)}°</div>
+                                                <div class="dark-text-muted" style="font-size: 12px; margin-top: 4px;">{fmt(exterior_humidity)}% · {get_condition_emoji(outdoor_condition)} {fmt(outdoor_condition)}</div>
                                             </div>
                                             <!-- Weather Details -->
-                                            <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; font-size: 12px; border-top: 1px solid #e5e7eb;" class="dark-border">
+                                            <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; font-size: 12px; border-top: 1px solid #374151;">
                                                 <tr>
-                                                    <td class="dark-text-muted" style="padding: 8px 0 4px 0; color: #6b7280;">
+                                                    <td class="dark-text-muted" style="padding: 8px 0 4px 0;">
                                                         H: {fmt(high_temp)}° / L: {fmt(low_temp)}°
                                                     </td>
-                                                    <td class="dark-text-muted" style="padding: 8px 0 4px 0; color: #6b7280; text-align: right;">
+                                                    <td class="dark-text-muted" style="padding: 8px 0 4px 0; text-align: right;">
                                                         {fmt_wind()}
                                                     </td>
                                                 </tr>
                                                 <tr>
-                                                    <td class="dark-text-muted" style="padding: 4px 0; color: #6b7280;">
+                                                    <td class="dark-text-muted" style="padding: 4px 0;">
                                                         🌅 {fmt_time(sunrise)} – {fmt_time(sunset)}
                                                     </td>
-                                                    <td class="dark-text-muted" style="padding: 4px 0; color: #6b7280; text-align: right;">
+                                                    <td class="dark-text-muted" style="padding: 4px 0; text-align: right;">
                                                         {moon_icon} {fmt_moon_phase(moon_phase)}
                                                     </td>
                                                 </tr>
@@ -1018,10 +1018,10 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
                     </table>
     """
     
-    # Build "Trends" section (Chart + H/L summary)
+    # Build "Trends" section (Chart + H/L summary) - UNIFIED STYLING
     trends_section = ""
     if not weekly_mode and has_24h_stats:
-        # Daily: 24h trends
+        # Daily: 24h trends (matching weekly format for consistency)
         trends_section = f"""
                     <!-- SPACER -->
                     <div style="height: 24px;">&nbsp;</div>
@@ -1031,27 +1031,36 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
                         📈 24-Hour Trends
                     </div>
                     
-                    {f'<img src="cid:{temp_chart_cid}" alt="24h Trends" style="display:block; width:100%; max-width:560px; height:auto; border:0; border-radius:8px; margin-bottom: 12px;">' if temp_chart_cid else ''}
+                    {f'<img src="cid:{temp_chart_cid}" alt="24h Trends" style="display:block; width:100%; max-width:560px; height:auto; border:0; border-radius:8px; margin-bottom: 16px;">' if temp_chart_cid else ''}
                     
-                    <!-- H/L Summary: Clean inline format -->
-                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; font-size: 13px; color: #6b7280;">
+                    <!-- H/L Summary: Two-column format (matches weekly) -->
+                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; font-size: 13px;">
                         <tr>
-                            <td class="dark-text-muted" style="padding: 4px 0;">
-                                <span style="color: #6b9b5a;">●</span> Greenhouse: {fmt_temp_high_low(indoor_temp_max, indoor_temp_min)} &nbsp;|&nbsp; {fmt(indoor_humidity_min)}–{fmt(indoor_humidity_max)}% RH
+                            <td class="dark-text-muted" style="padding: 8px 0; border-bottom: 1px solid #374151;">
+                                <span style="color: #6b9b5a; font-weight: 600;">●</span> Greenhouse
+                            </td>
+                            <td class="dark-text-primary" style="padding: 8px 0; border-bottom: 1px solid #374151; text-align: right;">
+                                {fmt_temp_high_low(indoor_temp_max, indoor_temp_min)} &nbsp;|&nbsp; {fmt(indoor_humidity_min)}–{fmt(indoor_humidity_max)}% RH
                             </td>
                         </tr>
                         <tr>
-                            <td class="dark-text-muted" style="padding: 4px 0;">
-                                <span style="color: #60a5fa;">●</span> Outside: {fmt_temp_high_low(exterior_temp_max, exterior_temp_min)} &nbsp;|&nbsp; {fmt(exterior_humidity_min)}–{fmt(exterior_humidity_max)}% RH
+                            <td class="dark-text-muted" style="padding: 8px 0;">
+                                <span style="color: #60a5fa; font-weight: 600;">●</span> Outside
+                            </td>
+                            <td class="dark-text-primary" style="padding: 8px 0; text-align: right;">
+                                {fmt_temp_high_low(exterior_temp_max, exterior_temp_min)} &nbsp;|&nbsp; {fmt(exterior_humidity_min)}–{fmt(exterior_humidity_max)}% RH
                             </td>
                         </tr>
                     </table>
+                    <p class="dark-text-muted" style="font-size: 11px; margin-top: 8px; margin-bottom: 0; text-align: center;">
+                        Last 24 hours
+                    </p>
         """
     
     # Combine for the vitals section variable (used in template)
     vitals_24h_section = current_conditions_section + trends_section
 
-    # Build Weekly Summary section for Sunday emails (redesigned)
+    # Build Weekly Summary section for Sunday emails (UNIFIED STYLING)
     weekly_summary_section = ""
     if weekly_mode and weekly_summary:
         ws = weekly_summary
@@ -1066,26 +1075,26 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
 
                     {f'<img src="cid:{temp_chart_cid}" alt="Weekly Trends" style="display:block; width:100%; max-width:560px; height:auto; border:0; border-radius:8px; margin-bottom: 16px;">' if temp_chart_cid else ''}
 
-                    <!-- Weekly H/L Summary: Clean format -->
+                    <!-- Weekly H/L Summary: Two-column format (matches daily) -->
                     <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; font-size: 13px;">
                         <tr>
-                            <td class="dark-text-muted" style="padding: 8px 0; color: #6b7280; border-bottom: 1px solid #e5e7eb;">
+                            <td class="dark-text-muted" style="padding: 8px 0; border-bottom: 1px solid #374151;">
                                 <span style="color: #6b9b5a; font-weight: 600;">●</span> Greenhouse
                             </td>
-                            <td class="dark-text-primary" style="padding: 8px 0; color: #374151; border-bottom: 1px solid #e5e7eb; text-align: right;">
+                            <td class="dark-text-primary" style="padding: 8px 0; border-bottom: 1px solid #374151; text-align: right;">
                                 {fmt(ws.get("interior_temp_min"))}° – {fmt(ws.get("interior_temp_max"))}° &nbsp;|&nbsp; {fmt(ws.get("interior_humidity_min"))}–{fmt(ws.get("interior_humidity_max"))}% RH
                             </td>
                         </tr>
                         <tr>
-                            <td class="dark-text-muted" style="padding: 8px 0; color: #6b7280;">
+                            <td class="dark-text-muted" style="padding: 8px 0;">
                                 <span style="color: #60a5fa; font-weight: 600;">●</span> Outside
                             </td>
-                            <td class="dark-text-primary" style="padding: 8px 0; color: #374151; text-align: right;">
+                            <td class="dark-text-primary" style="padding: 8px 0; text-align: right;">
                                 {fmt(ws.get("exterior_temp_min"))}° – {fmt(ws.get("exterior_temp_max"))}° &nbsp;|&nbsp; {fmt(ws.get("exterior_humidity_min"))}–{fmt(ws.get("exterior_humidity_max"))}% RH
                             </td>
                         </tr>
                     </table>
-                    <p class="dark-text-muted" style="color: #9ca3af; font-size: 11px; margin-top: 8px; margin-bottom: 0; text-align: center;">
+                    <p class="dark-text-muted" style="font-size: 11px; margin-top: 8px; margin-bottom: 0; text-align: center;">
                         Based on {ws.get("days_recorded", 0)} days of data
                     </p>
         """
