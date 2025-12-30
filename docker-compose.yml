@@ -51,6 +51,7 @@ services:
       - "8080:8080"
     volumes:
       - ./data:/app/data
+      - ./scripts:/app/scripts:ro
       - ./configs/registry.json:/app/configs/registry.json:ro
     depends_on:
       mosquitto:
