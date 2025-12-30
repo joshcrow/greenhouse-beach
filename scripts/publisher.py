@@ -11,6 +11,7 @@ from typing import Any, Dict, Optional, Tuple
 from urllib.error import HTTPError, URLError
 from urllib.request import urlopen
 
+import chart_generator
 import narrator
 import smtplib
 import stats
@@ -82,8 +83,11 @@ def check_stale_data(
         threshold_hours = 48.0
 
     if key not in last_seen:
-        log(f"WARNING: No timestamp found for sensor '{key}' - marking as stale")
-        return True
+        # If last_seen is empty or missing this key, don't mark as stale
+        # (the sensor value exists, we just don't have timestamp metadata)
+        # This prevents empty sensor tables when status.json lacks last_seen
+        log(f"INFO: No timestamp found for sensor '{key}' - assuming fresh")
+        return False
 
     try:
         timestamp_str = last_seen[key]
@@ -97,7 +101,7 @@ def check_stale_data(
         return is_stale
     except (ValueError, TypeError) as exc:
         log(f"WARNING: Failed to parse timestamp for '{key}': {exc}")
-        return True
+        return False
 
 
 def load_latest_sensor_snapshot() -> Dict[str, Any]:
@@ -253,14 +257,16 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
     if weekly_mode:
         log("Weekly Edition: Loading weekly stats for narrator")
         weekly_data = weekly_digest.load_weekly_stats()
-        if weekly_data:
-            # Add weekly stats to narrator_data with correct keys from weekly_digest
-            narrator_data["weekly_high"] = weekly_data.get("temp_max")
-            narrator_data["weekly_low"] = weekly_data.get("temp_min")
-            narrator_data["weekly_avg_temp"] = weekly_data.get("temp_avg")
-            narrator_data["weekly_avg_humidity"] = weekly_data.get("humidity_avg")
-            narrator_data["weekly_max_humidity"] = weekly_data.get("humidity_max")
-            narrator_data["weekly_min_humidity"] = weekly_data.get("humidity_min")
+        if weekly_data and weekly_data.get("days"):
+            # Compute summary from raw weekly data
+            ws = weekly_digest.compute_weekly_summary(weekly_data)
+            # Add weekly stats to narrator_data (interior = greenhouse)
+            narrator_data["weekly_high"] = ws.get("interior_temp_max")
+            narrator_data["weekly_low"] = ws.get("interior_temp_min")
+            narrator_data["weekly_avg_temp"] = ws.get("interior_temp_avg")
+            narrator_data["weekly_avg_humidity"] = ws.get("interior_humidity_avg")
+            narrator_data["weekly_max_humidity"] = ws.get("interior_humidity_max")
+            narrator_data["weekly_min_humidity"] = ws.get("interior_humidity_min")
             log(
                 f"Added weekly stats to narrator: high={narrator_data.get('weekly_high')}, low={narrator_data.get('weekly_low')}"
             )
@@ -598,6 +604,60 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
 
         return "\n".join(rows)
 
+    def _get_tide_compact(sensor_data):
+        """Get compact tide display (single line)."""
+        tide_data = sensor_data.get("tide_summary", {})
+        if not tide_data:
+            return ""
+        today_highs = tide_data.get("today_high_tides", [])
+        if today_highs:
+            next_high = today_highs[0]
+            time_str = next_high.get("time_local", "")
+            try:
+                dt = datetime.fromisoformat(time_str)
+                time_display = dt.strftime("%-I:%M %p")
+            except (ValueError, TypeError):
+                time_display = time_str[-5:] if time_str else ""
+            return f"🌊 High {time_display}"
+        return ""
+
+    def _get_tide_display(sensor_data):
+        """Get compact tide display for details card."""
+        tide_data = sensor_data.get("tide_summary", {})
+        if not tide_data:
+            return ""
+        
+        today_highs = tide_data.get("today_high_tides", [])
+        today_lows = tide_data.get("today_low_tides", [])
+        
+        if not today_highs and not today_lows:
+            return ""
+        
+        # Format high tide
+        high_str = ""
+        if today_highs:
+            h = today_highs[0]
+            try:
+                dt = datetime.fromisoformat(h.get("time_local", ""))
+                high_str = f"🌊 High {dt.strftime('%-I:%M %p')}"
+            except (ValueError, TypeError):
+                high_str = f"🌊 High {h.get('time_local', '')[-5:]}"
+        
+        # Format low tide
+        low_str = ""
+        if today_lows:
+            l = today_lows[0]
+            try:
+                dt = datetime.fromisoformat(l.get("time_local", ""))
+                low_str = f"Low {dt.strftime('%-I:%M %p')}"
+            except (ValueError, TypeError):
+                low_str = f"Low {l.get('time_local', '')[-5:]}"
+        
+        # Return compact string for details card
+        if high_str and low_str:
+            return f"{high_str} · {low_str}"
+        return high_str or low_str
+
     def build_debug_footer(status_snapshot, sensor_data, augmented_data=None):
         """Build debug footer for test emails only.
 
@@ -641,7 +701,7 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
         answer_section = ""
         if yesterday_answer:
             answer_section = f"""
-                                <div class="dark-text-muted dark-riddle-answer-bg" style="font-size: 13px; color: #6b7280; margin-bottom: 12px; padding: 10px; background-color: #f3f4f6; border-radius: 6px;">
+                                <div style="font-size: 13px; color: #a3a3a3; margin-bottom: 12px; padding: 10px; background-color: #262626; border-radius: 6px;">
                                     <span style="font-weight: 600;">Yesterday's answer:</span> {yesterday_answer}
                                 </div>
             """
@@ -650,19 +710,24 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
                     <!-- SPACER: 24px -->
                     <div style="height: 24px; line-height: 24px; font-size: 24px; mso-line-height-rule: exactly;">&nbsp;</div>
 
-                    <!-- RIDDLE HEADER (outside card) -->
-                    <div class="dark-text-accent" style="font-size:13px; color:#6b9b5a; margin-bottom:8px; font-weight:600; text-transform: uppercase; letter-spacing: 0.5px;">
-                        Brain Fart
-                    </div>
-
-                    <!-- CARD: RIDDLE -->
-                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: separate; border-spacing: 0; border: 2px solid #6b9b5a; border-radius: 12px; overflow: hidden;" class="dark-border dark-bg-card">
+                    <!-- RIDDLE SECTION -->
+                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse;">
                         <tr>
-                            <td style="padding: 16px;">
+                            <td style="padding: 0;">
+                                <div style="font-size:12px; color:#6b9b5a; margin-bottom:10px; font-weight:600; text-transform: uppercase; letter-spacing: 0.5px;">
+                                    Brain Fart
+                                </div>
                                 {answer_section}
-                                <p class="dark-text-primary" style="margin: 0; line-height: 1.6; color: #1e1e1e; font-size: 15px; font-style: italic;">
-                                    {riddle_text}
-                                </p>
+                                <!-- Riddle box -->
+                                <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; background-color: #1f1f1f; border-radius: 8px;">
+                                    <tr>
+                                        <td style="padding: 14px 16px;">
+                                            <p style="margin: 0; line-height: 1.6; color: #f5f5f5; font-size: 15px; font-family: Arial, sans-serif;">
+                                                {riddle_text}
+                                            </p>
+                                        </td>
+                                    </tr>
+                                </table>
                             </td>
                         </tr>
                     </table>
@@ -671,40 +736,67 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
     def build_alert_banner():
         """Build alert banner for critical conditions.
         
-        Returns HTML for a colored banner ONLY if there are alerts, empty string otherwise.
+        Returns HTML for icon-anchored alerts with clear warning/detail separation.
         Alert conditions:
         - Frost risk: low_temp < 35°F
         - Critical battery: satellite-2_battery < 3.4V
         - High wind: wind_mph > 25
         """
-        alerts = []
+        alert_items = []
         
         # Check for frost risk
         if low_temp is not None and low_temp < 35:
-            alerts.append(f"🥶 <b>Frost risk tonight</b> — low of {low_temp}°F expected")
+            alert_items.append({
+                "icon": "❄️",
+                "warning": "Frost Risk",
+                "detail": f"Low of {low_temp}°F tonight"
+            })
         
-        # Check for critical battery
+        # Check for critical battery (keep but make less prominent)
         if sat_battery is not None and sat_battery < 3.4:
-            alerts.append(f"🪫 <b>Sensor battery critical</b> — {sat_battery}V needs charging")
+            alert_items.append({
+                "icon": "🔋",
+                "warning": "Battery Low",
+                "detail": "Outdoor sensor needs charging"
+            })
         
         # Check for high wind
         if wind_mph is not None and wind_mph > 25:
-            alerts.append(f"💨 <b>High wind advisory</b> — gusts up to {wind_mph} mph")
+            alert_items.append({
+                "icon": "💨",
+                "warning": "High Wind",
+                "detail": f"Gusts up to {wind_mph} mph"
+            })
         
-        # No alerts = no banner (don't clutter with "all clear")
-        if not alerts:
+        # No alerts = no banner
+        if not alert_items:
             return ""
         
-        # Warning banner with dark mode support
-        alert_html = "<br>".join(alerts)
-        return f"""
-                    <!-- ALERT BANNER: WARNINGS -->
-                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: separate; border-spacing: 0; background-color: #fef3c7; border: 2px solid #f59e0b; border-radius: 8px; margin-bottom: 16px;" class="dark-alert-banner">
+        # Build individual alert rows - using red/rose tones (subtle but clear)
+        alert_rows = ""
+        for i, alert in enumerate(alert_items):
+            is_last = i == len(alert_items) - 1
+            border_style = "border-bottom: 1px solid rgba(244, 63, 94, 0.2);" if not is_last else ""
+            margin_style = "padding-bottom: 10px;" if not is_last else ""
+            alert_rows += f"""
                         <tr>
-                            <td style="padding: 12px 16px; color: #92400e; font-size: 14px; line-height: 1.5;" class="dark-alert-text">
-                                {alert_html}
+                            <td style="padding: 10px 12px; {border_style} {margin_style} vertical-align: top; width: 36px; text-align: center; font-size: 20px;">
+                                {alert["icon"]}
                             </td>
-                        </tr>
+                            <td style="padding: 10px 8px; {border_style} {margin_style} vertical-align: middle;">
+                                <div style="font-weight: 600; font-size: 14px; color: #f87171;">
+                                    {alert["warning"]}
+                                </div>
+                                <div style="font-size: 13px; color: #fca5a5; margin-top: 2px;">
+                                    {alert["detail"]}
+                                </div>
+                            </td>
+                        </tr>"""
+        
+        return f"""
+                    <!-- ALERT BANNER -->
+                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: separate; border-spacing: 0; background-color: #2a1515; border: 1px solid #991b1b; border-radius: 12px; margin-bottom: 16px; overflow: hidden;">
+                        {alert_rows}
                     </table>
         """
 
@@ -739,20 +831,16 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
                     <!-- SPACER BEFORE BROADCAST -->
                     <div style="height: 16px; line-height: 16px; font-size: 16px; mso-line-height-rule: exactly;">&nbsp;</div>
                     
-                    <!-- BROADCAST HEADER (outside card) -->
-                    <div style="font-size: 13px; color: #a855f7; margin-bottom: 8px; 
-                                font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">
-                        ⚠️ {title}
+                    <!-- BROADCAST HEADER -->
+                    <div style="font-size: 12px; color: #a855f7; margin-bottom: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">
+                        {title}
                     </div>
 
                     <!-- BROADCAST CARD -->
-                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" 
-                           style="border-collapse: separate; border-spacing: 0; border: 2px solid #a855f7; 
-                                  border-radius: 12px; overflow: hidden;" 
-                           class="dark-bg-card">
+                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: separate; border-spacing: 0; background-color: #1f1f1f; border: 1px solid #7c3aed; border-radius: 12px; overflow: hidden;">
                         <tr>
-                            <td style="padding: 16px;">
-                                <p class="dark-text-primary" style="margin: 0; line-height: 1.6; color: #1e1e1e; font-size: 15px;">
+                            <td style="padding: 14px 16px;">
+                                <p style="margin: 0; line-height: 1.6; color: #e9d5ff; font-size: 15px;">
                                     {message}
                                 </p>
                             </td>
@@ -813,16 +901,16 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
             hero_caption = "Daily Timelapse"
         
         hero_section = f"""
-        <!-- CARD 0: HERO IMAGE -->
-        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: separate; border-spacing: 0;" class="dark-bg-card">
+        <!-- HERO IMAGE -->
+        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse;">
             <tr>
                 <td style="padding: 0;">
                     <!-- Caption -->
-                    <div class="dark-text-accent" style="font-size:13px; color:#6b9b5a; margin-bottom:8px; font-weight:600; text-transform: uppercase; letter-spacing: 0.5px;">
+                    <div style="font-size:12px; color:#6b9b5a; margin-bottom:8px; font-weight:600; text-transform: uppercase; letter-spacing: 0.5px;">
                         {hero_caption}
                     </div>
-                    <!-- Image with shadow and border -->
-                    <div style="border-radius: 12px; overflow: hidden; border: 2px solid #6b9b5a; box-shadow: 0 4px 12px rgba(0,0,0,0.1);" class="dark-border">
+                    <!-- Image with enhanced shadow -->
+                    <div style="border-radius: 12px; overflow: hidden; border: 2px solid #6b9b5a; box-shadow: 0 8px 24px rgba(0,0,0,0.4);">
                         <img src="cid:{image_cid}" alt="Greenhouse timelapse" style="display:block; width:100%; height:auto; border:0;">
                     </div>
                 </td>
@@ -845,193 +933,225 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
         )
     )
 
-    vitals_24h_section = ""
-    if has_24h_stats:
-        vitals_24h_section = f"""
-                    <!-- 24h VITALS HEADER (outside card) -->
-                    <div class="dark-text-accent" style="font-size:13px; color:#6b9b5a; margin-bottom:8px; font-weight:600; text-transform: uppercase; letter-spacing: 0.5px;">
-                        24-Hour High / Low
-                    </div>
+    # Generate temperature chart (168h for weekly, 24h for daily)
+    temp_chart_bytes: Optional[bytes] = None
+    temp_chart_cid: Optional[str] = None
+    chart_hours = 168 if weekly_mode else 24
+    try:
+        temp_chart_bytes = chart_generator.generate_temperature_chart(hours=chart_hours)
+        if temp_chart_bytes:
+            temp_chart_cid = make_msgid(domain="greenhouse")[1:-1]
+            log(f"Generated {chart_hours}h temperature chart: {len(temp_chart_bytes)} bytes")
+    except Exception as exc:
+        log(f"Failed to generate temperature chart: {exc}")
 
-                    <!-- CARD 2B: 24h VITALS -->
-                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: separate; border-spacing: 0; border: 2px solid #6b9b5a; border-radius: 12px; overflow: hidden;" class="dark-border dark-bg-card">
+    # =========================================================================
+    # CONSOLIDATED DATA DASHBOARD (Redesigned for cleaner UX)
+    # =========================================================================
+    
+    # Build "Current Conditions" - 3 card layout (Greenhouse | Outside | Details)
+    tide_display = _get_tide_display(sensor_data)
+    
+    current_conditions_section = f"""
+                    <!-- CURRENT CONDITIONS HEADER -->
+                    <div style="font-size:12px; color:#6b9b5a; margin-bottom:12px; font-weight:600; text-transform: uppercase; letter-spacing: 0.5px;">
+                        Current Conditions
+                    </div>
+                    
+                    <!-- ROW 1: Greenhouse + Outside (matching cards) -->
+                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" class="conditions-row" style="border-collapse: collapse;">
                         <tr>
-                            <td style="padding: 16px;">
-                                <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="font-size:14px; border-collapse: collapse;">
+                            <!-- GREENHOUSE CARD -->
+                            <td width="49%" class="conditions-card" style="vertical-align: top; padding-right: 6px;">
+                                <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #1f1f1f; border-radius: 8px; border-collapse: collapse;">
                                     <tr>
-                                        <th class="dark-text-secondary dark-border-table" style="text-align:left; padding:12px 0; border-bottom:1px solid #6b9b5a; color:#4b5563; font-weight: normal; mso-line-height-rule: exactly;">Location</th>
-                                        <th class="dark-text-secondary dark-border-table" style="text-align:left; padding:12px 0; border-bottom:1px solid #6b9b5a; color:#4b5563; font-weight: normal; mso-line-height-rule: exactly;">Temp (°F)</th>
-                                        <th class="dark-text-secondary dark-border-table" style="text-align:left; padding:12px 0; border-bottom:1px solid #6b9b5a; color:#4b5563; font-weight: normal; mso-line-height-rule: exactly;">Humidity (%)</th>
+                                        <td style="padding: 20px 16px; text-align: center;">
+                                            <div style="font-size: 11px; color: #a3a3a3; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">Greenhouse</div>
+                                            <div style="font-size: 44px; font-weight: 700; line-height: 1; color: #6b9b5a;">{fmt(indoor_temp)}°</div>
+                                            <div style="font-size: 13px; color: #a3a3a3; margin-top: 8px;">{fmt(indoor_humidity)}% humidity</div>
+                                        </td>
                                     </tr>
-                                    {
-            "".join(
-                [
-                    f'''<tr>
-                                        <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #6b9b5a; color:#1e1e1e;">Greenhouse</td>
-                                        <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #6b9b5a; color:#1e1e1e;">{fmt_temp_high_low(indoor_temp_max, indoor_temp_min)}</td>
-                                        <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #6b9b5a; color:#1e1e1e;">{fmt(indoor_humidity_max)}% / {fmt(indoor_humidity_min)}%</td>
-                                    </tr>'''
-                    if any(
-                        x is not None
-                        for x in [
-                            indoor_temp_min,
-                            indoor_temp_max,
-                            indoor_humidity_min,
-                            indoor_humidity_max,
-                        ]
-                    )
-                    else "",
-                    f'''<tr>
-                                        <td class="dark-text-primary" style="padding:12px 0; border-bottom:none; color:#1e1e1e;">Outside</td>
-                                        <td class="dark-text-primary" style="padding:12px 0; border-bottom:none; color:#1e1e1e;">{fmt_temp_high_low(exterior_temp_max, exterior_temp_min)}</td>
-                                        <td class="dark-text-primary" style="padding:12px 0; border-bottom:none; color:#1e1e1e;">{fmt(exterior_humidity_max)}% / {fmt(exterior_humidity_min)}%</td>
-                                    </tr>'''
-                    if any(
-                        x is not None
-                        for x in [
-                            exterior_temp_min,
-                            exterior_temp_max,
-                            exterior_humidity_min,
-                            exterior_humidity_max,
-                        ]
-                    )
-                    else "",
-                ]
-            )
-        }
+                                </table>
+                            </td>
+                            <!-- OUTSIDE CARD (matching style) -->
+                            <td width="49%" class="conditions-card" style="vertical-align: top; padding-left: 6px;">
+                                <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #1f1f1f; border-radius: 8px; border-collapse: collapse;">
+                                    <tr>
+                                        <td style="padding: 20px 16px; text-align: center;">
+                                            <div style="font-size: 11px; color: #a3a3a3; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">Outside</div>
+                                            <div style="font-size: 44px; font-weight: 700; line-height: 1; color: #60a5fa;">{fmt(exterior_temp)}°</div>
+                                            <div style="font-size: 13px; color: #a3a3a3; margin-top: 8px;">{fmt(exterior_humidity)}% humidity</div>
+                                        </td>
+                                    </tr>
                                 </table>
                             </td>
                         </tr>
                     </table>
+                    
+                    <!-- SPACER -->
+                    <div style="height: 12px;">&nbsp;</div>
+                    
+                    <!-- ROW 2: WEATHER DETAILS CARD -->
+                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #1f1f1f; border-radius: 8px; border-collapse: collapse;">
+                        <tr>
+                            <td style="padding: 14px 16px;">
+                                <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; font-size: 13px; color: #d4d4d4;">
+                                    <tr>
+                                        <td style="padding: 5px 0;">
+                                            {get_condition_emoji(outdoor_condition)} {fmt(outdoor_condition)}
+                                        </td>
+                                        <td style="padding: 5px 0; text-align: right;">
+                                            H: {fmt(high_temp)}° / L: {fmt(low_temp)}°
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 5px 0; border-top: 1px solid #374151;">
+                                            {fmt_wind()}
+                                        </td>
+                                        <td style="padding: 5px 0; border-top: 1px solid #374151; text-align: right;">
+                                            🌅 {fmt_time(sunrise)} – {fmt_time(sunset)}
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 5px 0; border-top: 1px solid #374151;">
+                                            {moon_icon} {fmt_moon_phase(moon_phase)}
+                                        </td>
+                                        <td style="padding: 5px 0; border-top: 1px solid #374151; text-align: right;">
+                                            {tide_display}
+                                        </td>
+                                    </tr>
+                                </table>
+                            </td>
+                        </tr>
+                    </table>
+    """
+    
+    # Build "Trends" section (Chart + H/L summary) - DARK MODE
+    trends_section = ""
+    if not weekly_mode and has_24h_stats:
+        trends_section = f"""
+                    <!-- SPACER -->
+                    <div style="height: 24px;">&nbsp;</div>
+                    
+                    <!-- TRENDS SECTION -->
+                    <div style="font-size:12px; color:#6b9b5a; margin-bottom:12px; font-weight:600; text-transform: uppercase; letter-spacing: 0.5px;">
+                        24-Hour Trends
+                    </div>
+                    
+                    {f'<img src="cid:{temp_chart_cid}" alt="24h Trends" style="display:block; width:100%; max-width:560px; height:auto; border:0; border-radius:8px; margin-bottom: 16px;">' if temp_chart_cid else ''}
+                    
+                    <!-- H/L Summary -->
+                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; font-size: 13px;">
+                        <tr>
+                            <td style="padding: 8px 0; color: #a3a3a3; border-bottom: 1px solid #374151;">
+                                <span style="color: #6b9b5a; font-weight: 600;">●</span> Greenhouse
+                            </td>
+                            <td style="padding: 8px 0; color: #f5f5f5; border-bottom: 1px solid #374151; text-align: right;">
+                                {fmt_temp_high_low(indoor_temp_max, indoor_temp_min)} &nbsp;|&nbsp; {fmt(indoor_humidity_min)}–{fmt(indoor_humidity_max)}% RH
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px 0; color: #a3a3a3;">
+                                <span style="color: #60a5fa; font-weight: 600;">●</span> Outside
+                            </td>
+                            <td style="padding: 8px 0; color: #f5f5f5; text-align: right;">
+                                {fmt_temp_high_low(exterior_temp_max, exterior_temp_min)} &nbsp;|&nbsp; {fmt(exterior_humidity_min)}–{fmt(exterior_humidity_max)}% RH
+                            </td>
+                        </tr>
+                    </table>
+                    <p style="font-size: 11px; color: #a3a3a3; margin-top: 8px; margin-bottom: 0; text-align: center;">
+                        Last 24 hours
+                    </p>
         """
+    
+    # Combine for the vitals section variable (used in template)
+    vitals_24h_section = current_conditions_section + trends_section
 
-    # Build Weekly Summary section for Sunday emails
+    # Build Weekly Summary section - DARK MODE
     weekly_summary_section = ""
     if weekly_mode and weekly_summary:
         ws = weekly_summary
         weekly_summary_section = f"""
-                    <!-- SPACER: 24px -->
-                    <div style="height: 24px; line-height: 24px; font-size: 24px; mso-line-height-rule: exactly;">&nbsp;</div>
+                    <!-- SPACER -->
+                    <div style="height: 24px;">&nbsp;</div>
 
-                    <!-- WEEKLY SUMMARY HEADER (outside card) -->
-                    <div class="dark-text-accent" style="font-size:13px; color:#6b9b5a; margin-bottom:8px; font-weight:600; text-transform: uppercase; letter-spacing: 0.5px;">
-                        This Week's Summary
+                    <!-- WEEKLY TRENDS SECTION -->
+                    <div style="font-size:12px; color:#6b9b5a; margin-bottom:12px; font-weight:600; text-transform: uppercase; letter-spacing: 0.5px;">
+                        This Week's Trends
                     </div>
 
-                    <!-- CARD: WEEKLY SUMMARY -->
-                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: separate; border-spacing: 0; border: 2px solid #6b9b5a; border-radius: 12px; overflow: hidden;" class="dark-border dark-bg-card">
+                    {f'<img src="cid:{temp_chart_cid}" alt="Weekly Trends" style="display:block; width:100%; max-width:560px; height:auto; border:0; border-radius:8px; margin-bottom: 16px;">' if temp_chart_cid else ''}
+
+                    <!-- Weekly H/L Summary -->
+                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; font-size: 13px;">
                         <tr>
-                            <td style="padding: 16px;">
-                                <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="font-size:14px; border-collapse: collapse;">
-                                    <tr>
-                                        <th class="dark-text-secondary dark-border-table" style="text-align:left; padding:12px 0; border-bottom:1px solid #6b9b5a; color:#4b5563; font-weight: normal;">Location</th>
-                                        <th class="dark-text-secondary dark-border-table" style="text-align:left; padding:12px 0; border-bottom:1px solid #6b9b5a; color:#4b5563; font-weight: normal;">Temp (°F)</th>
-                                        <th class="dark-text-secondary dark-border-table" style="text-align:left; padding:12px 0; border-bottom:1px solid #6b9b5a; color:#4b5563; font-weight: normal;">Humidity (%)</th>
-                                    </tr>
-                                    <tr>
-                                        <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #6b9b5a; color:#1e1e1e;">Greenhouse</td>
-                                        <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #6b9b5a; color:#1e1e1e;">{fmt(ws.get("interior_temp_min"))}° – {fmt(ws.get("interior_temp_max"))}°</td>
-                                        <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #6b9b5a; color:#1e1e1e;">{fmt(ws.get("interior_humidity_min"))}% – {fmt(ws.get("interior_humidity_max"))}%</td>
-                                    </tr>
-                                    <tr>
-                                        <td class="dark-text-primary" style="padding:12px 0; color:#1e1e1e;">Outside</td>
-                                        <td class="dark-text-primary" style="padding:12px 0; color:#1e1e1e;">{fmt(ws.get("exterior_temp_min"))}° – {fmt(ws.get("exterior_temp_max"))}°</td>
-                                        <td class="dark-text-primary" style="padding:12px 0; color:#1e1e1e;">{fmt(ws.get("exterior_humidity_min"))}% – {fmt(ws.get("exterior_humidity_max"))}%</td>
-                                    </tr>
-                                </table>
-                                <p class="dark-text-muted" style="color: #9ca3af; font-size: 12px; margin-top: 12px; margin-bottom: 0; text-align: center;">
-                                    Based on {ws.get("days_recorded", 0)} days of data
-                                </p>
+                            <td style="padding: 8px 0; color: #a3a3a3; border-bottom: 1px solid #374151;">
+                                <span style="color: #6b9b5a; font-weight: 600;">●</span> Greenhouse
+                            </td>
+                            <td style="padding: 8px 0; color: #f5f5f5; border-bottom: 1px solid #374151; text-align: right;">
+                                {fmt(ws.get("interior_temp_min"))}° – {fmt(ws.get("interior_temp_max"))}° &nbsp;|&nbsp; {fmt(ws.get("interior_humidity_min"))}–{fmt(ws.get("interior_humidity_max"))}% RH
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px 0; color: #a3a3a3;">
+                                <span style="color: #60a5fa; font-weight: 600;">●</span> Outside
+                            </td>
+                            <td style="padding: 8px 0; color: #f5f5f5; text-align: right;">
+                                {fmt(ws.get("exterior_temp_min"))}° – {fmt(ws.get("exterior_temp_max"))}° &nbsp;|&nbsp; {fmt(ws.get("exterior_humidity_min"))}–{fmt(ws.get("exterior_humidity_max"))}% RH
                             </td>
                         </tr>
                     </table>
+                    <p style="font-size: 11px; color: #a3a3a3; margin-top: 8px; margin-bottom: 0; text-align: center;">
+                        Based on {ws.get("days_recorded", 0)} days of data
+                    </p>
         """
 
-    # HTML body with light/dark mode support
+    # HTML body - DARK MODE ONLY (simplified, optimized)
     html_body = f"""<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="light dark" />
-    <meta name="supported-color-schemes" content="light dark" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="supported-color-schemes" content="dark" />
     <title>Update</title>
     <style type="text/css">
-        /* RESET STYLES */
-        body {{ margin: 0; padding: 0; min-width: 100%; background-color: #ffffff; font-family: Arial, sans-serif; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }}
+        /* ===========================================
+           GREENHOUSE GAZETTE - DARK MODE THEME
+           Design System: Professional Industrial
+           =========================================== */
+        
+        /* RESET */
+        body {{ margin: 0; padding: 0; min-width: 100%; font-family: Arial, sans-serif; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }}
         table {{ border-spacing: 0; border-collapse: collapse; }}
         td, th {{ padding: 0; vertical-align: top; }}
         img {{ border: 0; outline: none; text-decoration: none; -ms-interpolation-mode: bicubic; display: block; }}
+        a[x-apple-data-detectors] {{ color: inherit !important; text-decoration: none !important; }}
         
-        /* PREVENT BLUE LINKS IN APPLE MAIL */
-        a[x-apple-data-detectors] {{ color: inherit !important; text-decoration: none !important; font-size: inherit !important; font-family: inherit !important; font-weight: inherit !important; line-height: inherit !important; }}
+        /* COLOR PALETTE */
+        :root {{ color-scheme: dark; }}
         
-        /* DARK MODE SUPPORT */
-        :root {{
-            color-scheme: light dark;
-            supported-color-schemes: light dark;
-        }}
-
-        /* CLIENT SPECIFIC OVERRIDES */
+        /* MOBILE RESPONSIVE */
         @media screen and (max-width: 600px) {{
             .container {{ width: 100% !important; max-width: 100% !important; }}
             .mobile-padding {{ padding-left: 16px !important; padding-right: 16px !important; }}
         }}
-
-        @media (prefers-color-scheme: dark) {{
-            /* Main Background: Neutral Dark (#171717) */
-            body, .body-bg {{ background-color: #171717 !important; color: #f5f5f5 !important; }}
-            
-            /* Text Colors: Neutral Grays */
-            .dark-text-primary {{ color: #f5f5f5 !important; }}
-            .dark-text-secondary {{ color: #d4d4d4 !important; }}
-            .dark-text-muted {{ color: #a3a3a3 !important; }}
-            
-            /* Temperature Colors */
-            .dark-text-high {{ color: #f87171 !important; }}  /* Lighter red for dark mode */
-            .dark-text-low {{ color: #60a5fa !important; }}   /* Lighter blue for dark mode */
-            
-            /* Accents: Main Green (#6b9b5a) */
-            .dark-text-accent {{ color: #6b9b5a !important; }}
-            .dark-border {{ border-color: #6b9b5a !important; }}
-            
-            /* Cards: Explicitly match body color in dark mode (No visual fill) */
-            .dark-bg-card {{ background-color: #171717 !important; }}
-            
-            /* Alert Banner: Amber tones for dark mode */
-            .dark-alert-banner {{ background-color: #451a03 !important; border-color: #b45309 !important; }}
-            .dark-alert-text {{ color: #fcd34d !important; }}
-            
-            /* Riddle Answer Box: Darker background for dark mode */
-            .dark-riddle-answer-bg {{ background-color: #262626 !important; }}
-            
-            /* Gmail Web hack - match color scheme above */
-            u + .body .body-bg {{ background-color: #171717 !important; }}
-            u + .body .dark-bg-card {{ background-color: #171717 !important; }}
-            u + .body .dark-text-primary {{ color: #f5f5f5 !important; }}
-            u + .body .dark-text-secondary {{ color: #d4d4d4 !important; }}
-            u + .body .dark-text-muted {{ color: #a3a3a3 !important; }}
-            u + .body .dark-text-high {{ color: #f87171 !important; }}
-            u + .body .dark-text-low {{ color: #60a5fa !important; }}
-            u + .body .dark-text-accent {{ color: #6b9b5a !important; }}
-            u + .body .dark-border {{ border-color: #6b9b5a !important; }}
-            u + .body .dark-alert-banner {{ background-color: #451a03 !important; border-color: #b45309 !important; }}
-            u + .body .dark-alert-text {{ color: #fcd34d !important; }}
-            u + .body .dark-riddle-answer-bg {{ background-color: #262626 !important; }}
+        @media screen and (max-width: 480px) {{
+            .conditions-row, .conditions-row tr {{ display: block !important; width: 100% !important; }}
+            .conditions-card {{ display: block !important; width: 100% !important; padding: 0 0 12px 0 !important; }}
         }}
     </style>
     <!--[if mso]>
     <style type="text/css">
         body, table, td, th, p, div {{ font-family: Arial, sans-serif !important; }}
-        /* Fix for Outlook vertical rhythm */
         td {{ mso-line-height-rule: exactly; }}
     </style>
     <![endif]-->
 </head>
-<body class="body-bg" style="margin:0; padding:0; background-color:#ffffff; color:#1e1e1e;">
+<body style="margin:0; padding:0; background-color:#171717; color:#f5f5f5;">
     
     <!-- WRAPPER -->
-    <center role="article" aria-roledescription="email" lang="en" style="width:100%; background-color:#ffffff;" class="body-bg">
+    <center role="article" aria-roledescription="email" lang="en" style="width:100%; background-color:#171717;">
         
         <!--[if mso]>
         <table role="presentation" align="center" border="0" cellpadding="0" cellspacing="0" width="600">
@@ -1046,12 +1166,12 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
                     <!-- HEADER -->
                     <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
                         <tr>
-                            <td class="dark-text-accent" style="font-family: Garamond, Georgia, 'Times New Roman', serif; padding-bottom: 4px; font-size:28px; font-weight: bold; color:#6b9b5a; line-height: 1.1; mso-line-height-rule: exactly;">
+                            <td style="font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding-bottom: 4px; font-size:28px; font-weight: bold; color:#6b9b5a; line-height: 1.1; mso-line-height-rule: exactly;">
                                 {headline}
                             </td>
                         </tr>
                         <tr>
-                            <td class="dark-text-muted" style="padding-bottom: 16px; font-size:13px; color:#6b7280; mso-line-height-rule: exactly;">
+                            <td style="padding-bottom: 16px; font-size:13px; color:#a3a3a3; mso-line-height-rule: exactly;">
                                 {date_subheadline}
                             </td>
                         </tr>
@@ -1061,19 +1181,16 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
 
                     {build_broadcast_card()}
 
-                    <!-- CARD 1: BODY -->
-                    <!-- border-spacing: 0 is critical when using separate borders -->
-                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: separate; border-spacing: 0; border: 0; border-radius: 12px; overflow: hidden;" class="dark-bg-card">
+                    <!-- NARRATIVE TEXT -->
+                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse;">
                         <tr>
                             <td style="padding: 0;">
-                                <p class="dark-text-primary" style="margin:0; line-height:1.6; color:#1e1e1e; font-size: 16px;">
+                                <div style="margin:0; line-height:1.7; color:#f5f5f5; font-size: 16px;">
                                     {body_html_escaped}
-                                </p>
+                                </div>
                             </td>
                         </tr>
                     </table>
-
-                    {build_riddle_card()}
 
                     <!-- SPACER: 24px -->
                     <div style="height: 24px; line-height: 24px; font-size: 24px; mso-line-height-rule: exactly;">&nbsp;</div>
@@ -1087,114 +1204,7 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
 
                     {weekly_summary_section}
 
-                    <!-- SPACER: 24px -->
-                    <div style="height: 24px; line-height: 24px; font-size: 24px; mso-line-height-rule: exactly;">&nbsp;</div>
-
-                    <!-- SENSORS HEADER (outside card) -->
-                    <div class="dark-text-accent" style="font-size:13px; color:#6b9b5a; margin-bottom:8px; font-weight:600; text-transform: uppercase; letter-spacing: 0.5px;">
-                        Sensors (Current)
-                    </div>
-
-                    <!-- CARD 2: SENSORS -->
-                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: separate; border-spacing: 0; border: 2px solid #6b9b5a; border-radius: 12px; overflow: hidden;" class="dark-border dark-bg-card">
-                        <tr>
-                            <td style="padding: 16px;">
-                                <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="font-size:14px; border-collapse: collapse;">
-                                    <tr>
-                                        <!-- Note: TH tags in Apple Mail are bold by default. Explicitly setting font-weight: normal -->
-                                        <th class="dark-text-secondary dark-border-table" style="text-align:left; padding:12px 0; border-bottom:1px solid #6b9b5a; color:#4b5563; font-weight: normal; mso-line-height-rule: exactly;">Location</th>
-                                        <th class="dark-text-secondary dark-border-table" style="text-align:left; padding:12px 0; border-bottom:1px solid #6b9b5a; color:#4b5563; font-weight: normal; mso-line-height-rule: exactly;">Temp</th>
-                                        <th class="dark-text-secondary dark-border-table" style="text-align:left; padding:12px 0; border-bottom:1px solid #6b9b5a; color:#4b5563; font-weight: normal; mso-line-height-rule: exactly;">Humidity</th>
-                                        <th class="dark-text-secondary dark-border-table" style="text-align:left; padding:12px 0; border-bottom:1px solid #6b9b5a; color:#4b5563; font-weight: normal; mso-line-height-rule: exactly;">Battery</th>
-                                    </tr>
-                                    {
-        "".join(
-            [
-                f'''<tr>
-                                        <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #6b9b5a; color:#1e1e1e;">Interior</td>
-                                        <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #6b9b5a; color:#1e1e1e;">{fmt(indoor_temp, 'interior_temp_stale')}°</td>
-                                        <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #6b9b5a; color:#1e1e1e;">{fmt(indoor_humidity, 'interior_humidity_stale')}%</td>
-                                        <td class="dark-text-primary dark-border-table" style="padding:12px 0; border-bottom:1px solid #6b9b5a; color:#1e1e1e;">—</td>
-                                    </tr>'''
-                if indoor_temp is not None or indoor_humidity is not None
-                else "",
-                f'''<tr>
-                                        <td class="dark-text-primary" style="padding:12px 0; border-bottom:none; color:#1e1e1e;">Outside</td>
-                                        <td class="dark-text-primary" style="padding:12px 0; border-bottom:none; color:#1e1e1e;">{fmt(exterior_temp, 'exterior_temp_stale')}°</td>
-                                        <td class="dark-text-primary" style="padding:12px 0; border-bottom:none; color:#1e1e1e;">{fmt(exterior_humidity, 'exterior_humidity_stale')}%</td>
-                                        <td class="dark-text-primary" style="padding:12px 0; border-bottom:none; color:#1e1e1e;">{fmt_battery(sat_battery, 'satellite-2_battery_stale')}</td>
-                                    </tr>'''
-                if not (
-                    sensor_data.get("exterior_temp_stale")
-                    and sensor_data.get("exterior_humidity_stale")
-                    and sensor_data.get("satellite-2_battery_stale")
-                )
-                else "",
-            ]
-        )
-    }
-                                </table>
-                            </td>
-                        </tr>
-                    </table>
-
-                    <!-- SPACER: 24px -->
-                    <div style="height: 24px; line-height: 24px; font-size: 24px; mso-line-height-rule: exactly;">&nbsp;</div>
-
-                    <!-- WEATHER HEADER (outside card) -->
-                    <div class="dark-text-accent" style="font-size:13px; color:#6b9b5a; margin-bottom:8px; font-weight:600; text-transform: uppercase; letter-spacing: 0.5px;">
-                        Today's Weather
-                    </div>
-
-                    <!-- CARD 3: WEATHER -->
-                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: separate; border-spacing: 0; border: 2px solid #6b9b5a; border-radius: 12px; overflow: hidden;" class="dark-border dark-bg-card">
-                        <tr>
-                            <td style="padding: 16px;">
-                                <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="font-size:14px; border-collapse: collapse;">
-                                    <tr>
-                                        <td class="dark-text-secondary dark-border" style="padding: 12px 0; border-bottom:1px solid #6b9b5a; color:#4b5563; width: 40%; vertical-align:middle; mso-line-height-rule: exactly;">Condition</td>
-                                        <td class="dark-text-primary dark-border" style="padding: 12px 0; border-bottom:1px solid #6b9b5a; color:#1e1e1e; text-align: right; vertical-align:middle; mso-line-height-rule: exactly;">{
-        get_condition_emoji(outdoor_condition)
-    } {fmt(outdoor_condition)}</td>
-                                    </tr>
-                                    <tr>
-                                        <td class="dark-text-secondary dark-border" style="padding: 12px 0; border-bottom:1px solid #6b9b5a; color:#4b5563; vertical-align:middle; mso-line-height-rule: exactly;">High / Low</td>
-                                        <td class="dark-text-primary dark-border" style="padding: 12px 0; border-bottom:1px solid #6b9b5a; color:#1e1e1e; text-align: right; vertical-align:middle; mso-line-height-rule: exactly;">{
-        fmt_temp_range()
-    }</td>
-                                    </tr>
-                                    <tr>
-                                        <td class="dark-text-secondary dark-border" style="padding: 12px 0; border-bottom:1px solid #6b9b5a; color:#4b5563; vertical-align:middle; mso-line-height-rule: exactly;">Sunrise / Sunset</td>
-                                        <td class="dark-text-primary dark-border" style="padding: 12px 0; border-bottom:1px solid #6b9b5a; color:#1e1e1e; text-align: right; vertical-align:middle; mso-line-height-rule: exactly;">{
-        fmt_time(sunrise)
-    } / {fmt_time(sunset)}</td>
-                                    </tr>
-                                    <tr>
-                                        <td class="dark-text-secondary dark-border" style="padding: 12px 0; border-bottom:1px solid #6b9b5a; color:#4b5563; vertical-align:middle; mso-line-height-rule: exactly;">Wind</td>
-                                        <td class="dark-text-primary dark-border" style="padding: 12px 0; border-bottom:1px solid #6b9b5a; color:#1e1e1e; text-align: right; vertical-align:middle; mso-line-height-rule: exactly;">{
-        fmt_wind()
-    }</td>
-                                    </tr>
-                                    {fmt_tide_rows()}
-                                    <tr>
-                                        <td class="dark-text-secondary" style="padding: 12px 0; color:#4b5563; vertical-align:middle; mso-line-height-rule: exactly;">Moon Phase</td>
-                                        <td class="dark-text-primary" style="padding: 12px 0; color:#1e1e1e; text-align: right; vertical-align:middle; mso-line-height-rule: exactly;">
-                                            <table align="right" border="0" cellpadding="0" cellspacing="0" style="border-collapse: collapse;">
-                                                <tr>
-                                                    <td class="dark-text-primary" style="padding-right: 6px; color:#1e1e1e; vertical-align:middle; font-size: 14px; line-height: 1;">{
-        moon_icon
-    }</td>
-                                                    <td class="dark-text-primary" style="color:#1e1e1e; vertical-align:middle; font-size: 14px;">{
-        fmt_moon_phase(moon_phase)
-    }</td>
-                                                </tr>
-                                            </table>
-                                        </td>
-                                    </tr>
-                                </table>
-                            </td>
-                        </tr>
-                    </table>
+                    {build_riddle_card()}
 
                 </td>
             </tr>
@@ -1231,6 +1241,21 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
             log(f"Attached {image_type} image: {len(image_bytes)} bytes")
         except Exception as exc:  # noqa: BLE001
             log(f"Failed to attach inline image: {exc}")
+
+    # Attach temperature chart as inline related part if available
+    if temp_chart_bytes and temp_chart_cid:
+        try:
+            html_part = msg.get_payload()[-1]
+            html_part.add_related(
+                temp_chart_bytes,
+                maintype="image",
+                subtype="png",
+                cid=f"<{temp_chart_cid}>",
+                filename="temperature_chart.png",
+            )
+            log(f"Attached temperature chart: {len(temp_chart_bytes)} bytes")
+        except Exception as exc:  # noqa: BLE001
+            log(f"Failed to attach temperature chart: {exc}")
 
     return msg, weekly_mode
 

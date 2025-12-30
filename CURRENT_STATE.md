@@ -1,8 +1,8 @@
 # Project Chlorophyll: Current System State
 
 **Status:** ✅ Operational (via Tailscale) — Production-Hardened  
-**Last Updated:** Dec 29, 2025 @ 12:00 AM EST  
-**Next Milestone:** First production broadcast (7 AM)
+**Last Updated:** Dec 30, 2025 @ 1:45 PM EST  
+**Next Milestone:** Email Redesign v2.0 Live (Dec 31, 7 AM)
 
 ---
 
@@ -162,6 +162,16 @@ docker compose up -d --force-recreate storyteller
   - VitalsFormatter service (`app/services/`) - extracted formatting logic
   - Tenacity retries - Weather API and NOAA API with exponential backoff (3 attempts)
   - Fixed Sunday email bug (`_test_mode` undefined when imported by scheduler)
+- [x] **Email Redesign v2.0** - Visual overhaul (Dec 30):
+  - Dark mode only (simplified CSS, no light/dark conditionals)
+  - 3-card Current Conditions layout (Greenhouse | Outside | Weather Details)
+  - Chart generator with forest green (#6b9b5a) and blue (#60a5fa) theme
+  - Rose/red alert banners (subtle but clear)
+  - Purple broadcast cards for editor announcements
+  - Brain Fart riddle moved to bottom of email
+  - Enhanced timelapse drop shadow
+  - Mobile-responsive card stacking at 480px
+  - Removed emojis from section headers (clean typography)
 
 ---
 
