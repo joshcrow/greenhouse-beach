@@ -772,22 +772,22 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
         if not alert_items:
             return ""
         
-        # Build individual alert rows
+        # Build individual alert rows - using red/rose tones (subtle but clear)
         alert_rows = ""
         for i, alert in enumerate(alert_items):
             is_last = i == len(alert_items) - 1
-            border_style = "border-bottom: 1px solid rgba(251, 191, 36, 0.3);" if not is_last else ""
-            margin_style = "padding-bottom: 12px;" if not is_last else ""
+            border_style = "border-bottom: 1px solid rgba(244, 63, 94, 0.2);" if not is_last else ""
+            margin_style = "padding-bottom: 10px;" if not is_last else ""
             alert_rows += f"""
                         <tr>
-                            <td style="padding: 12px 0; {border_style} {margin_style} vertical-align: top; width: 40px; text-align: center; font-size: 22px;">
+                            <td style="padding: 10px 12px; {border_style} {margin_style} vertical-align: top; width: 36px; text-align: center; font-size: 20px;">
                                 {alert["icon"]}
                             </td>
-                            <td style="padding: 12px 8px; {border_style} {margin_style} vertical-align: middle;">
-                                <div style="font-weight: 600; font-size: 14px; color: #fcd34d;">
+                            <td style="padding: 10px 8px; {border_style} {margin_style} vertical-align: middle;">
+                                <div style="font-weight: 600; font-size: 14px; color: #f87171;">
                                     {alert["warning"]}
                                 </div>
-                                <div style="font-size: 13px; color: #fcd34d; margin-top: 2px;">
+                                <div style="font-size: 13px; color: #fca5a5; margin-top: 2px;">
                                     {alert["detail"]}
                                 </div>
                             </td>
@@ -795,7 +795,7 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
         
         return f"""
                     <!-- ALERT BANNER -->
-                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; background-color: #451a03; border-radius: 8px; margin-bottom: 16px;">
+                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; background-color: #2a1515; border: 1px solid #991b1b; border-radius: 8px; margin-bottom: 16px;">
                         {alert_rows}
                     </table>
         """
@@ -831,20 +831,16 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
                     <!-- SPACER BEFORE BROADCAST -->
                     <div style="height: 16px; line-height: 16px; font-size: 16px; mso-line-height-rule: exactly;">&nbsp;</div>
                     
-                    <!-- BROADCAST HEADER (outside card) -->
-                    <div style="font-size: 13px; color: #a855f7; margin-bottom: 8px; 
-                                font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">
-                        ⚠️ {title}
+                    <!-- BROADCAST HEADER -->
+                    <div style="font-size: 12px; color: #a855f7; margin-bottom: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">
+                        {title}
                     </div>
 
                     <!-- BROADCAST CARD -->
-                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" 
-                           style="border-collapse: separate; border-spacing: 0; border: 2px solid #a855f7; 
-                                  border-radius: 12px; overflow: hidden;" 
-                           class="dark-bg-card">
+                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; background-color: #1f1f1f; border: 1px solid #7c3aed; border-radius: 8px;">
                         <tr>
-                            <td style="padding: 16px;">
-                                <p class="dark-text-primary" style="margin: 0; line-height: 1.6; color: #1e1e1e; font-size: 15px;">
+                            <td style="padding: 14px 16px;">
+                                <p style="margin: 0; line-height: 1.6; color: #e9d5ff; font-size: 15px;">
                                     {message}
                                 </p>
                             </td>
@@ -963,28 +959,28 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
                     </div>
                     
                     <!-- ROW 1: Greenhouse + Outside (matching cards) -->
-                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" class="conditions-row" style="border-collapse: separate; border-spacing: 12px 0;">
+                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" class="conditions-row" style="border-collapse: collapse;">
                         <tr>
                             <!-- GREENHOUSE CARD -->
-                            <td width="50%" class="conditions-card" style="vertical-align: top;">
+                            <td width="49%" class="conditions-card" style="vertical-align: top; padding-right: 6px;">
                                 <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #1f1f1f; border-radius: 8px; border-collapse: collapse;">
                                     <tr>
-                                        <td style="padding: 24px 16px; text-align: center;">
-                                            <div style="font-size: 11px; color: #a3a3a3; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Greenhouse</div>
-                                            <div style="font-size: 48px; font-weight: 700; line-height: 1; color: #6b9b5a;">{fmt(indoor_temp)}°</div>
-                                            <div style="font-size: 14px; color: #a3a3a3; margin-top: 10px;">{fmt(indoor_humidity)}% humidity</div>
+                                        <td style="padding: 20px 16px; text-align: center;">
+                                            <div style="font-size: 11px; color: #a3a3a3; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">Greenhouse</div>
+                                            <div style="font-size: 44px; font-weight: 700; line-height: 1; color: #6b9b5a;">{fmt(indoor_temp)}°</div>
+                                            <div style="font-size: 13px; color: #a3a3a3; margin-top: 8px;">{fmt(indoor_humidity)}% humidity</div>
                                         </td>
                                     </tr>
                                 </table>
                             </td>
                             <!-- OUTSIDE CARD (matching style) -->
-                            <td width="50%" class="conditions-card" style="vertical-align: top;">
+                            <td width="49%" class="conditions-card" style="vertical-align: top; padding-left: 6px;">
                                 <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #1f1f1f; border-radius: 8px; border-collapse: collapse;">
                                     <tr>
-                                        <td style="padding: 24px 16px; text-align: center;">
-                                            <div style="font-size: 11px; color: #a3a3a3; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Outside</div>
-                                            <div style="font-size: 48px; font-weight: 700; line-height: 1; color: #60a5fa;">{fmt(exterior_temp)}°</div>
-                                            <div style="font-size: 14px; color: #a3a3a3; margin-top: 10px;">{fmt(exterior_humidity)}% humidity</div>
+                                        <td style="padding: 20px 16px; text-align: center;">
+                                            <div style="font-size: 11px; color: #a3a3a3; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">Outside</div>
+                                            <div style="font-size: 44px; font-weight: 700; line-height: 1; color: #60a5fa;">{fmt(exterior_temp)}°</div>
+                                            <div style="font-size: 13px; color: #a3a3a3; margin-top: 8px;">{fmt(exterior_humidity)}% humidity</div>
                                         </td>
                                     </tr>
                                 </table>
@@ -998,29 +994,29 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
                     <!-- ROW 2: WEATHER DETAILS CARD -->
                     <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #1f1f1f; border-radius: 8px; border-collapse: collapse;">
                         <tr>
-                            <td style="padding: 16px;">
+                            <td style="padding: 14px 16px;">
                                 <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; font-size: 13px; color: #d4d4d4;">
                                     <tr>
-                                        <td style="padding: 6px 0;">
+                                        <td style="padding: 5px 0;">
                                             {get_condition_emoji(outdoor_condition)} {fmt(outdoor_condition)}
                                         </td>
-                                        <td style="padding: 6px 0; text-align: right;">
+                                        <td style="padding: 5px 0; text-align: right;">
                                             H: {fmt(high_temp)}° / L: {fmt(low_temp)}°
                                         </td>
                                     </tr>
                                     <tr>
-                                        <td style="padding: 6px 0; border-top: 1px solid #374151;">
+                                        <td style="padding: 5px 0; border-top: 1px solid #374151;">
                                             {fmt_wind()}
                                         </td>
-                                        <td style="padding: 6px 0; border-top: 1px solid #374151; text-align: right;">
+                                        <td style="padding: 5px 0; border-top: 1px solid #374151; text-align: right;">
                                             🌅 {fmt_time(sunrise)} – {fmt_time(sunset)}
                                         </td>
                                     </tr>
                                     <tr>
-                                        <td style="padding: 6px 0; border-top: 1px solid #374151;">
+                                        <td style="padding: 5px 0; border-top: 1px solid #374151;">
                                             {moon_icon} {fmt_moon_phase(moon_phase)}
                                         </td>
-                                        <td style="padding: 6px 0; border-top: 1px solid #374151; text-align: right;">
+                                        <td style="padding: 5px 0; border-top: 1px solid #374151; text-align: right;">
                                             {tide_display}
                                         </td>
                                     </tr>
@@ -1141,8 +1137,8 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
             .mobile-padding {{ padding-left: 16px !important; padding-right: 16px !important; }}
         }}
         @media screen and (max-width: 480px) {{
-            .conditions-row {{ display: block !important; }}
-            .conditions-card {{ display: block !important; width: 100% !important; margin-bottom: 12px !important; }}
+            .conditions-row, .conditions-row tr {{ display: block !important; width: 100% !important; }}
+            .conditions-card {{ display: block !important; width: 100% !important; padding: 0 0 12px 0 !important; }}
         }}
     </style>
     <!--[if mso]>
@@ -1196,8 +1192,6 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
                         </tr>
                     </table>
 
-                    {build_riddle_card()}
-
                     <!-- SPACER: 24px -->
                     <div style="height: 24px; line-height: 24px; font-size: 24px; mso-line-height-rule: exactly;">&nbsp;</div>
 
@@ -1209,6 +1203,8 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
                     {vitals_24h_section}
 
                     {weekly_summary_section}
+
+                    {build_riddle_card()}
 
                 </td>
             </tr>
