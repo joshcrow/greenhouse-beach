@@ -5,11 +5,29 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
 
 from google import genai
+from pydantic import BaseModel, Field
 
 import coast_sky_service
 import weather_service
 from utils.logger import create_logger
 from utils.io import atomic_write_json, atomic_read_json
+
+
+# =============================================================================
+# PYDANTIC MODELS FOR GEMINI STRUCTURED OUTPUT
+# =============================================================================
+
+class NarrativeResponse(BaseModel):
+    """Structured output schema for Gemini narrative generation."""
+    subject: str = Field(description="5-8 word casual subject line in sentence case, no emojis")
+    headline: str = Field(description="8-12 word friendly summary in sentence case")
+    body: str = Field(description="1-2 short paragraphs with the narrative")
+
+
+class RiddleResponse(BaseModel):
+    """Structured output schema for riddle generation."""
+    riddle: str = Field(description="The riddle question")
+    answer: str = Field(description="The riddle answer, 1-3 words")
 
 # Lazy settings loader for app.config integration
 _settings = None
@@ -643,43 +661,73 @@ def generate_update(
 
     log(f"Generating narrative update for data: {sanitized}")
 
-    raw_text = None
-
-    # First attempt: primary Gemini model from configuration
-    client = _get_client()
-    model_name = get_model_name()
-    try:
-        response = client.models.generate_content(model=model_name, contents=prompt)
-        raw_text = _extract_text(response)
-        if not raw_text:
-            log(
-                "WARNING: Primary Gemini model response had no text; will try fallback model."
-            )
-    except Exception as exc:  # noqa: BLE001
-        log(f"Error during Gemini generation with {model_name}: {exc}")
-
-    # Fallback attempt: gemini-2.0-flash-lite if first failed
-    if not raw_text:
-        fallback_model = "gemini-2.0-flash-lite"
-        try:
-            log(f"Attempting fallback generation with model '{fallback_model}'.")
-            response = client.models.generate_content(
-                model=fallback_model, contents=prompt
-            )
-            raw_text = _extract_text(response)
-            if not raw_text:
-                log(
-                    f"WARNING: Gemini ({fallback_model}) response had no text; returning fallback message."
-                )
-        except Exception as exc:  # noqa: BLE001
-            log(f"Error during Gemini generation with {fallback_model}: {exc}")
-
-    # Parse the response
+    # Default fallback values
     subject = "Greenhouse Update"
     headline = "Greenhouse Update"
     body = "The narrator encountered an error while generating today's update."
 
-    if raw_text:
+    # Structured output config for JSON response
+    structured_config = {
+        "response_mime_type": "application/json",
+        "response_json_schema": NarrativeResponse.model_json_schema(),
+    }
+
+    client = _get_client()
+    model_name = get_model_name()
+    raw_text = None
+    structured_success = False
+
+    # First attempt: primary Gemini model with structured output
+    try:
+        response = client.models.generate_content(
+            model=model_name,
+            contents=prompt,
+            config=structured_config,
+        )
+        raw_text = _extract_text(response)
+        if raw_text:
+            try:
+                narrative = NarrativeResponse.model_validate_json(raw_text)
+                subject = narrative.subject
+                headline = narrative.headline
+                body = narrative.body
+                structured_success = True
+                log(f"Structured output parsed successfully from {model_name}")
+            except Exception as parse_exc:
+                log(f"WARNING: Structured output parsing failed: {parse_exc}")
+                # Will fall through to text fallback
+        else:
+            log("WARNING: Primary Gemini model response had no text; will try fallback.")
+    except Exception as exc:  # noqa: BLE001
+        log(f"Error during Gemini generation with {model_name}: {exc}")
+
+    # Fallback attempt: gemini-2.0-flash-lite with structured output
+    if not structured_success:
+        fallback_model = "gemini-2.0-flash-lite"
+        try:
+            log(f"Attempting fallback generation with model '{fallback_model}'.")
+            response = client.models.generate_content(
+                model=fallback_model,
+                contents=prompt,
+                config=structured_config,
+            )
+            raw_text = _extract_text(response)
+            if raw_text:
+                try:
+                    narrative = NarrativeResponse.model_validate_json(raw_text)
+                    subject = narrative.subject
+                    headline = narrative.headline
+                    body = narrative.body
+                    structured_success = True
+                    log(f"Structured output parsed successfully from {fallback_model}")
+                except Exception as parse_exc:
+                    log(f"WARNING: Fallback structured parsing failed: {parse_exc}")
+        except Exception as exc:  # noqa: BLE001
+            log(f"Error during Gemini generation with {fallback_model}: {exc}")
+
+    # TEXT FALLBACK: If structured output failed but we have raw text, try text parsing
+    if not structured_success and raw_text:
+        log("WARNING: Falling back to text parsing (structured output failed)")
         # Clean markdown bolding
         clean_text = (
             raw_text.replace("**SUBJECT:**", "SUBJECT:")
@@ -687,49 +735,32 @@ def generate_update(
             .replace("**BODY:**", "BODY:")
         )
 
-        # We need to parse SUBJECT, HEADLINE, and BODY
-        # A robust way is to split by keys
         try:
-            # Split into lines to find keys, or simple string partitioning
-            # Given the prompt order: SUBJECT -> HEADLINE -> BODY
             if "SUBJECT:" in clean_text and "HEADLINE:" in clean_text:
-                # Split between SUBJECT and HEADLINE
                 part1, remainder = clean_text.split("HEADLINE:", 1)
                 subject_part = part1.replace("SUBJECT:", "").strip()
 
-                # Split between HEADLINE and BODY (if BODY exists)
                 if "BODY:" in remainder:
                     part2, body_part = remainder.split("BODY:", 1)
                     headline_part = part2.strip()
                     body = body_part.strip()
                 else:
-                    # No BODY marker, assume everything after HEADLINE is the body
-                    # But first line might be the headline text itself
                     lines = remainder.strip().split("\n", 1)
                     headline_part = lines[0].strip()
-                    if len(lines) > 1:
-                        body = lines[1].strip()
-                    else:
-                        body = ""
+                    body = lines[1].strip() if len(lines) > 1 else ""
 
                 if subject_part:
                     subject = subject_part
                 if headline_part:
                     headline = headline_part
+            elif "BODY:" in clean_text:
+                _, body_part = clean_text.split("BODY:", 1)
+                body = body_part.strip() or body
             else:
-                # Fallback parsing logic
-                log("WARNING: Output format mismatch. Attempting partial parse.")
-                # If we at least have a BODY marker, use that section
-                if "BODY:" in clean_text:
-                    _, body_part = clean_text.split("BODY:", 1)
-                    body = body_part.strip() or body
-                else:
-                    # No structured markers; treat entire text as body
-                    body = clean_text.strip() or body
+                body = clean_text.strip() or body
         except Exception as e:
-            log(f"Error parsing narrative response: {e}")
-            # On any parsing error, fall back to the raw model text
-            body = raw_text  # type: ignore[assignment]
+            log(f"Error in text fallback parsing: {e}")
+            body = raw_text
 
     # Convert markdown bold (**text**) to HTML bold (<b>text</b>)
     body_html = re.sub(r"\*\*([^*]+)\*\*", r"<b>\1</b>", body)

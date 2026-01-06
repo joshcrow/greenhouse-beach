@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Tuple
 import paho.mqtt.client as mqtt
 from utils.logger import create_logger
 from utils.io import atomic_write_json
+from utils.registry import normalize_key, convert_value, should_convert_to_f
 
 # Import device monitor (for online/offline alerts)
 try:
@@ -221,18 +222,21 @@ def _parse_payload(payload: bytes) -> Any:
         return text
 
 
-def _key_from_topic(topic: str) -> str | None:
-    """Extract logical sensor key from MQTT topic.
+def _key_from_topic(topic: str) -> Tuple[str, str] | None:
+    """Extract MQTT key and normalized logical key from MQTT topic.
 
     Expected topic format: greenhouse/{device_id}/sensor/{key}/state
-    Returns '{device_id}_{key}' for uniqueness across zones.
+    Returns tuple of (mqtt_key, logical_key) where:
+      - mqtt_key: Raw key like 'satellite-2_temperature'
+      - logical_key: Normalized key like 'exterior_temp' (using registry)
     """
-
     parts = topic.split("/")
     if len(parts) >= 5 and parts[-1] == "state":
         device_id = parts[1]  # e.g., 'interior', 'exterior', 'satellite-2'
-        sensor_key = parts[-2]  # e.g., 'temp', 'humidity'
-        return f"{device_id}_{sensor_key}"
+        sensor_key = parts[-2]  # e.g., 'temp', 'humidity', 'temperature'
+        mqtt_key = f"{device_id}_{sensor_key}"
+        logical_key = normalize_key(mqtt_key)
+        return mqtt_key, logical_key
     return None
 
 
@@ -253,17 +257,28 @@ def _is_humidity_sensor(sensor_key: str) -> bool:
     return "humidity" in k
 
 
-def _temp_to_f(device_id: str, value: float) -> float:
-    if device_id.startswith("satellite"):
+def _temp_to_f(mqtt_key: str, value: float) -> float:
+    """Convert temperature to Fahrenheit if needed (using registry)."""
+    if should_convert_to_f(mqtt_key):
         return value * 9.0 / 5.0 + 32.0
     return value
 
 
 def _validate_numeric(
-    device_id: str, sensor_key: str, value: float
+    mqtt_key: str, sensor_key: str, value: float
 ) -> Tuple[bool, float]:
+    """Validate and convert numeric sensor value.
+    
+    Args:
+        mqtt_key: Raw MQTT key for conversion lookup
+        sensor_key: Sensor type (temp, humidity, etc.)
+        value: Raw sensor value
+    
+    Returns:
+        Tuple of (is_valid, converted_value)
+    """
     if _is_temp_sensor(sensor_key):
-        v_f = _temp_to_f(device_id, value)
+        v_f = _temp_to_f(mqtt_key, value)
         return (TEMP_MIN_F <= v_f <= TEMP_MAX_F), v_f
     if _is_humidity_sensor(sensor_key):
         return (HUMIDITY_MIN_PCT <= value <= HUMIDITY_MAX_PCT), value
@@ -406,10 +421,12 @@ def on_message(client: mqtt.Client, userdata, msg: mqtt.MQTTMessage):  # type: i
     global latest_values
 
     try:
-        key = _key_from_topic(msg.topic)
-        if not key:
+        key_result = _key_from_topic(msg.topic)
+        if not key_result:
             log(f"Ignoring message on unexpected topic '{msg.topic}'")
             return
+        
+        mqtt_key, logical_key = key_result
 
         parts = _parts_from_topic(msg.topic)
         if not parts:
@@ -421,24 +438,28 @@ def on_message(client: mqtt.Client, userdata, msg: mqtt.MQTTMessage):  # type: i
         now = datetime.utcnow()
 
         if isinstance(value, (int, float)):
-            ok, comparable = _validate_numeric(device_id, sensor_key, float(value))
+            # Use mqtt_key for conversion decisions (registry knows which keys need C→F)
+            ok, comparable = _validate_numeric(mqtt_key, sensor_key, float(value))
             if not ok:
-                log(f"Rejected out-of-range value for '{key}': {value}")
+                log(f"Rejected out-of-range value for '{logical_key}': {value}")
                 return
-            if _is_spike(key, now, comparable, sensor_key):
-                log(f"Rejected spike value for '{key}': {value}")
+            if _is_spike(logical_key, now, comparable, sensor_key):
+                log(f"Rejected spike value for '{logical_key}': {value}")
                 return
+            # Store the converted value
+            value = comparable
 
-        latest_values[key] = value
-        last_seen[key] = now
+        # Store using LOGICAL key (normalized)
+        latest_values[logical_key] = value
+        last_seen[logical_key] = now
 
         # Update history only for numeric values
         if isinstance(value, (int, float)):
-            history[key].append((now, float(value)))
-            last_numeric_value[key] = comparable
-            _prune_key_history(now, key)
+            history[logical_key].append((now, float(value)))
+            last_numeric_value[logical_key] = float(value)
+            _prune_key_history(now, logical_key)
 
-        log(f"Updated key '{key}' from topic '{msg.topic}' with value {value}")
+        log(f"Updated '{logical_key}' (from {mqtt_key}) with value {value}")
 
         _write_files_if_due(now)
     except Exception as exc:  # noqa: BLE001

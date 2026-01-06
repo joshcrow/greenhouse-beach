@@ -82,15 +82,22 @@ THEME = {
     "outside_humidity": "#a3a3a3",# CSS: --text-muted-dark (Muted context)
 }
 
-# Sensor key mappings
+# Sensor key mappings (using normalized logical keys from status_daemon)
+# NOTE: Historical data may still have old keys, so we support both
 SENSOR_MAPPINGS = {
     "temp": {
-        "Inside": "exterior_temp",
-        "Outside": "satellite-2_temperature",
+        "Inside": "interior_temp",
+        "Outside": "exterior_temp",
+        # Legacy keys for historical data compatibility
+        "_legacy_inside": "exterior_temp",
+        "_legacy_outside": "satellite-2_temperature",
     },
     "humidity": {
-        "Inside": "exterior_humidity",
-        "Outside": "satellite-2_humidity",
+        "Inside": "interior_humidity",
+        "Outside": "exterior_humidity",
+        # Legacy keys for historical data compatibility
+        "_legacy_inside": "exterior_humidity",
+        "_legacy_outside": "satellite-2_humidity",
     },
 }
 
@@ -162,9 +169,16 @@ def _load_sensor_data(hours: int = 24) -> List[Dict[str, Any]]:
 def _extract_series(
     readings: List[Dict[str, Any]],
     key_mapping: Dict[str, str],
+    legacy_mapping: Optional[Dict[str, str]] = None,
 ) -> Dict[str, Tuple[List[datetime], List[float]]]:
-    """Extract time series for each sensor key."""
-    series = {name: ([], []) for name in key_mapping}
+    """Extract time series for each sensor key.
+    
+    Args:
+        readings: List of sensor reading dicts
+        key_mapping: Dict mapping display name to primary key
+        legacy_mapping: Optional dict mapping display name to legacy key (for historical data)
+    """
+    series = {name: ([], []) for name in key_mapping if not name.startswith("_")}
     
     for entry in readings:
         ts_str = entry.get("timestamp")
@@ -177,7 +191,12 @@ def _extract_series(
             continue
         
         for name, key in key_mapping.items():
+            if name.startswith("_"):  # Skip legacy mapping entries
+                continue
             value = entry.get(key)
+            # Fall back to legacy key if primary key not found
+            if value is None and legacy_mapping and name in legacy_mapping:
+                value = entry.get(legacy_mapping[name])
             if value is not None:
                 try:
                     val = float(value)
@@ -321,9 +340,11 @@ def generate_weather_dashboard(
         log(f"Insufficient data for chart: {len(readings)} readings")
         return None
     
-    # Extract series
-    temp_series = _extract_series(readings, SENSOR_MAPPINGS["temp"])
-    humidity_series = _extract_series(readings, SENSOR_MAPPINGS["humidity"])
+    # Extract series with legacy key fallback for historical data
+    temp_legacy = {"Inside": "exterior_temp", "Outside": "satellite-2_temperature"}
+    humidity_legacy = {"Inside": "exterior_humidity", "Outside": "satellite-2_humidity"}
+    temp_series = _extract_series(readings, SENSOR_MAPPINGS["temp"], temp_legacy)
+    humidity_series = _extract_series(readings, SENSOR_MAPPINGS["humidity"], humidity_legacy)
     
     if not any(len(s[0]) > 1 for s in temp_series.values()):
         log("No valid temperature data")

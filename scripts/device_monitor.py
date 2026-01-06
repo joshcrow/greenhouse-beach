@@ -53,9 +53,10 @@ SMTP_FROM = _cfg.smtp_from if _cfg else os.getenv("SMTP_FROM", "Greenhouse Monit
 ALERT_EMAIL = _cfg.alert_recipient if _cfg else (os.getenv("ALERT_EMAIL") or (os.getenv("SMTP_TO", "").split(",")[0].strip()))
 
 # Device definitions: device_id -> list of sensor key prefixes
+# NOTE: Using normalized logical keys from status_daemon
 MONITORED_DEVICES = {
-    "greenhouse-pi": ["interior_", "exterior_"],
-    "satellite-2": ["satellite-2_"],
+    "greenhouse-pi": ["interior_"],
+    "satellite-2": ["exterior_", "satellite_"],  # exterior_temp + satellite_battery
 }
 
 

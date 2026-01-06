@@ -98,9 +98,9 @@ def compute_weekly_summary(weekly: Dict[str, Any]) -> Dict[str, Any]:
     """Compute weekly aggregates from daily snapshots.
     
     Tracks interior (greenhouse) and exterior (outside) separately.
-    Uses same sensor mapping as publisher.py:
-    - exterior_temp/humidity = actual greenhouse interior
-    - satellite-2_temperature/humidity = actual outside
+    NOTE: Supports both normalized keys (new) and legacy keys (historical data)
+    - Normalized: interior_temp, exterior_temp
+    - Legacy: exterior_temp (was interior), satellite-2_temperature (was exterior)
     """
     days = weekly.get("days", [])
     if not days:
@@ -123,21 +123,46 @@ def compute_weekly_summary(weekly: Dict[str, Any]) -> Dict[str, Any]:
         metrics = stats.get("metrics", {})
         all_metrics = {**stats, **metrics}
         
-        # Interior = exterior_* sensors (due to remapping)
-        for key in ["exterior_temp_min", "exterior_temp_max"]:
+        # Interior temps - try normalized keys first, then legacy
+        for key in ["interior_temp_min", "interior_temp_max"]:
             if key in all_metrics and isinstance(all_metrics[key], (int, float)):
                 interior_temps.append(all_metrics[key])
-        for key in ["exterior_humidity_min", "exterior_humidity_max"]:
+        # Legacy fallback: exterior_* was actually interior
+        if not any(k in all_metrics for k in ["interior_temp_min", "interior_temp_max"]):
+            for key in ["exterior_temp_min", "exterior_temp_max"]:
+                if key in all_metrics and isinstance(all_metrics[key], (int, float)):
+                    interior_temps.append(all_metrics[key])
+        
+        # Interior humidity - normalized then legacy
+        for key in ["interior_humidity_min", "interior_humidity_max"]:
             if key in all_metrics and isinstance(all_metrics[key], (int, float)):
                 interior_humidities.append(all_metrics[key])
+        if not any(k in all_metrics for k in ["interior_humidity_min", "interior_humidity_max"]):
+            for key in ["exterior_humidity_min", "exterior_humidity_max"]:
+                if key in all_metrics and isinstance(all_metrics[key], (int, float)):
+                    interior_humidities.append(all_metrics[key])
         
-        # Exterior = satellite-2_* sensors
-        for key in ["satellite-2_temperature_min", "satellite-2_temperature_max"]:
+        # Exterior temps - try normalized keys first, then legacy
+        for key in ["exterior_temp_min", "exterior_temp_max"]:
             if key in all_metrics and isinstance(all_metrics[key], (int, float)):
-                exterior_temps.append(all_metrics[key])
-        for key in ["satellite-2_humidity_min", "satellite-2_humidity_max"]:
+                # Only use if we also found interior keys (means this is normalized data)
+                if any(k in all_metrics for k in ["interior_temp_min", "interior_temp_max"]):
+                    exterior_temps.append(all_metrics[key])
+        # Legacy fallback: satellite-2_* was actually exterior
+        if not exterior_temps:
+            for key in ["satellite-2_temperature_min", "satellite-2_temperature_max"]:
+                if key in all_metrics and isinstance(all_metrics[key], (int, float)):
+                    exterior_temps.append(all_metrics[key])
+        
+        # Exterior humidity - normalized then legacy
+        for key in ["exterior_humidity_min", "exterior_humidity_max"]:
             if key in all_metrics and isinstance(all_metrics[key], (int, float)):
-                exterior_humidities.append(all_metrics[key])
+                if any(k in all_metrics for k in ["interior_humidity_min", "interior_humidity_max"]):
+                    exterior_humidities.append(all_metrics[key])
+        if not exterior_humidities:
+            for key in ["satellite-2_humidity_min", "satellite-2_humidity_max"]:
+                if key in all_metrics and isinstance(all_metrics[key], (int, float)):
+                    exterior_humidities.append(all_metrics[key])
 
     # Interior stats
     if interior_temps:

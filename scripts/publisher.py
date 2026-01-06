@@ -169,62 +169,21 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
     """
 
     # Extract sensors and timestamps
+    # NOTE: status_daemon.py now normalizes keys using registry.json
+    # So sensor_data already contains logical keys (interior_temp, exterior_temp, etc.)
     sensor_data = status_snapshot.get("sensors", {})
     last_seen = status_snapshot.get("last_seen", {})
+    
+    log(f"Loaded sensor data (pre-normalized by status_daemon): {list(sensor_data.keys())}")
 
-    # SENSOR REMAPPING: Map physical reality to logical roles
-    # Physical Reality:
-    # - exterior_* keys = Actually INSIDE the greenhouse (main interior sensor)
-    # - satellite-2_* keys = Actually OUTSIDE the greenhouse (weather/exterior)
-    # - interior_* keys = BROKEN hardware, suppress from email
-
-    remapped_data: Dict[str, Any] = {}
-
-    # Define sensor mapping: (raw_key, logical_key)
-    sensor_mapping = [
-        ("exterior_temp", "interior_temp"),
-        ("exterior_humidity", "interior_humidity"),
-        ("satellite-2_temperature", "exterior_temp"),
-        ("satellite-2_humidity", "exterior_humidity"),
-    ]
-
-    # Apply mapping with stale data checking
-    for raw_key, logical_key in sensor_mapping:
-        if raw_key in sensor_data:
-            if not check_stale_data(last_seen, raw_key, test_mode=_test_mode):
-                remapped_data[logical_key] = sensor_data[raw_key]
-            else:
-                remapped_data[logical_key] = None
-                remapped_data[f"{logical_key}_stale"] = True
-
-    # Satellite battery (keep for monitoring, check staleness)
-    for key in ["satellite-2_battery"]:
+    # Check staleness for normalized keys
+    for key in ["interior_temp", "interior_humidity", "exterior_temp", "exterior_humidity", "satellite_battery"]:
         if key in sensor_data:
-            if not check_stale_data(last_seen, key, test_mode=_test_mode):
-                remapped_data[key] = sensor_data[key]
-            else:
-                remapped_data[key] = None
-                remapped_data[f"{key}_stale"] = True
+            if check_stale_data(last_seen, key, test_mode=_test_mode):
+                sensor_data[f"{key}_stale"] = True
+                sensor_data[key] = None
 
-    # SUPPRESS old interior_* keys (broken hardware)
-    # Do NOT copy interior_temp or interior_humidity to remapped_data
-
-    # Copy any other sensor data that isn't being remapped
-    for key, value in sensor_data.items():
-        if (
-            key not in remapped_data
-            and not key.startswith("interior_")
-            and not key.startswith("exterior_")
-            and not key.startswith("satellite-2_")
-        ):
-            remapped_data[key] = value
-
-    # Use remapped data for the rest of the function
-    sensor_data = remapped_data
-    log(f"Remapped sensor data: {sensor_data}")
-
-    # NOTE: Satellite temperature is already in Fahrenheit from ESPHome config
-    # No conversion needed - the BME280 filter in ESPHome converts C->F
+    # NOTE: Temperature conversion (C→F) now happens in status_daemon.py via registry
 
     # Round all sensor values to integers for cleaner AI narrative and display
     for key in [
@@ -251,11 +210,8 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
 
     # Satellite battery voltage is already calibrated in ESPHome (no *2 needed)
     # Just flag if critical for AI to mention
-    for key in [
-        "satellite-2_battery",
-        "satellite-2_satellite_2_battery",
-        "satellite_2_battery",
-    ]:
+    # NOTE: Key is now normalized to "satellite_battery" by status_daemon
+    for key in ["satellite_battery"]:
         if key in sensor_data and sensor_data[key] is not None:
             try:
                 voltage = float(sensor_data[key])
@@ -419,33 +375,28 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
     sunrise = sensor_data.get("sunrise")
     sunset = sensor_data.get("sunset")
 
-    # Battery for exterior/garden sensor (remapped from satellite-2)
-    sat_battery_raw = sensor_data.get("satellite-2_battery")
+    # Battery for outdoor sensor (normalized from satellite-2)
+    sat_battery_raw = sensor_data.get("satellite_battery")
     sat_battery = round(sat_battery_raw, 1) if sat_battery_raw is not None else None
 
     # 24-hour stats (min/max) for vitals
-    # Keys match status_daemon.py format: {device}_{sensor}_min/max
-    # NOTE: Stats are based on RAW MQTT keys (exterior_*, satellite-2_*) not remapped keys
+    # NOTE: status_daemon.py now normalizes keys, so stats use logical keys
     stats_24h = stats.get_24h_stats(datetime.utcnow())
 
-    # Extract 24h stats for display
-    # NOTE: Must use same remapping as current sensors (lines 165-170):
-    #   - exterior_* in stats = actual greenhouse interior
-    #   - satellite-2_* in stats = actual outdoor
-    #   - interior_* in stats = BROKEN hardware (ignore)
-    indoor_temp_min = stats_24h.get("exterior_temp_min")  # exterior = actual interior
-    indoor_temp_max = stats_24h.get("exterior_temp_max")
-    indoor_humidity_min = stats_24h.get("exterior_humidity_min")
-    indoor_humidity_max = stats_24h.get("exterior_humidity_max")
+    # Extract 24h stats for display (now using normalized keys)
+    indoor_temp_min = stats_24h.get("interior_temp_min")
+    indoor_temp_max = stats_24h.get("interior_temp_max")
+    indoor_humidity_min = stats_24h.get("interior_humidity_min")
+    indoor_humidity_max = stats_24h.get("interior_humidity_max")
 
-    # Outdoor temps from satellite-2 (actual outdoor sensor, already in Fahrenheit)
-    exterior_temp_min = stats_24h.get("satellite-2_temperature_min")
-    exterior_temp_max = stats_24h.get("satellite-2_temperature_max")
+    # Outdoor temps (normalized from satellite-2)
+    exterior_temp_min = stats_24h.get("exterior_temp_min")
+    exterior_temp_max = stats_24h.get("exterior_temp_max")
     # Round to integers for display
     exterior_temp_min = round(exterior_temp_min) if exterior_temp_min is not None else None
     exterior_temp_max = round(exterior_temp_max) if exterior_temp_max is not None else None
-    exterior_humidity_min = stats_24h.get("satellite-2_humidity_min")
-    exterior_humidity_max = stats_24h.get("satellite-2_humidity_max")
+    exterior_humidity_min = stats_24h.get("exterior_humidity_min")
+    exterior_humidity_max = stats_24h.get("exterior_humidity_max")
 
     def fmt(value, stale_flag=None):
         """Format value for display as integer, returning N/A for None.
