@@ -176,8 +176,9 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
     
     log(f"Loaded sensor data (pre-normalized by status_daemon): {list(sensor_data.keys())}")
 
-    # Check staleness for normalized keys
-    for key in ["interior_temp", "interior_humidity", "exterior_temp", "exterior_humidity", "satellite_battery"]:
+    # Check staleness for sensor keys
+    # NOTE: Using satellite-2_* for outside since that's the actual outdoor sensor
+    for key in ["interior_temp", "interior_humidity", "satellite-2_temperature", "satellite-2_humidity", "satellite_battery"]:
         if key in sensor_data:
             if check_stale_data(last_seen, key, test_mode=_test_mode):
                 sensor_data[f"{key}_stale"] = True
@@ -189,8 +190,8 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
     for key in [
         "interior_temp",
         "interior_humidity",
-        "exterior_temp",
-        "exterior_humidity",
+        "satellite-2_temperature",
+        "satellite-2_humidity",
     ]:
         if key in sensor_data and sensor_data[key] is not None:
             try:
@@ -344,9 +345,10 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
         "humidity"
     )
 
-    # Exterior sensors (from HA bridge)
-    exterior_temp = sensor_data.get("exterior_temp")
-    exterior_humidity = sensor_data.get("exterior_humidity")
+    # Outside sensors (satellite-2 is the actual outdoor sensor)
+    # NOTE: exterior_temp is HA bridge sensor physically INSIDE greenhouse - don't use for "outside"
+    exterior_temp = sensor_data.get("satellite-2_temperature")
+    exterior_humidity = sensor_data.get("satellite-2_humidity")
 
     # Weather API outdoor conditions
     _outdoor_temp = sensor_data.get("outdoor_temp") or sensor_data.get("outside_temp")  # noqa: F841
@@ -736,7 +738,7 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
         interior_stale=sensor_data.get("interior_temp_stale", False),
         exterior_temp=round(exterior_temp) if exterior_temp is not None else None,
         exterior_humidity=round(exterior_humidity) if exterior_humidity is not None else None,
-        exterior_stale=sensor_data.get("exterior_temp_stale", False),
+        exterior_stale=sensor_data.get("satellite-2_temperature_stale", False),
         condition=fmt(outdoor_condition),
         condition_emoji=get_condition_emoji(outdoor_condition),
         high_temp=high_temp,
