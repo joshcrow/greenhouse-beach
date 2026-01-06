@@ -43,25 +43,49 @@ def celsius_to_fahrenheit(c: float) -> float:
 
 
 def migrate_entry(entry: Dict[str, Any], dry_run: bool = False) -> Dict[str, Any]:
-    """Migrate a single sensor log entry to use normalized keys."""
+    """Migrate a single sensor log entry to use normalized keys.
+    
+    Handles both flat entries and nested {"ts": ..., "sensors": {...}} structure.
+    """
     migrated = {}
     changes = []
     
-    for key, value in entry.items():
-        new_key = KEY_MAPPINGS.get(key, key)
-        new_value = value
+    # Check if entry has nested "sensors" structure
+    if "sensors" in entry and isinstance(entry["sensors"], dict):
+        # Copy non-sensor keys (ts, timestamp, etc.)
+        for key, value in entry.items():
+            if key != "sensors":
+                migrated[key] = value
         
-        # Convert temperature if needed
-        if key in CONVERT_TO_F and isinstance(value, (int, float)):
-            new_value = celsius_to_fahrenheit(value)
-            changes.append(f"  {key}={value}°C → {new_key}={new_value:.1f}°F")
-        elif new_key != key:
-            changes.append(f"  {key} → {new_key}")
-        
-        migrated[new_key] = new_value
+        # Migrate keys inside "sensors"
+        migrated["sensors"] = {}
+        for key, value in entry["sensors"].items():
+            new_key = KEY_MAPPINGS.get(key, key)
+            new_value = value
+            
+            if key in CONVERT_TO_F and isinstance(value, (int, float)):
+                new_value = celsius_to_fahrenheit(value)
+                changes.append(f"  {key}={value}°C → {new_key}={new_value:.1f}°F")
+            elif new_key != key:
+                changes.append(f"  {key} → {new_key}")
+            
+            migrated["sensors"][new_key] = new_value
+    else:
+        # Flat structure - migrate top-level keys
+        for key, value in entry.items():
+            new_key = KEY_MAPPINGS.get(key, key)
+            new_value = value
+            
+            if key in CONVERT_TO_F and isinstance(value, (int, float)):
+                new_value = celsius_to_fahrenheit(value)
+                changes.append(f"  {key}={value}°C → {new_key}={new_value:.1f}°F")
+            elif new_key != key:
+                changes.append(f"  {key} → {new_key}")
+            
+            migrated[new_key] = new_value
     
     if dry_run and changes:
-        ts = entry.get("timestamp", "unknown")
+        ts = entry.get("ts") or entry.get("timestamp", "unknown")
         print(f"[{ts}]")
         for change in changes:
             print(change)
@@ -87,7 +111,9 @@ def migrate_jsonl_file(filepath: str, dry_run: bool = False) -> int:
             try:
                 entry = json.loads(line)
                 # Check if already migrated (has interior_temp key)
-                if "interior_temp" in entry or "interior_humidity" in entry:
+                # Handle both flat and nested structures
+                sensors = entry.get("sensors", entry)
+                if "interior_temp" in sensors or "interior_humidity" in sensors:
                     entries.append(entry)  # Already migrated
                     continue
                 

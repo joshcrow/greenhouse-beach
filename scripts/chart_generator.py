@@ -82,22 +82,19 @@ THEME = {
     "outside_humidity": "#a3a3a3",# CSS: --text-muted-dark (Muted context)
 }
 
-# Sensor key mappings (using normalized logical keys from status_daemon)
-# NOTE: Historical data may still have old keys, so we support both
+# Sensor key mappings
+# NOTE: Due to HA bridge sensor naming confusion + stuck interior_temp sensor,
+# we use the keys that actually have valid data:
+# - exterior_temp = HA bridge sensor physically INSIDE greenhouse (working)
+# - satellite-2_temperature = satellite sensor physically OUTSIDE (working)
 SENSOR_MAPPINGS = {
     "temp": {
-        "Inside": "interior_temp",
-        "Outside": "exterior_temp",
-        # Legacy keys for historical data compatibility
-        "_legacy_inside": "exterior_temp",
-        "_legacy_outside": "satellite-2_temperature",
+        "Inside": "exterior_temp",
+        "Outside": "satellite-2_temperature",
     },
     "humidity": {
-        "Inside": "interior_humidity",
-        "Outside": "exterior_humidity",
-        # Legacy keys for historical data compatibility
-        "_legacy_inside": "exterior_humidity",
-        "_legacy_outside": "satellite-2_humidity",
+        "Inside": "exterior_humidity",
+        "Outside": "satellite-2_humidity",
     },
 }
 
@@ -340,11 +337,9 @@ def generate_weather_dashboard(
         log(f"Insufficient data for chart: {len(readings)} readings")
         return None
     
-    # Extract series with legacy key fallback for historical data
-    temp_legacy = {"Inside": "exterior_temp", "Outside": "satellite-2_temperature"}
-    humidity_legacy = {"Inside": "exterior_humidity", "Outside": "satellite-2_humidity"}
-    temp_series = _extract_series(readings, SENSOR_MAPPINGS["temp"], temp_legacy)
-    humidity_series = _extract_series(readings, SENSOR_MAPPINGS["humidity"], humidity_legacy)
+    # Extract series (using keys that have actual data variation)
+    temp_series = _extract_series(readings, SENSOR_MAPPINGS["temp"])
+    humidity_series = _extract_series(readings, SENSOR_MAPPINGS["humidity"])
     
     if not any(len(s[0]) > 1 for s in temp_series.values()):
         log("No valid temperature data")
