@@ -4,6 +4,21 @@
     "location": "Kill Devil Hills, NC",
     "timezone": "America/New_York"
   },
+  "sensor_normalization": {
+    "_comment": "Maps MQTT keys to logical display keys. HA bridge 'exterior' is physically INSIDE greenhouse.",
+    "mappings": {
+      "exterior_temp": "interior_temp",
+      "exterior_humidity": "interior_humidity",
+      "exterior_pressure": "interior_pressure",
+      "satellite-2_temperature": "exterior_temp",
+      "satellite-2_humidity": "exterior_humidity",
+      "satellite-2_pressure": "exterior_pressure",
+      "satellite-2_battery": "satellite_battery"
+    },
+    "conversions": {
+      "_comment": "Satellite-2 reports in Fahrenheit from ESPHome, no conversion needed"
+    }
+  },
   "networks": {
     "home": {
       "ssid": "beachFi",
@@ -18,42 +33,74 @@
   "devices": [
     {
       "type": "sensor_node",
-      "device_name": "satellite_sensor_2",
-      "friendly_name": "Greenhouse Satellite",
+      "device_name": "exterior_sensor",
+      "friendly_name": "HA Bridge Sensor",
       "location": "greenhouse_interior",
+      "network": "home",
+      "topic_root": "greenhouse/exterior",
+      "platform": "home_assistant",
+      "_note": "Physically INSIDE greenhouse, but MQTT key is 'exterior' (legacy naming)",
+      "sensors": [
+        {
+          "name": "Greenhouse Temperature",
+          "mqtt_key": "exterior_temp",
+          "logical_key": "interior_temp",
+          "unit": "°F",
+          "active": true
+        },
+        {
+          "name": "Greenhouse Humidity",
+          "mqtt_key": "exterior_humidity",
+          "logical_key": "interior_humidity",
+          "unit": "%",
+          "active": true
+        }
+      ],
+      "active": true
+    },
+    {
+      "type": "sensor_node",
+      "device_name": "satellite_sensor_2",
+      "friendly_name": "Outdoor Satellite",
+      "location": "greenhouse_exterior",
       "network": "iot",
       "topic_root": "greenhouse/satellite-2",
       "platform": "esphome",
       "hardware": "FireBeetle 2 ESP32-E",
+      "_note": "Physically OUTSIDE greenhouse, solar-powered",
       "sensors": [
         {
-          "name": "Interior Temperature",
-          "key": "satellite_2_temperature",
+          "name": "Outside Temperature",
+          "mqtt_key": "satellite-2_temperature",
+          "logical_key": "exterior_temp",
           "unit": "°C",
           "convert_to": "°F",
           "active": true
         },
         {
-          "name": "Interior Humidity",
-          "key": "satellite_2_humidity",
+          "name": "Outside Humidity",
+          "mqtt_key": "satellite-2_humidity",
+          "logical_key": "exterior_humidity",
           "unit": "%",
           "active": true
         },
         {
-          "name": "Interior Pressure",
-          "key": "satellite_2_pressure",
+          "name": "Pressure",
+          "mqtt_key": "satellite-2_pressure",
+          "logical_key": "exterior_pressure",
           "unit": "hPa",
           "active": true
         },
         {
           "name": "Satellite Battery",
-          "key": "satellite_2_battery",
+          "mqtt_key": "satellite-2_battery",
+          "logical_key": "satellite_battery",
           "unit": "V",
           "voltage_divider": 2.0,
           "active": true
         }
       ],
-      "personality_context": "The Scout. A solar-powered sentinel monitoring the greenhouse interior.",
+      "personality_context": "The Scout. A solar-powered sentinel monitoring outside conditions.",
       "active": true
     },
     {
