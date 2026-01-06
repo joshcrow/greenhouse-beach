@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+{% from "components/sensor_card.html" import sensor_card %}
+{% from "components/weather_details.html" import weather_details %}
+{% from "components/riddle_card.html" import riddle_card %}
+{% from "components/alert_banner.html" import alert_banner %}
+
+{% block title %}{{ subject }}{% endblock %}
+
+{% block header %}
+<!-- HEADER (headline as main title, matching original design) -->
+<tr>
+    <td style="padding: 20px 20px 0 20px;" class="mobile-padding">
+        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+            <tr>
+                <td style="font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding-bottom: 4px; font-size:28px; font-weight: bold; color:#6b9b5a; line-height: 1.1; mso-line-height-rule: exactly;">
+                    {{ headline }}
+                </td>
+            </tr>
+            <tr>
+                <td style="padding-bottom: 16px; font-size:13px; color:#a3a3a3; mso-line-height-rule: exactly;">
+                    {{ date_display }}
+                </td>
+            </tr>
+        </table>
+    </td>
+</tr>
+{% endblock %}
+
+{% block content %}
+<!-- ALERTS (if any) -->
+{{ alert_banner(alerts) }}
+
+<!-- NARRATIVE TEXT -->
+<tr>
+    <td style="padding: 0 20px;" class="mobile-padding">
+        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse;">
+            <tr>
+                <td style="padding: 0;">
+                    <div style="margin:0; line-height:1.7; color:#f5f5f5; font-size: 16px;">
+                        {{ body_html | safe }}
+                    </div>
+                </td>
+            </tr>
+        </table>
+    </td>
+</tr>
+
+<!-- SPACER -->
+<tr>
+    <td style="height: 24px; line-height: 24px; font-size: 24px; mso-line-height-rule: exactly;">&nbsp;</td>
+</tr>
+
+<!-- HERO IMAGE / TIMELAPSE (before Current Conditions, matching original) -->
+{% if image_cid %}
+<tr>
+    <td style="padding: 0 20px;" class="mobile-padding">
+        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse;">
+            <tr>
+                <td style="padding: 0;">
+                    <div style="font-size:12px; color:#6b9b5a; margin-bottom:8px; font-weight:600; text-transform: uppercase; letter-spacing: 0.5px;">
+                        Daily Timelapse
+                    </div>
+                    <div style="border-radius: 12px; overflow: hidden; border: 2px solid #6b9b5a; box-shadow: 0 8px 24px rgba(0,0,0,0.4);">
+                        <img src="cid:{{ image_cid }}" alt="Greenhouse timelapse" style="display:block; width:100%; height:auto; border:0;">
+                    </div>
+                </td>
+            </tr>
+        </table>
+    </td>
+</tr>
+
+<!-- SPACER -->
+<tr>
+    <td style="height: 24px; line-height: 24px; font-size: 24px; mso-line-height-rule: exactly;">&nbsp;</td>
+</tr>
+{% endif %}
+
+<!-- CURRENT CONDITIONS HEADER -->
+<tr>
+    <td style="padding: 0 20px;" class="mobile-padding">
+        <div style="font-size:12px; color:#6b9b5a; margin-bottom:12px; font-weight:600; text-transform: uppercase; letter-spacing: 0.5px;">
+            Current Conditions
+        </div>
+        
+        <!-- ROW 1: Greenhouse + Outside (matching cards, original style) -->
+        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" class="conditions-row" style="border-collapse: collapse;">
+            <tr>
+                {{ sensor_card("Greenhouse", interior_temp, interior_humidity, "#6b9b5a", interior_stale, "right") }}
+                {{ sensor_card("Outside", exterior_temp, exterior_humidity, "#60a5fa", exterior_stale, "left") }}
+            </tr>
+        </table>
+        
+        <!-- SPACER between cards and weather details -->
+        <div style="height: 12px;">&nbsp;</div>
+        
+        <!-- WEATHER DETAILS CARD -->
+        {{ weather_details(
+            condition=condition,
+            condition_emoji=condition_emoji,
+            high_temp=high_temp,
+            low_temp=low_temp,
+            wind_display=wind_display,
+            sunrise=sunrise,
+            sunset=sunset,
+            moon_icon=moon_icon,
+            moon_phase=moon_phase,
+            tide_display=tide_display
+        ) }}
+    </td>
+</tr>
+
+<!-- SPACER -->
+<tr>
+    <td style="height: 24px;">&nbsp;</td>
+</tr>
+
+<!-- TRENDS SECTION (24h for daily, 7-day for weekly) -->
+{% if chart_cid %}
+<tr>
+    <td style="padding: 0 20px;" class="mobile-padding">
+        <div style="font-size:12px; color:#6b9b5a; margin-bottom:12px; font-weight:600; text-transform: uppercase; letter-spacing: 0.5px;">
+            {% if weekly_mode %}This Week's Trends{% else %}24-Hour Trends{% endif %}
+        </div>
+        
+        <img src="cid:{{ chart_cid }}" alt="{% if weekly_mode %}Weekly{% else %}24h{% endif %} Trends" style="display:block; width:100%; max-width:560px; height:auto; border:0; border-radius:8px; margin-bottom: 16px;">
+        
+        <!-- H/L Summary Table (weekly_stats for Sunday, stats_24h for daily) -->
+        {% if weekly_mode and weekly_stats %}
+        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; font-size: 13px;">
+            <tr>
+                <td style="padding: 8px 0; color: #a3a3a3; border-bottom: 1px solid #374151;">
+                    <span style="color: #6b9b5a; font-weight: 600;">●</span> Greenhouse
+                </td>
+                <td style="padding: 8px 0; color: #f5f5f5; border-bottom: 1px solid #374151; text-align: right;">
+                    {{ weekly_stats.interior_temp_min }}° – {{ weekly_stats.interior_temp_max }}° &nbsp;|&nbsp; {{ weekly_stats.interior_humidity_min }}–{{ weekly_stats.interior_humidity_max }}% RH
+                </td>
+            </tr>
+            <tr>
+                <td style="padding: 8px 0; color: #a3a3a3;">
+                    <span style="color: #60a5fa; font-weight: 600;">●</span> Outside
+                </td>
+                <td style="padding: 8px 0; color: #f5f5f5; text-align: right;">
+                    {{ weekly_stats.exterior_temp_min }}° – {{ weekly_stats.exterior_temp_max }}° &nbsp;|&nbsp; {{ weekly_stats.exterior_humidity_min }}–{{ weekly_stats.exterior_humidity_max }}% RH
+                </td>
+            </tr>
+        </table>
+        <p style="font-size: 11px; color: #a3a3a3; margin-top: 8px; margin-bottom: 0; text-align: center;">
+            Based on {{ weekly_stats.days_recorded or 0 }} days of data
+        </p>
+        {% elif stats_24h %}
+        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; font-size: 13px;">
+            <tr>
+                <td style="padding: 8px 0; color: #a3a3a3; border-bottom: 1px solid #374151;">
+                    <span style="color: #6b9b5a; font-weight: 600;">●</span> Greenhouse
+                </td>
+                <td style="padding: 8px 0; color: #f5f5f5; border-bottom: 1px solid #374151; text-align: right;">
+                    <span style="color:#dc2626;">{{ stats_24h.interior_temp_max }}°</span> / <span style="color:#2563eb;">{{ stats_24h.interior_temp_min }}°</span> &nbsp;|&nbsp; {{ stats_24h.interior_humidity_min }}–{{ stats_24h.interior_humidity_max }}% RH
+                </td>
+            </tr>
+            <tr>
+                <td style="padding: 8px 0; color: #a3a3a3;">
+                    <span style="color: #60a5fa; font-weight: 600;">●</span> Outside
+                </td>
+                <td style="padding: 8px 0; color: #f5f5f5; text-align: right;">
+                    <span style="color:#dc2626;">{{ stats_24h.exterior_temp_max }}°</span> / <span style="color:#2563eb;">{{ stats_24h.exterior_temp_min }}°</span> &nbsp;|&nbsp; {{ stats_24h.exterior_humidity_min }}–{{ stats_24h.exterior_humidity_max }}% RH
+                </td>
+            </tr>
+        </table>
+        <p style="font-size: 11px; color: #a3a3a3; margin-top: 8px; margin-bottom: 0; text-align: center;">
+            Last 24 hours
+        </p>
+        {% endif %}
+    </td>
+</tr>
+{% endif %}
+
+<!-- SPACER -->
+<tr>
+    <td style="height: 24px; line-height: 24px; font-size: 24px; mso-line-height-rule: exactly;">&nbsp;</td>
+</tr>
+
+<!-- RIDDLE SECTION -->
+{{ riddle_card(riddle_text, yesterday_answer) }}
+
+{% endblock %}
+
+{% block footer %}
+{% if test_mode and debug_info %}
+<!-- DEBUG FOOTER (Test Mode Only) -->
+<tr>
+    <td style="padding: 0 20px;" class="mobile-padding">
+        <div style="margin-top: 40px; padding: 20px; text-align: center; font-family: 'Courier New', monospace; font-size: 10px; color: #9ca3af; border-top: 1px solid #e5e7eb;">
+            <div>Data Timestamp: {{ debug_info.timestamp }}</div>
+            <div>Battery Voltage: {{ debug_info.battery }}V</div>
+            <div>Narrator Model: {{ debug_info.model }}</div>
+        </div>
+    </td>
+</tr>
+{% endif %}
+{% endblock %}

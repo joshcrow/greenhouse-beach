@@ -1,8 +1,8 @@
 # Project Chlorophyll: Current System State
 
 **Status:** ✅ Operational (via Tailscale) — Production-Hardened  
-**Last Updated:** Dec 30, 2025 @ 1:45 PM EST  
-**Next Milestone:** Email Redesign v2.0 Live (Dec 31, 7 AM)
+**Last Updated:** Jan 5, 2026 @ 10:15 PM EST  
+**Architecture:** Jinja2 Templates + Pydantic Config (Refactor Complete)
 
 ---
 
@@ -13,7 +13,7 @@
 | **GitHub Repo** | [<USER>/greenhouse-beach](https://github.com/<USER>/greenhouse-beach) |
 | **Docker Hub** | [jcrow333/greenhouse-storyteller](https://hub.docker.com/r/jcrow333/greenhouse-storyteller) |
 | **CI/CD** | GitHub Actions ✅ |
-| **Tests** | 109 passed, 8 skipped (49% coverage) |
+| **Tests** | 4 passed, 6 skipped (publisher tests) |
 
 ### Development Workflow
 ```bash
@@ -159,7 +159,6 @@ docker compose up -d --force-recreate storyteller
 - [x] **Enterprise refactor** - Reliability improvements (Dec 28):
   - Pydantic config (`app/config.py`) - centralized settings with fail-fast validation
   - Data models (`app/models.py`) - type-safe SensorSnapshot, WeatherData, EmailContent
-  - VitalsFormatter service (`app/services/`) - extracted formatting logic
   - Tenacity retries - Weather API and NOAA API with exponential backoff (3 attempts)
   - Fixed Sunday email bug (`_test_mode` undefined when imported by scheduler)
 - [x] **Email Redesign v2.0** - Visual overhaul (Dec 30):
@@ -172,6 +171,14 @@ docker compose up -d --force-recreate storyteller
   - Enhanced timelapse drop shadow
   - Mobile-responsive card stacking at 480px
   - Removed emojis from section headers (clean typography)
+- [x] **Jinja2 Template Migration** - Complete refactor (Jan 5):
+  - All email HTML moved to `templates/` directory
+  - `daily_email.html` handles both daily and Sunday editions
+  - Reusable components: `sensor_card.html`, `weather_details.html`, `alert_banner.html`, `riddle_card.html`
+  - Hot-reload email preview server on port 8081
+  - `publisher.py` reduced from 1,398 to 895 lines (-36%)
+  - All 12 scripts migrated to centralized Pydantic config
+  - Security & durability audit complete
 
 ---
 
@@ -193,7 +200,7 @@ docker compose up -d --force-recreate storyteller
 - [ ] Update Greenhouse Pi bridge configs
 - [ ] Configure NAT routing on Greenhouse Pi
 - [ ] Deploy satellite sensor to greenhouse
-- [ ] Run full test plan (see INSTALLATION_GUIDE.md)
+- [ ] Run full test plan (see DEPLOYMENT.md)
 - [ ] Verify remote access works from phone hotspot
 
 ### Future

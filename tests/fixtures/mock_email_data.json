@@ -1,0 +1,107 @@
+{
+  "status_snapshot": {
+    "sensors": {
+      "exterior_temp": 68.5,
+      "exterior_humidity": 45.2,
+      "satellite-2_temperature": 46.3,
+      "satellite-2_humidity": 78.5,
+      "satellite-2_battery": 3.6,
+      "interior_temp": 60.0,
+      "interior_humidity": 77.0,
+      "interior_pressure": 14.78
+    },
+    "last_seen": {
+      "exterior_temp": "2026-01-05T12:00:00Z",
+      "exterior_humidity": "2026-01-05T12:00:00Z",
+      "satellite-2_temperature": "2026-01-05T12:00:00Z",
+      "satellite-2_humidity": "2026-01-05T12:00:00Z",
+      "satellite-2_battery": "2026-01-05T12:00:00Z"
+    },
+    "updated_at": "2026-01-05T12:00:00Z"
+  },
+  "weather_data": {
+    "outdoor_temp": 43,
+    "condition": "Clear",
+    "humidity_out": 91,
+    "clouds_pct": 0,
+    "pressure_hpa": 1020,
+    "wind_mph": 5,
+    "wind_deg": 45.0,
+    "wind_direction": "NE",
+    "wind_arrow": "↗",
+    "high_temp": 53,
+    "low_temp": 41,
+    "moon_phase": 0.5,
+    "moon_icon": "🌕",
+    "sunrise": "7:13 AM",
+    "sunset": "5:02 PM",
+    "daily_wind_mph": 12,
+    "daily_wind_deg": 29.0,
+    "daily_wind_direction": "NE",
+    "daily_wind_arrow": "↗",
+    "precip_prob": 0,
+    "tomorrow_high": 58,
+    "tomorrow_low": 48,
+    "tomorrow_condition": "Clouds"
+  },
+  "coast_sky_data": {
+    "tide_summary": {
+      "station_id": "8652226",
+      "station_name": "Jennette's Pier, NC",
+      "high_tides": [
+        {"time_local": "2026-01-05 08:33", "height_ft": 4.1},
+        {"time_local": "2026-01-05 21:01", "height_ft": 3.2}
+      ],
+      "low_tides": [
+        {"time_local": "2026-01-05 02:11", "height_ft": -0.9},
+        {"time_local": "2026-01-05 15:06", "height_ft": -0.8}
+      ],
+      "today_high_tides": [
+        {"time_local": "2026-01-05 08:33", "height_ft": 4.1}
+      ],
+      "today_low_tides": [
+        {"time_local": "2026-01-05 15:06", "height_ft": -0.8}
+      ],
+      "max_high_ft": 4.1,
+      "min_low_ft": -0.9,
+      "is_king_tide_window": false
+    },
+    "sound_level": {
+      "station_id": "8652587",
+      "station_name": "Oregon Inlet Marina, NC",
+      "observed_level_ft": 0.86,
+      "observed_time": "2026-01-05 19:00",
+      "flood_status": "normal",
+      "flood_description": null,
+      "is_flooding": false
+    },
+    "sky_summary": {
+      "meteor_shower_name": null,
+      "is_peak_window": false,
+      "peak_dates": null,
+      "zhr": null,
+      "notes": null,
+      "all_active": []
+    }
+  },
+  "stats_24h": {
+    "window_start": "2026-01-04T12:00:00Z",
+    "window_end": "2026-01-05T12:00:00Z",
+    "interior_temp_min": 62,
+    "interior_temp_max": 72,
+    "interior_humidity_min": 40,
+    "interior_humidity_max": 55,
+    "exterior_temp_min": 38,
+    "exterior_temp_max": 52,
+    "exterior_humidity_min": 70,
+    "exterior_humidity_max": 85
+  },
+  "narrator_response": {
+    "subject": "Clear Skies and Steady Temps",
+    "headline": "A quiet day in the greenhouse",
+    "body": "Inside is sitting at 68°. Outside is 46°. Wind's from the northeast at 12 mph. Nothing to worry about today—just keeping an eye on things.",
+    "body_plain": "Inside is sitting at 68°. Outside is 46°. Wind's from the northeast at 12 mph. Nothing to worry about today—just keeping an eye on things.",
+    "riddle": "I coat your windows, laugh at your cleaning efforts, and always come back salty. What am I?",
+    "riddle_answer": "Salt spray"
+  }
+}

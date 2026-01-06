@@ -160,6 +160,78 @@ Spike:        >20°F or >30% change in 10 minutes → logged, not ingested
 
 ---
 
+### `email_preview.py`
+
+**Responsibility:** Hot-reload preview server for email templates during development.
+
+**Usage:**
+```bash
+# Via Docker (recommended)
+docker compose --profile dev up email-preview
+
+# Direct (local dev)
+python scripts/email_preview.py
+```
+
+Then visit: **http://localhost:8081/**
+
+**Preview Scenarios:**
+| Scenario | URL | Description |
+|----------|-----|-------------|
+| Normal | `/preview?scenario=normal` | Clear day, all systems working |
+| Alerts | `/preview?scenario=alerts` | Frost risk, low battery, high wind |
+| Stale | `/preview?scenario=stale` | Missing sensor data |
+
+**Hot Reload:**
+- Edit any file in `templates/` and refresh browser
+- No server restart needed - templates reload on every request
+
+**Dependencies:**
+- Python stdlib `http.server`
+- Jinja2 templates in `templates/`
+
+**Port:** 8081 (configurable via `PREVIEW_PORT` env var)
+
+---
+
+## Sensor Remapping (Critical!)
+
+> ⚠️ **Important:** Physical sensor names don't match their logical roles due to hardware history.
+
+### The Mapping
+
+| Raw Key (MQTT) | Logical Role | Physical Location |
+|----------------|--------------|-------------------|
+| `exterior_temp` | `interior_temp` | **Inside** greenhouse |
+| `exterior_humidity` | `interior_humidity` | **Inside** greenhouse |
+| `satellite-2_temperature` | `exterior_temp` | **Outside** (weather station) |
+| `satellite-2_humidity` | `exterior_humidity` | **Outside** (weather station) |
+| `interior_*` | *(suppressed)* | Broken hardware, ignore |
+
+### Why?
+
+The original interior sensor failed and was replaced. Rather than re-flash the ESPHome config on the replacement device, we kept the existing `exterior_*` topic names. The "satellite-2" device is the outdoor weather station.
+
+### Where Remapping Happens
+
+1. **`publisher.py`** - `build_email()` function remaps before display
+2. **`app/models.py`** - `SensorSnapshot.from_status_dict()` handles remapping
+3. **`status_daemon.py`** - Stores raw MQTT keys, no remapping
+
+### Code Reference
+
+```python
+# In publisher.py build_email():
+sensor_mapping = [
+    ("exterior_temp", "interior_temp"),
+    ("exterior_humidity", "interior_humidity"),
+    ("satellite-2_temperature", "exterior_temp"),
+    ("satellite-2_humidity", "exterior_humidity"),
+]
+```
+
+---
+
 ## Email Generation Pipeline
 
 ### `publisher.py`
@@ -538,4 +610,4 @@ Humidity:       0% to 100%    → out-of-bounds replaced with None
 
 ---
 
-*Last updated: Dec 22, 2025*
+*Last updated: Jan 5, 2026*

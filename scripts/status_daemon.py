@@ -17,20 +17,35 @@ try:
 except ImportError:
     DEVICE_MONITOR_ENABLED = False
 
+# Lazy settings loader for app.config integration
+_settings = None
 
-BROKER_HOST = os.getenv("MQTT_HOST", "mosquitto")
-BROKER_PORT = int(os.getenv("MQTT_PORT", "1883"))
-MQTT_USERNAME = os.getenv("MQTT_USERNAME")
-MQTT_PASSWORD = os.getenv("MQTT_PASSWORD")
+def _get_settings():
+    """Get settings lazily to avoid import-time failures."""
+    global _settings
+    if _settings is None:
+        try:
+            from app.config import settings
+            _settings = settings
+        except Exception:
+            _settings = None
+    return _settings
+
+# Load config from app.config.settings with env var fallback
+_cfg = _get_settings()
+BROKER_HOST = _cfg.mqtt_host if _cfg else os.getenv("MQTT_HOST", "mosquitto")
+BROKER_PORT = _cfg.mqtt_port if _cfg else int(os.getenv("MQTT_PORT", "1883"))
+MQTT_USERNAME = _cfg.mqtt_username if _cfg else os.getenv("MQTT_USERNAME")
+MQTT_PASSWORD = _cfg.mqtt_password if _cfg else os.getenv("MQTT_PASSWORD")
 # Subscribe to all sensor state topics under greenhouse/*
 TOPIC_FILTER = "greenhouse/+/sensor/+/state"
 
-STATUS_PATH = os.getenv("STATUS_PATH", "/app/data/status.json")
-STATS_24H_PATH = os.getenv("STATS_24H_PATH", "/app/data/stats_24h.json")
+STATUS_PATH = _cfg.status_path if _cfg else os.getenv("STATUS_PATH", "/app/data/status.json")
+STATS_24H_PATH = _cfg.stats_path if _cfg else os.getenv("STATS_24H_PATH", "/app/data/stats_24h.json")
 # Persist history cache to mounted volume (survives container restarts)
-HISTORY_CACHE_PATH = os.getenv("HISTORY_CACHE_PATH", "/app/data/history_cache.json")
+HISTORY_CACHE_PATH = _cfg.history_cache_path if _cfg else os.getenv("HISTORY_CACHE_PATH", "/app/data/history_cache.json")
 # Long-term sensor logs directory (monthly JSONL files for analysis)
-SENSOR_LOG_DIR = os.getenv("SENSOR_LOG_DIR", "/app/data/sensor_log")
+SENSOR_LOG_DIR = _cfg.sensor_log_dir if _cfg else os.getenv("SENSOR_LOG_DIR", "/app/data/sensor_log")
 
 # Minimum interval between disk writes (seconds)
 WRITE_INTERVAL_SECONDS = int(os.getenv("STATUS_WRITE_INTERVAL", "60"))

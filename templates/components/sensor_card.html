@@ -1,0 +1,34 @@
+{# Sensor Card Component - Greenhouse or Outside #}
+{# Parameters: label, temp, humidity, color, is_stale, position #}
+{# position: "right" adds padding-right (for left card), "left" adds padding-left (for right card) #}
+{# Matches original design: larger temp (44px), colored temp text, "X% humidity" format #}
+{% macro sensor_card(label, temp, humidity, color, is_stale=false, position="right") %}
+<td width="49%" class="conditions-card" style="vertical-align: top; {% if position == 'right' %}padding-right: 6px;{% else %}padding-left: 6px;{% endif %}">
+    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #1f1f1f; border-radius: 8px; border-collapse: collapse;">
+        <tr>
+            <td style="padding: 20px 16px; text-align: center;">
+                <!-- Label -->
+                <div style="font-size: 11px; color: #a3a3a3; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">
+                    {{ label }}
+                </div>
+                <!-- Temperature (large, colored) -->
+                <div style="font-size: 44px; font-weight: 700; line-height: 1; color: {{ color }};">
+                    {% if temp is not none %}
+                        {{ temp }}°{% if is_stale %}<span style="color:#ca8a04; font-size: 12px;"> (STALE)</span>{% endif %}
+                    {% else %}
+                        <span style="color:#9ca3af;">--</span>
+                    {% endif %}
+                </div>
+                <!-- Humidity (X% humidity format) -->
+                <div style="font-size: 13px; color: #a3a3a3; margin-top: 8px;">
+                    {% if humidity is not none %}
+                        {{ humidity }}% humidity
+                    {% else %}
+                        --% humidity
+                    {% endif %}
+                </div>
+            </td>
+        </tr>
+    </table>
+</td>
+{% endmacro %}

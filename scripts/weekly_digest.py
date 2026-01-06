@@ -10,15 +10,28 @@ import os
 from datetime import datetime
 from typing import Any, Dict
 
-
 from utils.logger import create_logger
 
 log = create_logger("weekly")
 
+# Lazy settings loader for app.config integration
+_settings = None
 
-STATS_PATH = os.getenv("STATS_PATH", "/app/data/stats_24h.json")
-STATUS_PATH = os.getenv("STATUS_PATH", "/app/data/status.json")
-WEEKLY_STATS_PATH = os.getenv("WEEKLY_STATS_PATH", "/app/data/stats_weekly.json")
+def _get_settings():
+    """Get settings lazily to avoid import-time failures."""
+    global _settings
+    if _settings is None:
+        try:
+            from app.config import settings
+            _settings = settings
+        except Exception:
+            _settings = None
+    return _settings
+
+_cfg = _get_settings()
+STATS_PATH = _cfg.stats_path if _cfg else os.getenv("STATS_PATH", "/app/data/stats_24h.json")
+STATUS_PATH = _cfg.status_path if _cfg else os.getenv("STATUS_PATH", "/app/data/status.json")
+WEEKLY_STATS_PATH = _cfg.stats_weekly_path if _cfg else os.getenv("WEEKLY_STATS_PATH", "/app/data/stats_weekly.json")
 
 
 def load_weekly_stats() -> Dict[str, Any]:

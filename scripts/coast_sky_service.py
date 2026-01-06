@@ -3,7 +3,9 @@
 Provides tide predictions (NOAA CO-OPS) and astronomical event summaries
 (meteor showers, named moon events) from static calendars.
 
-Station: 8652226 (Jennette's Pier, NC)
+Ocean Station: 8652226 (Jennette's Pier, NC) - Predictions for surfing/charts
+Sound Station: 8652247 (Oregon Inlet Marina) - Observed levels for flooding
+
 Datum: MLLW
 Units: Feet
 """
@@ -20,10 +22,36 @@ from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_excep
 from utils.logger import create_logger
 from utils.io import atomic_write_json
 
+# Lazy settings loader for app.config integration
+_settings = None
+
+def _get_settings():
+    """Get settings lazily to avoid import-time failures."""
+    global _settings
+    if _settings is None:
+        try:
+            from app.config import settings
+            _settings = settings
+        except Exception:
+            _settings = None
+    return _settings
+
+_cfg = _get_settings()
 
 # NOAA CO-OPS configuration
-NOAA_STATION_ID = os.getenv("NOAA_TIDE_STATION", "8652226")
-NOAA_STATION_NAME = "Jennette's Pier, NC"
+# Ocean station - for tide predictions (surfing, charts)
+OCEAN_STATION_ID = os.getenv("NOAA_OCEAN_STATION", "8652226")
+OCEAN_STATION_NAME = "Jennette's Pier, NC"
+
+# Sound station - for observed water levels (flooding, narrative)
+# Oregon Inlet Marina measures inside the barrier island (sound-side)
+SOUND_STATION_ID = os.getenv("NOAA_SOUND_STATION", "8652587")
+SOUND_STATION_NAME = "Oregon Inlet Marina, NC"
+
+# Legacy alias for backwards compatibility
+NOAA_STATION_ID = OCEAN_STATION_ID
+NOAA_STATION_NAME = OCEAN_STATION_NAME
+
 NOAA_BASE_URL = "https://api.tidesandcurrents.noaa.gov/api/prod/datagetter"
 
 # Cache configuration - persist to mounted volume (survives container restarts)
@@ -34,7 +62,7 @@ CACHE_TTL_HOURS = int(os.getenv("COAST_SKY_CACHE_TTL_HOURS", "6"))
 CALENDARS_DIR = os.getenv("CALENDARS_DIR", "/app/data/calendars")
 
 # Timezone for local time formatting
-TZ_NAME = os.getenv("TZ", "America/New_York")
+TZ_NAME = _cfg.tz if _cfg else os.getenv("TZ", "America/New_York")
 
 
 log = create_logger("coast_sky")
@@ -182,6 +210,91 @@ def _fetch_noaa_tides(date_local: datetime) -> Dict[str, Any]:
 
     except Exception as exc:
         log(f"NOAA tide fetch error: {exc}")
+        return {}
+
+
+def _fetch_sound_water_level() -> Dict[str, Any]:
+    """Fetch observed water levels from sound-side station (Oregon Inlet Marina).
+    
+    Sound-side water levels are wind-driven (not lunar):
+    - NE wind pushes water IN (high water, flooding)
+    - SW wind pushes water OUT (low water, blow-out)
+    
+    Flooding thresholds for Colington Harbour:
+    - 2.0 ft: Minor flooding (water over bulkheads, low yards)
+    - 3.0 ft: Moderate flooding (roads may flood)
+    - 4.5 ft: Major flooding (widespread, dangerous)
+    
+    Returns observed water level data or empty dict on failure.
+    """
+    # Request last 6 hours of observed data to get current level and trend
+    params = {
+        "station": SOUND_STATION_ID,
+        "product": "water_level",
+        "datum": "MLLW",
+        "units": "english",  # feet
+        "time_zone": "lst_ldt",  # local standard/daylight time
+        "date": "latest",
+        "format": "json",
+    }
+    
+    try:
+        log(f"Fetching observed water level from {SOUND_STATION_NAME} ({SOUND_STATION_ID})")
+        data = _fetch_noaa_data(params)
+        if data is None:
+            log("Sound water level API request failed after retries")
+            return {}
+        
+        # Check for NOAA error response
+        if "error" in data:
+            log(f"NOAA sound station error: {data.get('error', {}).get('message', 'Unknown')}")
+            return {}
+        
+        observations = data.get("data", [])
+        if not observations:
+            log("No observed water level data returned")
+            return {}
+        
+        # Get the most recent observation
+        latest = observations[-1]
+        time_str = latest.get("t", "")
+        level_str = latest.get("v", "")
+        
+        try:
+            level_ft = round(float(level_str), 2)
+        except (ValueError, TypeError):
+            log(f"Invalid water level value: {level_str}")
+            return {}
+        
+        # Determine flood status
+        if level_ft >= 4.5:
+            flood_status = "major"
+            flood_description = "Major flooding - widespread and dangerous"
+        elif level_ft >= 3.0:
+            flood_status = "moderate"
+            flood_description = "Moderate flooding - roads may be impassable"
+        elif level_ft >= 2.0:
+            flood_status = "minor"
+            flood_description = "Minor flooding - low spots wet, water over bulkheads"
+        else:
+            flood_status = "normal"
+            flood_description = None
+        
+        sound_summary = {
+            "station_id": SOUND_STATION_ID,
+            "station_name": SOUND_STATION_NAME,
+            "observed_level_ft": level_ft,
+            "observed_time": time_str,
+            "flood_status": flood_status,
+            "flood_description": flood_description,
+            "is_flooding": flood_status != "normal",
+        }
+        
+        log(f"Sound water level: {level_ft} ft ({flood_status}) at {time_str}")
+        return sound_summary
+        
+    except Exception as exc:
+        log(f"Sound water level fetch error: {exc}")
         return {}
 
 
@@ -405,10 +518,16 @@ def get_coast_sky_summary(now_local: Optional[datetime] = None) -> Dict[str, Any
 
     result: Dict[str, Any] = {}
 
-    # Fetch NOAA tides
+    # Fetch ocean tides (Jennette's Pier) - for charts/surfing
     tide_summary = _fetch_noaa_tides(now_local)
     if tide_summary:
-        result["tide_summary"] = tide_summary
+        result["tide_summary"] = tide_summary  # Keep for backwards compatibility
+        result["ocean_tides"] = tide_summary   # New explicit key
+
+    # Fetch sound-side observed water level (Oregon Inlet Marina) - for narrative/flooding
+    sound_summary = _fetch_sound_water_level()
+    if sound_summary:
+        result["sound_level"] = sound_summary
 
     # Evaluate meteor showers
     sky_summary = _evaluate_meteor_showers(now_local)

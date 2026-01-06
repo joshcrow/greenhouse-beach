@@ -21,11 +21,24 @@ from PIL import Image
 from utils.logger import create_logger
 from utils.image_utils import sample_frames_evenly
 
-
 log = create_logger("extended_timelapse")
 
+# Lazy settings loader for app.config integration
+_settings = None
 
-ARCHIVE_ROOT = os.getenv("ARCHIVE_ROOT", "/app/data/archive")
+def _get_settings():
+    """Get settings lazily to avoid import-time failures."""
+    global _settings
+    if _settings is None:
+        try:
+            from app.config import settings
+            _settings = settings
+        except Exception:
+            _settings = None
+    return _settings
+
+_cfg = _get_settings()
+ARCHIVE_ROOT = _cfg.archive_path if _cfg else os.getenv("ARCHIVE_ROOT", "/app/data/archive")
 OUTPUT_ROOT = os.getenv("TIMELAPSE_OUTPUT", "/app/data/www/timelapses")
 
 

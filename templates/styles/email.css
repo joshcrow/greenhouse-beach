@@ -1,0 +1,35 @@
+/* ===========================================
+   GREENHOUSE GAZETTE - DARK MODE THEME
+   Design System: Professional Industrial
+   =========================================== */
+
+/* RESET */
+body { margin: 0; padding: 0; min-width: 100%; font-family: Arial, sans-serif; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+table { border-spacing: 0; border-collapse: collapse; }
+td, th { padding: 0; vertical-align: top; }
+img { border: 0; outline: none; text-decoration: none; -ms-interpolation-mode: bicubic; display: block; }
+
+/* DARK MODE CORE */
+.dark-bg { background-color: #171717 !important; }
+.dark-card { background-color: #1f1f1f !important; }
+.dark-text-primary { color: #f5f5f5 !important; }
+.dark-text-secondary { color: #a3a3a3 !important; }
+.dark-border { border-color: #374151 !important; }
+
+/* COLOR PALETTE */
+.text-green { color: #6b9b5a !important; }
+.text-blue { color: #60a5fa !important; }
+.text-red { color: #dc2626 !important; }
+.text-amber { color: #ca8a04 !important; }
+.bg-green { background-color: #6b9b5a !important; }
+.bg-blue { background-color: #60a5fa !important; }
+
+/* MOBILE RESPONSIVE */
+@media screen and (max-width: 600px) {
+    .responsive-table { width: 100% !important; }
+    .stack-column { display: block !important; width: 100% !important; }
+}
+
+@media screen and (max-width: 480px) {
+    .conditions-card { width: 50% !important; padding: 8px 4px !important; }
+}

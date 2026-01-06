@@ -1,0 +1,38 @@
+{# Weather Details Card - 2-column grid #}
+{% macro weather_details(condition, condition_emoji, high_temp, low_temp, wind_display, sunrise, sunset, moon_icon, moon_phase, tide_display) %}
+<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #1f1f1f; border-radius: 8px; border-collapse: collapse;">
+    <tr>
+        <td style="padding: 14px 16px;">
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; font-size: 13px;">
+                <!-- Row 1: Condition | Temperature -->
+                <tr>
+                    <td width="45%" style="padding: 6px 0; color: #a3a3a3; font-weight: 600;">
+                        {{ condition_emoji }} {{ condition }}
+                    </td>
+                    <td width="55%" style="padding: 6px 0; color: #f5f5f5; font-weight: 500;">
+                        🌡️ {{ high_temp }}° / {{ low_temp }}°
+                    </td>
+                </tr>
+                <!-- Row 2: Wind | Sun Times -->
+                <tr>
+                    <td style="padding: 6px 0; color: #a3a3a3; font-weight: 600; border-top: 1px solid #374151;">
+                        {{ wind_display }}
+                    </td>
+                    <td style="padding: 6px 0; color: #f5f5f5; font-weight: 500; border-top: 1px solid #374151;">
+                        🌅 {{ sunrise }} – {{ sunset }}
+                    </td>
+                </tr>
+                <!-- Row 3: Moon | Tide -->
+                <tr>
+                    <td style="padding: 6px 0; color: #a3a3a3; font-weight: 600; border-top: 1px solid #374151;">
+                        {{ moon_icon }} {{ moon_phase }}
+                    </td>
+                    <td style="padding: 6px 0; color: #f5f5f5; font-weight: 500; border-top: 1px solid #374151;">
+                        {{ tide_display }}
+                    </td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+</table>
+{% endmacro %}

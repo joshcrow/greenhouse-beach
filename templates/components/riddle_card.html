@@ -1,0 +1,34 @@
+{# Riddle Card Component - "Brain Fart" section matching original design #}
+{% macro riddle_card(riddle_text, yesterday_answer=none) %}
+{% if riddle_text %}
+<tr>
+    <td style="padding: 0 20px;" class="mobile-padding">
+        <!-- RIDDLE SECTION -->
+        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse;">
+            <tr>
+                <td style="padding: 0;">
+                    <div style="font-size:12px; color:#6b9b5a; margin-bottom:10px; font-weight:600; text-transform: uppercase; letter-spacing: 0.5px;">
+                        Brain Fart
+                    </div>
+                    {% if yesterday_answer %}
+                    <div style="font-size: 13px; color: #a3a3a3; margin-bottom: 12px; padding: 10px; background-color: #262626; border-radius: 6px;">
+                        <span style="font-weight: 600;">Yesterday's answer:</span> {{ yesterday_answer }}
+                    </div>
+                    {% endif %}
+                    <!-- Riddle box -->
+                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; background-color: #1f1f1f; border-radius: 8px;">
+                        <tr>
+                            <td style="padding: 14px 16px;">
+                                <p style="margin: 0; line-height: 1.6; color: #f5f5f5; font-size: 15px; font-family: Arial, sans-serif;">
+                                    {{ riddle_text }}
+                                </p>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+    </td>
+</tr>
+{% endif %}
+{% endmacro %}

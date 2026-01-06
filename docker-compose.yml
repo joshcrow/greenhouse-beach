@@ -52,6 +52,7 @@ services:
     volumes:
       - ./data:/app/data
       - ./scripts:/app/scripts:ro
+      - ./templates:/app/templates:ro
       - ./configs/registry.json:/app/configs/registry.json:ro
     depends_on:
       mosquitto:
@@ -79,10 +80,33 @@ services:
       - OPENWEATHER_API_KEY=test-key
     volumes:
       - ./scripts:/app/scripts:ro
+      - ./templates:/app/templates:ro
       - ./tests:/app/tests:ro
       - ./pytest.ini:/app/pytest.ini:ro
     depends_on:
       - mosquitto
+
+  # ---------------------------------------------------------------------------
+  # Email Preview Server (template hot-reload)
+  # ---------------------------------------------------------------------------
+  email-preview:
+    build:
+      context: .
+      target: production
+    container_name: greenhouse-email-preview
+    profiles:
+      - dev
+    env_file:
+      - .env
+    environment:
+      - TZ=${TZ:-America/New_York}
+      - PREVIEW_PORT=8081
+    ports:
+      - "8081:8081"
+    volumes:
+      - ./scripts:/app/scripts:ro
+      - ./templates:/app/templates:ro
+    command: ["python", "-u", "scripts/email_preview.py"]
 
   # ---------------------------------------------------------------------------
   # Development Service (hot-reload)

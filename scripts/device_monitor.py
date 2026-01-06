@@ -14,6 +14,23 @@ from typing import Dict, Optional, Any
 from utils.logger import create_logger
 from utils.io import atomic_write_json, atomic_read_json
 
+# Lazy settings loader for app.config integration
+_settings = None
+
+def _get_settings():
+    """Get settings lazily to avoid import-time failures."""
+    global _settings
+    if _settings is None:
+        try:
+            from app.config import settings
+            _settings = settings
+        except Exception:
+            _settings = None
+    return _settings
+
+# Load config from app.config.settings with env var fallback
+_cfg = _get_settings()
+
 # Configuration
 DEVICE_OFFLINE_THRESHOLD_MINUTES = int(
     os.getenv("DEVICE_OFFLINE_THRESHOLD_MINUTES", "10")
@@ -24,17 +41,16 @@ MONITOR_STATE_PATH = os.getenv(
 UPTIME_LOG_PATH = os.getenv(
     "UPTIME_LOG_PATH", "/app/data/uptime_log.json"
 )
-STATUS_PATH = os.getenv("STATUS_PATH", "/app/data/status.json")
+STATUS_PATH = _cfg.status_path if _cfg else os.getenv("STATUS_PATH", "/app/data/status.json")
 
-# Email configuration (reuse from publisher - support multiple env var names)
-SMTP_HOST = os.getenv("SMTP_SERVER") or os.getenv("SMTP_HOST", "smtp.gmail.com")
-SMTP_PORT = int(os.getenv("SMTP_PORT", "465"))
-SMTP_USER = os.getenv("SMTP_USER") or os.getenv("SMTP_USERNAME", "")
-SMTP_PASS = os.getenv("SMTP_PASSWORD") or os.getenv("SMTP_PASS", "")
-SMTP_FROM = os.getenv("SMTP_FROM", "Greenhouse Monitor <greenhouse@example.com>")
+# Email configuration from app.config with env var fallback
+SMTP_HOST = _cfg.smtp_server_host if _cfg else (os.getenv("SMTP_SERVER") or os.getenv("SMTP_HOST", "smtp.gmail.com"))
+SMTP_PORT = _cfg.smtp_port if _cfg else int(os.getenv("SMTP_PORT", "465"))
+SMTP_USER = _cfg.smtp_user if _cfg else (os.getenv("SMTP_USER") or os.getenv("SMTP_USERNAME", ""))
+SMTP_PASS = _cfg.smtp_password if _cfg else (os.getenv("SMTP_PASSWORD") or os.getenv("SMTP_PASS", ""))
+SMTP_FROM = _cfg.smtp_from if _cfg else os.getenv("SMTP_FROM", "Greenhouse Monitor <greenhouse@example.com>")
 # Alert email defaults to first recipient in SMTP_TO list
-_smtp_to = os.getenv("SMTP_TO", "")
-ALERT_EMAIL = os.getenv("ALERT_EMAIL") or (_smtp_to.split(",")[0].strip() if _smtp_to else "")
+ALERT_EMAIL = _cfg.alert_recipient if _cfg else (os.getenv("ALERT_EMAIL") or (os.getenv("SMTP_TO", "").split(",")[0].strip()))
 
 # Device definitions: device_id -> list of sensor key prefixes
 MONITORED_DEVICES = {

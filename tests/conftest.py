@@ -13,6 +13,26 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+
+# =============================================================================
+# Pytest Hooks
+# =============================================================================
+
+def pytest_addoption(parser):
+    """Add custom command line options for snapshot testing."""
+    parser.addoption(
+        "--update-golden",
+        action="store_true",
+        default=False,
+        help="Update the golden master HTML file for snapshot tests",
+    )
+    parser.addoption(
+        "--snapshot-diff",
+        action="store_true",
+        default=False,
+        help="Show detailed diff on snapshot test failure",
+    )
+
 # Add scripts directory to path for imports
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "scripts"))

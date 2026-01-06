@@ -1,0 +1,75 @@
+{
+  "events": [
+    {
+      "device": "satellite-2",
+      "state": "offline",
+      "timestamp": "2025-12-30T20:50:34.491174+00:00"
+    },
+    {
+      "device": "satellite-2",
+      "state": "online",
+      "timestamp": "2025-12-30T20:55:44.852989+00:00"
+    },
+    {
+      "device": "satellite-2",
+      "state": "offline",
+      "timestamp": "2025-12-31T13:41:52.863152+00:00"
+    },
+    {
+      "device": "satellite-2",
+      "state": "online",
+      "timestamp": "2025-12-31T13:47:03.493028+00:00"
+    },
+    {
+      "device": "satellite-2",
+      "state": "offline",
+      "timestamp": "2025-12-31T17:45:02.748176+00:00"
+    },
+    {
+      "device": "satellite-2",
+      "state": "online",
+      "timestamp": "2025-12-31T17:50:13.080398+00:00"
+    },
+    {
+      "device": "satellite-2",
+      "state": "offline",
+      "timestamp": "2026-01-01T14:46:24.897255+00:00"
+    },
+    {
+      "device": "satellite-2",
+      "state": "online",
+      "timestamp": "2026-01-01T14:51:35.190331+00:00"
+    },
+    {
+      "device": "satellite-2",
+      "state": "offline",
+      "timestamp": "2026-01-02T13:44:09.096033+00:00"
+    },
+    {
+      "device": "satellite-2",
+      "state": "online",
+      "timestamp": "2026-01-02T13:49:19.394073+00:00"
+    },
+    {
+      "device": "greenhouse-pi",
+      "state": "offline",
+      "timestamp": "2026-01-03T19:08:36.047729+00:00"
+    },
+    {
+      "device": "greenhouse-pi",
+      "state": "online",
+      "timestamp": "2026-01-04T13:11:41.594884+00:00"
+    },
+    {
+      "device": "satellite-2",
+      "state": "offline",
+      "timestamp": "2026-01-04T13:11:41.594884+00:00"
+    },
+    {
+      "device": "satellite-2",
+      "state": "online",
+      "timestamp": "2026-01-04T13:16:51.877835+00:00"
+    }
+  ],
+  "daily_stats": {}
+}

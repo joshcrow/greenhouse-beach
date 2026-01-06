@@ -3,7 +3,6 @@ import html
 import json
 import os
 import re
-import ssl
 from datetime import datetime
 from email.message import EmailMessage
 from email.utils import formatdate, make_msgid
@@ -12,18 +11,34 @@ from urllib.error import HTTPError, URLError
 from urllib.request import urlopen
 
 import chart_generator
+import email_templates
 import narrator
-import smtplib
 import stats
 import timelapse
 import weekly_digest
+from email_sender import send_email, get_recipients_from_env
 from utils.logger import create_logger
+
+# Lazy import of settings to avoid circular imports
+_settings = None
+
+def _get_settings():
+    """Get settings lazily to avoid import-time failures."""
+    global _settings
+    if _settings is None:
+        try:
+            from app.config import settings
+            _settings = settings
+        except Exception:
+            _settings = None
+    return _settings
 
 
 ARCHIVE_ROOT = "/app/data/archive"
 
 # Module-level flag for test mode (set via --test CLI argument)
 _test_mode = False
+
 
 
 def is_weekly_edition() -> bool:
@@ -128,7 +143,8 @@ def load_latest_sensor_snapshot() -> Dict[str, Any]:
         log(f"Unexpected error while fetching sensor snapshot from {status_url}: {exc}")
 
     # Attempt 2: Local JSON status file
-    status_path = os.getenv("STATUS_PATH", "/app/data/status.json")
+    settings = _get_settings()
+    status_path = settings.status_path if settings else os.getenv("STATUS_PATH", "/app/data/status.json")
     try:
         if os.path.exists(status_path):
             with open(status_path, "r", encoding="utf-8") as f:
@@ -346,14 +362,18 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
                 image_bytes = None
                 image_cid = None
 
-    # Envelope fields from environment
-    smtp_from = os.getenv("SMTP_FROM", "greenhouse@example.com")
-    smtp_to = os.getenv("SMTP_TO", "you@example.com")
+    # Envelope fields from settings or environment
+    settings = _get_settings()
+    if settings:
+        smtp_from = settings.smtp_from
+        recipients = settings.smtp_recipients
+    else:
+        smtp_from = os.getenv("SMTP_FROM", "greenhouse@example.com")
+        smtp_to = os.getenv("SMTP_TO", "you@example.com")
+        recipients = [addr.strip() for addr in smtp_to.split(",") if addr.strip()]
 
     msg = EmailMessage()
     msg["From"] = smtp_from
-    # Handle multiple recipients separated by commas
-    recipients = [addr.strip() for addr in smtp_to.split(",") if addr.strip()]
     msg["To"] = ", ".join(recipients)  # Display all recipients in header
     msg["Date"] = formatdate(localtime=True)
     msg["Subject"] = subject
@@ -657,202 +677,6 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
             return f"{high_str} · {low_str}"
         return high_str or low_str
 
-    def build_debug_footer(status_snapshot, sensor_data, augmented_data=None):
-        """Build debug footer for test emails only.
-
-        Shows data timestamp, battery voltage, and narrator model.
-        Only displayed when --test flag is used.
-        """
-        # Check if we're in test mode
-        import sys
-
-        if "--test" not in sys.argv:
-            return ""
-
-        # Get debug info
-        data_timestamp = status_snapshot.get("updated_at", "N/A")
-        battery_raw = sensor_data.get("satellite-2_battery", "N/A")
-        narrator_model = (
-            augmented_data.get("_narrator_model", "N/A") if augmented_data else "N/A"
-        )
-
-        return f"""
-    <!-- DEBUG FOOTER (Test Mode Only) -->
-    <div style="margin-top: 40px; padding: 20px; text-align: center; font-family: 'Courier New', monospace; font-size: 10px; color: #9ca3af; border-top: 1px solid #e5e7eb;">
-        <div>Data Timestamp: {data_timestamp}</div>
-        <div>Battery Voltage: {battery_raw}V</div>
-        <div>Narrator Model: {narrator_model}</div>
-    </div>
-"""
-
-    def build_riddle_card():
-        """Build dedicated riddle card with yesterday's answer reveal.
-        
-        Returns HTML for the riddle card, or empty string if no riddle.
-        """
-        riddle_text = sensor_data.get("_riddle_text", "")
-        yesterday_answer = sensor_data.get("_riddle_yesterday_answer")
-        
-        if not riddle_text:
-            return ""
-        
-        # Build yesterday's answer section if available
-        answer_section = ""
-        if yesterday_answer:
-            answer_section = f"""
-                                <div style="font-size: 13px; color: #a3a3a3; margin-bottom: 12px; padding: 10px; background-color: #262626; border-radius: 6px;">
-                                    <span style="font-weight: 600;">Yesterday's answer:</span> {yesterday_answer}
-                                </div>
-            """
-        
-        return f"""
-                    <!-- SPACER: 24px -->
-                    <div style="height: 24px; line-height: 24px; font-size: 24px; mso-line-height-rule: exactly;">&nbsp;</div>
-
-                    <!-- RIDDLE SECTION -->
-                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse;">
-                        <tr>
-                            <td style="padding: 0;">
-                                <div style="font-size:12px; color:#6b9b5a; margin-bottom:10px; font-weight:600; text-transform: uppercase; letter-spacing: 0.5px;">
-                                    Brain Fart
-                                </div>
-                                {answer_section}
-                                <!-- Riddle box -->
-                                <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; background-color: #1f1f1f; border-radius: 8px;">
-                                    <tr>
-                                        <td style="padding: 14px 16px;">
-                                            <p style="margin: 0; line-height: 1.6; color: #f5f5f5; font-size: 15px; font-family: Arial, sans-serif;">
-                                                {riddle_text}
-                                            </p>
-                                        </td>
-                                    </tr>
-                                </table>
-                            </td>
-                        </tr>
-                    </table>
-        """
-
-    def build_alert_banner():
-        """Build alert banner for critical conditions.
-        
-        Returns HTML for icon-anchored alerts with clear warning/detail separation.
-        Alert conditions:
-        - Frost risk: low_temp < 35°F
-        - Critical battery: satellite-2_battery < 3.4V
-        - High wind: wind_mph > 25
-        """
-        alert_items = []
-        
-        # Check for frost risk
-        if low_temp is not None and low_temp < 35:
-            alert_items.append({
-                "icon": "❄️",
-                "warning": "Frost Risk",
-                "detail": f"Low of {low_temp}°F tonight"
-            })
-        
-        # Check for critical battery (keep but make less prominent)
-        if sat_battery is not None and sat_battery < 3.4:
-            alert_items.append({
-                "icon": "🔋",
-                "warning": "Battery Low",
-                "detail": "Outdoor sensor needs charging"
-            })
-        
-        # Check for high wind
-        if wind_mph is not None and wind_mph > 25:
-            alert_items.append({
-                "icon": "💨",
-                "warning": "High Wind",
-                "detail": f"Gusts up to {wind_mph} mph"
-            })
-        
-        # No alerts = no banner
-        if not alert_items:
-            return ""
-        
-        # Build individual alert rows - using red/rose tones (subtle but clear)
-        alert_rows = ""
-        for i, alert in enumerate(alert_items):
-            is_last = i == len(alert_items) - 1
-            border_style = "border-bottom: 1px solid rgba(244, 63, 94, 0.2);" if not is_last else ""
-            margin_style = "padding-bottom: 10px;" if not is_last else ""
-            alert_rows += f"""
-                        <tr>
-                            <td style="padding: 10px 12px; {border_style} {margin_style} vertical-align: top; width: 36px; text-align: center; font-size: 20px;">
-                                {alert["icon"]}
-                            </td>
-                            <td style="padding: 10px 8px; {border_style} {margin_style} vertical-align: middle;">
-                                <div style="font-weight: 600; font-size: 14px; color: #f87171;">
-                                    {alert["warning"]}
-                                </div>
-                                <div style="font-size: 13px; color: #fca5a5; margin-top: 2px;">
-                                    {alert["detail"]}
-                                </div>
-                            </td>
-                        </tr>"""
-        
-        return f"""
-                    <!-- ALERT BANNER -->
-                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: separate; border-spacing: 0; background-color: #2a1515; border: 1px solid #991b1b; border-radius: 12px; margin-bottom: 16px; overflow: hidden;">
-                        {alert_rows}
-                    </table>
-        """
-
-    def build_broadcast_card():
-        """Display one-time narrator message if broadcast.json exists.
-        
-        Reads /app/data/broadcast.json, renders a card, then deletes the file.
-        Used for editor announcements via email command.
-        """
-        broadcast_path = "/app/data/broadcast.json"
-        try:
-            if not os.path.exists(broadcast_path):
-                return ""
-            with open(broadcast_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            
-            message = data.get("message", "").strip()
-            title = data.get("title", "📢 From the Editor")
-            
-            if not message:
-                return ""
-            
-            # Sanitize: escape HTML to prevent XSS
-            title = html.escape(title)
-            message = html.escape(message)
-            
-            # Clear after reading (one-time use)
-            os.remove(broadcast_path)
-            log(f"Broadcast message consumed: {title}")
-            
-            return f"""
-                    <!-- SPACER BEFORE BROADCAST -->
-                    <div style="height: 16px; line-height: 16px; font-size: 16px; mso-line-height-rule: exactly;">&nbsp;</div>
-                    
-                    <!-- BROADCAST HEADER -->
-                    <div style="font-size: 12px; color: #a855f7; margin-bottom: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">
-                        {title}
-                    </div>
-
-                    <!-- BROADCAST CARD -->
-                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: separate; border-spacing: 0; background-color: #1f1f1f; border: 1px solid #7c3aed; border-radius: 12px; overflow: hidden;">
-                        <tr>
-                            <td style="padding: 14px 16px;">
-                                <p style="margin: 0; line-height: 1.6; color: #e9d5ff; font-size: 15px;">
-                                    {message}
-                                </p>
-                            </td>
-                        </tr>
-                    </table>
-                    
-                    <!-- SPACER AFTER BROADCAST -->
-                    <div style="height: 24px; line-height: 24px; font-size: 24px; mso-line-height-rule: exactly;">&nbsp;</div>
-            """
-        except Exception as exc:
-            log(f"Broadcast card error: {exc}")
-            return ""
-
     def fmt_time(value):
         if value is None:
             return "N/A"
@@ -890,33 +714,6 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
     # Convert paragraph breaks (double newlines) to HTML with spacing for readability
     body_html_escaped = body_html_escaped.replace("\n\n", "<br><br>")
 
-    # Build hero image section if available
-    hero_section = ""
-    if image_cid:
-        # Determine caption based on weekly mode and whether it's a timelapse
-        if weekly_mode:
-            hero_caption = "This Week's Timelapse"
-        else:
-            hero_caption = "Daily Timelapse"
-        
-        hero_section = f"""
-        <!-- HERO IMAGE -->
-        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse;">
-            <tr>
-                <td style="padding: 0;">
-                    <!-- Caption -->
-                    <div style="font-size:12px; color:#6b9b5a; margin-bottom:8px; font-weight:600; text-transform: uppercase; letter-spacing: 0.5px;">
-                        {hero_caption}
-                    </div>
-                    <!-- Image with enhanced shadow -->
-                    <div style="border-radius: 12px; overflow: hidden; border: 2px solid #6b9b5a; box-shadow: 0 8px 24px rgba(0,0,0,0.4);">
-                        <img src="cid:{image_cid}" alt="Greenhouse timelapse" style="display:block; width:100%; height:auto; border:0;">
-                    </div>
-                </td>
-            </tr>
-        </table>
-        """
-
     # Build 24-hour vitals section only if we have at least one metric
     has_24h_stats = any(
         m is not None
@@ -944,283 +741,77 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
     except Exception as exc:
         log(f"Failed to generate temperature chart: {exc}")
 
-    # =========================================================================
-    # CONSOLIDATED DATA DASHBOARD (Redesigned for cleaner UX)
-    # =========================================================================
-    
-    # Build "Current Conditions" - 3 card layout (Greenhouse | Outside | Details)
+    # Get tide display for template
     tide_display = _get_tide_display(sensor_data)
+
+    # =========================================================================
+    # RENDER EMAIL VIA JINJA2 TEMPLATES
+    # =========================================================================
     
-    current_conditions_section = f"""
-                    <!-- CURRENT CONDITIONS HEADER -->
-                    <div style="font-size:12px; color:#6b9b5a; margin-bottom:12px; font-weight:600; text-transform: uppercase; letter-spacing: 0.5px;">
-                        Current Conditions
-                    </div>
-                    
-                    <!-- ROW 1: Greenhouse + Outside (matching cards) -->
-                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" class="conditions-row" style="border-collapse: collapse;">
-                        <tr>
-                            <!-- GREENHOUSE CARD -->
-                            <td width="49%" class="conditions-card" style="vertical-align: top; padding-right: 6px;">
-                                <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #1f1f1f; border-radius: 8px; border-collapse: collapse;">
-                                    <tr>
-                                        <td style="padding: 20px 16px; text-align: center;">
-                                            <div style="font-size: 11px; color: #a3a3a3; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">Greenhouse</div>
-                                            <div style="font-size: 44px; font-weight: 700; line-height: 1; color: #6b9b5a;">{fmt(indoor_temp)}°</div>
-                                            <div style="font-size: 13px; color: #a3a3a3; margin-top: 8px;">{fmt(indoor_humidity)}% humidity</div>
-                                        </td>
-                                    </tr>
-                                </table>
-                            </td>
-                            <!-- OUTSIDE CARD (matching style) -->
-                            <td width="49%" class="conditions-card" style="vertical-align: top; padding-left: 6px;">
-                                <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #1f1f1f; border-radius: 8px; border-collapse: collapse;">
-                                    <tr>
-                                        <td style="padding: 20px 16px; text-align: center;">
-                                            <div style="font-size: 11px; color: #a3a3a3; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">Outside</div>
-                                            <div style="font-size: 44px; font-weight: 700; line-height: 1; color: #60a5fa;">{fmt(exterior_temp)}°</div>
-                                            <div style="font-size: 13px; color: #a3a3a3; margin-top: 8px;">{fmt(exterior_humidity)}% humidity</div>
-                                        </td>
-                                    </tr>
-                                </table>
-                            </td>
-                        </tr>
-                    </table>
-                    
-                    <!-- SPACER -->
-                    <div style="height: 12px;">&nbsp;</div>
-                    
-                    <!-- ROW 2: WEATHER DETAILS CARD -->
-                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #1f1f1f; border-radius: 8px; border-collapse: collapse;">
-                        <tr>
-                            <td style="padding: 14px 16px;">
-                                <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; font-size: 13px; color: #d4d4d4;">
-                                    <tr>
-                                        <td style="padding: 5px 0;">
-                                            {get_condition_emoji(outdoor_condition)} {fmt(outdoor_condition)}
-                                        </td>
-                                        <td style="padding: 5px 0; text-align: right;">
-                                            H: {fmt(high_temp)}° / L: {fmt(low_temp)}°
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td style="padding: 5px 0; border-top: 1px solid #374151;">
-                                            {fmt_wind()}
-                                        </td>
-                                        <td style="padding: 5px 0; border-top: 1px solid #374151; text-align: right;">
-                                            🌅 {fmt_time(sunrise)} – {fmt_time(sunset)}
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td style="padding: 5px 0; border-top: 1px solid #374151;">
-                                            {moon_icon} {fmt_moon_phase(moon_phase)}
-                                        </td>
-                                        <td style="padding: 5px 0; border-top: 1px solid #374151; text-align: right;">
-                                            {tide_display}
-                                        </td>
-                                    </tr>
-                                </table>
-                            </td>
-                        </tr>
-                    </table>
-    """
+    # Build alerts list for template
+    alerts = []
+    if low_temp is not None and low_temp < 35:
+        alerts.append({"icon": "❄️", "title": "Frost Risk", "detail": f"Low of {low_temp}°F tonight"})
+    if sat_battery is not None and sat_battery < 3.4:
+        alerts.append({"icon": "🔋", "title": "Battery Low", "detail": "Outdoor sensor needs charging"})
+    if wind_mph is not None and wind_mph > 25:
+        alerts.append({"icon": "💨", "title": "High Wind", "detail": f"Gusts up to {wind_mph} mph"})
     
-    # Build "Trends" section (Chart + H/L summary) - DARK MODE
-    trends_section = ""
-    if not weekly_mode and has_24h_stats:
-        trends_section = f"""
-                    <!-- SPACER -->
-                    <div style="height: 24px;">&nbsp;</div>
-                    
-                    <!-- TRENDS SECTION -->
-                    <div style="font-size:12px; color:#6b9b5a; margin-bottom:12px; font-weight:600; text-transform: uppercase; letter-spacing: 0.5px;">
-                        24-Hour Trends
-                    </div>
-                    
-                    {f'<img src="cid:{temp_chart_cid}" alt="24h Trends" style="display:block; width:100%; max-width:560px; height:auto; border:0; border-radius:8px; margin-bottom: 16px;">' if temp_chart_cid else ''}
-                    
-                    <!-- H/L Summary -->
-                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; font-size: 13px;">
-                        <tr>
-                            <td style="padding: 8px 0; color: #a3a3a3; border-bottom: 1px solid #374151;">
-                                <span style="color: #6b9b5a; font-weight: 600;">●</span> Greenhouse
-                            </td>
-                            <td style="padding: 8px 0; color: #f5f5f5; border-bottom: 1px solid #374151; text-align: right;">
-                                {fmt_temp_high_low(indoor_temp_max, indoor_temp_min)} &nbsp;|&nbsp; {fmt(indoor_humidity_min)}–{fmt(indoor_humidity_max)}% RH
-                            </td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 8px 0; color: #a3a3a3;">
-                                <span style="color: #60a5fa; font-weight: 600;">●</span> Outside
-                            </td>
-                            <td style="padding: 8px 0; color: #f5f5f5; text-align: right;">
-                                {fmt_temp_high_low(exterior_temp_max, exterior_temp_min)} &nbsp;|&nbsp; {fmt(exterior_humidity_min)}–{fmt(exterior_humidity_max)}% RH
-                            </td>
-                        </tr>
-                    </table>
-                    <p style="font-size: 11px; color: #a3a3a3; margin-top: 8px; margin-bottom: 0; text-align: center;">
-                        Last 24 hours
-                    </p>
-        """
+    # Get riddle data from sensor_data (set by narrator)
+    _riddle_text = sensor_data.get("_riddle_text", "")
+    _yesterday_answer = sensor_data.get("_riddle_yesterday_answer")
     
-    # Combine for the vitals section variable (used in template)
-    vitals_24h_section = current_conditions_section + trends_section
-
-    # Build Weekly Summary section - DARK MODE
-    weekly_summary_section = ""
-    if weekly_mode and weekly_summary:
-        ws = weekly_summary
-        weekly_summary_section = f"""
-                    <!-- SPACER -->
-                    <div style="height: 24px;">&nbsp;</div>
-
-                    <!-- WEEKLY TRENDS SECTION -->
-                    <div style="font-size:12px; color:#6b9b5a; margin-bottom:12px; font-weight:600; text-transform: uppercase; letter-spacing: 0.5px;">
-                        This Week's Trends
-                    </div>
-
-                    {f'<img src="cid:{temp_chart_cid}" alt="Weekly Trends" style="display:block; width:100%; max-width:560px; height:auto; border:0; border-radius:8px; margin-bottom: 16px;">' if temp_chart_cid else ''}
-
-                    <!-- Weekly H/L Summary -->
-                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; font-size: 13px;">
-                        <tr>
-                            <td style="padding: 8px 0; color: #a3a3a3; border-bottom: 1px solid #374151;">
-                                <span style="color: #6b9b5a; font-weight: 600;">●</span> Greenhouse
-                            </td>
-                            <td style="padding: 8px 0; color: #f5f5f5; border-bottom: 1px solid #374151; text-align: right;">
-                                {fmt(ws.get("interior_temp_min"))}° – {fmt(ws.get("interior_temp_max"))}° &nbsp;|&nbsp; {fmt(ws.get("interior_humidity_min"))}–{fmt(ws.get("interior_humidity_max"))}% RH
-                            </td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 8px 0; color: #a3a3a3;">
-                                <span style="color: #60a5fa; font-weight: 600;">●</span> Outside
-                            </td>
-                            <td style="padding: 8px 0; color: #f5f5f5; text-align: right;">
-                                {fmt(ws.get("exterior_temp_min"))}° – {fmt(ws.get("exterior_temp_max"))}° &nbsp;|&nbsp; {fmt(ws.get("exterior_humidity_min"))}–{fmt(ws.get("exterior_humidity_max"))}% RH
-                            </td>
-                        </tr>
-                    </table>
-                    <p style="font-size: 11px; color: #a3a3a3; margin-top: 8px; margin-bottom: 0; text-align: center;">
-                        Based on {ws.get("days_recorded", 0)} days of data
-                    </p>
-        """
-
-    # HTML body - DARK MODE ONLY (simplified, optimized)
-    html_body = f"""<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml" lang="en">
-<head>
-    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="dark" />
-    <meta name="supported-color-schemes" content="dark" />
-    <title>Update</title>
-    <style type="text/css">
-        /* ===========================================
-           GREENHOUSE GAZETTE - DARK MODE THEME
-           Design System: Professional Industrial
-           =========================================== */
-        
-        /* RESET */
-        body {{ margin: 0; padding: 0; min-width: 100%; font-family: Arial, sans-serif; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }}
-        table {{ border-spacing: 0; border-collapse: collapse; }}
-        td, th {{ padding: 0; vertical-align: top; }}
-        img {{ border: 0; outline: none; text-decoration: none; -ms-interpolation-mode: bicubic; display: block; }}
-        a[x-apple-data-detectors] {{ color: inherit !important; text-decoration: none !important; }}
-        
-        /* COLOR PALETTE */
-        :root {{ color-scheme: dark; }}
-        
-        /* MOBILE RESPONSIVE */
-        @media screen and (max-width: 600px) {{
-            .container {{ width: 100% !important; max-width: 100% !important; }}
-            .mobile-padding {{ padding-left: 16px !important; padding-right: 16px !important; }}
-        }}
-        @media screen and (max-width: 480px) {{
-            .conditions-row, .conditions-row tr {{ display: block !important; width: 100% !important; }}
-            .conditions-card {{ display: block !important; width: 100% !important; padding: 0 0 12px 0 !important; }}
-        }}
-    </style>
-    <!--[if mso]>
-    <style type="text/css">
-        body, table, td, th, p, div {{ font-family: Arial, sans-serif !important; }}
-        td {{ mso-line-height-rule: exactly; }}
-    </style>
-    <![endif]-->
-</head>
-<body style="margin:0; padding:0; background-color:#171717; color:#f5f5f5;">
+    # Build 24h stats dict for template (round all values for display)
+    _stats_24h = None
+    if has_24h_stats:
+        _stats_24h = {
+            "interior_temp_max": round(indoor_temp_max) if indoor_temp_max is not None else None,
+            "interior_temp_min": round(indoor_temp_min) if indoor_temp_min is not None else None,
+            "interior_humidity_max": round(indoor_humidity_max) if indoor_humidity_max is not None else None,
+            "interior_humidity_min": round(indoor_humidity_min) if indoor_humidity_min is not None else None,
+            "exterior_temp_max": round(exterior_temp_max) if exterior_temp_max is not None else None,
+            "exterior_temp_min": round(exterior_temp_min) if exterior_temp_min is not None else None,
+            "exterior_humidity_max": round(exterior_humidity_max) if exterior_humidity_max is not None else None,
+            "exterior_humidity_min": round(exterior_humidity_min) if exterior_humidity_min is not None else None,
+        }
     
-    <!-- WRAPPER -->
-    <center role="article" aria-roledescription="email" lang="en" style="width:100%; background-color:#171717;">
-        
-        <!--[if mso]>
-        <table role="presentation" align="center" border="0" cellpadding="0" cellspacing="0" width="600">
-        <tr>
-        <td>
-        <![endif]-->
-        
-        <table role="presentation" class="container" align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width:600px; margin:0 auto;">
-            <tr>
-                <td style="padding: 20px;" class="mobile-padding">
-                    
-                    <!-- HEADER -->
-                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
-                        <tr>
-                            <td style="font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding-bottom: 4px; font-size:28px; font-weight: bold; color:#6b9b5a; line-height: 1.1; mso-line-height-rule: exactly;">
-                                {headline}
-                            </td>
-                        </tr>
-                        <tr>
-                            <td style="padding-bottom: 16px; font-size:13px; color:#a3a3a3; mso-line-height-rule: exactly;">
-                                {date_subheadline}
-                            </td>
-                        </tr>
-                    </table>
-
-                    {build_alert_banner()}
-
-                    {build_broadcast_card()}
-
-                    <!-- NARRATIVE TEXT -->
-                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse;">
-                        <tr>
-                            <td style="padding: 0;">
-                                <div style="margin:0; line-height:1.7; color:#f5f5f5; font-size: 16px;">
-                                    {body_html_escaped}
-                                </div>
-                            </td>
-                        </tr>
-                    </table>
-
-                    <!-- SPACER: 24px -->
-                    <div style="height: 24px; line-height: 24px; font-size: 24px; mso-line-height-rule: exactly;">&nbsp;</div>
-
-                    {hero_section}
-
-                    <!-- SPACER: 24px -->
-                    <div style="height: 24px; line-height: 24px; font-size: 24px; mso-line-height-rule: exactly;">&nbsp;</div>
-
-                    {vitals_24h_section}
-
-                    {weekly_summary_section}
-
-                    {build_riddle_card()}
-
-                </td>
-            </tr>
-        </table>
-        
-        <!--[if mso]>
-        </td>
-        </tr>
-        </table>
-        <![endif]-->
-        
-    </center>
-    
-    {build_debug_footer(status_snapshot, sensor_data, augmented_data)}
-</body>
-</html>
-"""
+    html_body = email_templates.render_daily_email(
+        subject=subject,
+        headline=headline,
+        body_html=body_html_escaped,
+        date_display=date_subheadline,
+        interior_temp=round(indoor_temp) if indoor_temp is not None else None,
+        interior_humidity=round(indoor_humidity) if indoor_humidity is not None else None,
+        interior_stale=sensor_data.get("interior_temp_stale", False),
+        exterior_temp=round(exterior_temp) if exterior_temp is not None else None,
+        exterior_humidity=round(exterior_humidity) if exterior_humidity is not None else None,
+        exterior_stale=sensor_data.get("exterior_temp_stale", False),
+        condition=fmt(outdoor_condition),
+        condition_emoji=get_condition_emoji(outdoor_condition),
+        high_temp=high_temp,
+        low_temp=low_temp,
+        wind_display=fmt_wind(),
+        sunrise=fmt_time(sunrise),
+        sunset=fmt_time(sunset),
+        moon_icon=moon_icon,
+        moon_phase=fmt_moon_phase(moon_phase),
+        tide_display=tide_display,
+        image_cid=image_cid,
+        chart_cid=temp_chart_cid,
+        stats_24h=_stats_24h,
+        riddle_text=_riddle_text,
+        yesterday_answer=_yesterday_answer,
+        alerts=alerts if alerts else None,
+        weekly_mode=weekly_mode,
+        weekly_stats=weekly_summary,
+        test_mode=_test_mode,
+        debug_info={
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "battery": round(sat_battery, 2) if sat_battery else "N/A",
+            "model": os.getenv("GEMINI_MODEL", "gemini-2.5-flash"),
+        } if _test_mode else None,
+    )
+    log("Rendered email via Jinja2 templates")
 
     msg.add_alternative(html_body, subtype="html")
 
@@ -1259,32 +850,6 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
     return msg, weekly_mode
 
 
-def send_email(msg: EmailMessage, recipients: list[str] = None) -> None:
-    """Send the email via SMTP over SSL using environment variables."""
-
-    smtp_server = os.getenv("SMTP_SERVER") or os.getenv("SMTP_HOST")
-    smtp_port = int(os.getenv("SMTP_PORT", "465"))
-    smtp_user = os.getenv("SMTP_USER") or os.getenv("SMTP_USERNAME")
-    smtp_pass = os.getenv("SMTP_PASSWORD")
-
-    if not smtp_server:
-        log("ERROR: SMTP_SERVER/SMTP_HOST is not configured; cannot send email.")
-        return
-
-    log(f"Connecting to SMTP server {smtp_server}:{smtp_port} using SSL...")
-
-    context = ssl.create_default_context()
-    try:
-        with smtplib.SMTP_SSL(smtp_server, smtp_port, context=context) as server:
-            if smtp_user and smtp_pass:
-                server.login(smtp_user, smtp_pass)
-            # Send to all recipients
-            server.send_message(msg, to_addrs=recipients)
-        log(f"Email sent successfully to {len(recipients)} recipients.")
-    except Exception as exc:  # noqa: BLE001
-        log(f"Error while sending email: {exc}")
-
-
 def run_once() -> None:
     """Run a one-off generation and delivery using latest sensor data."""
 
@@ -1292,9 +857,8 @@ def run_once() -> None:
     log(f"Preparing email with status snapshot: {status_snapshot.get('sensors', {})}")
     msg, weekly_mode = build_email(status_snapshot)
 
-    # Parse recipients from environment
-    smtp_to = os.getenv("SMTP_TO", "you@example.com")
-    recipients = [addr.strip() for addr in smtp_to.split(",") if addr.strip()]
+    # Get recipients from environment
+    recipients = get_recipients_from_env()
 
     if weekly_mode:
         log("Sending Weekly Edition with timelapse...")

@@ -11,9 +11,26 @@ import weather_service
 from utils.logger import create_logger
 from utils.io import atomic_write_json, atomic_read_json
 
+# Lazy settings loader for app.config integration
+_settings = None
 
-_RIDDLE_STATE_PATH = os.getenv("RIDDLE_STATE_PATH", "/app/data/riddle_state.json")
+def _get_settings():
+    """Get settings lazily to avoid import-time failures."""
+    global _settings
+    if _settings is None:
+        try:
+            from app.config import settings
+            _settings = settings
+        except Exception:
+            _settings = None
+    return _settings
+
+# Load config from app.config.settings with env var fallback
+_cfg = _get_settings()
+_RIDDLE_STATE_PATH = _cfg.riddle_state_path if _cfg else os.getenv("RIDDLE_STATE_PATH", "/app/data/riddle_state.json")
+_RIDDLE_HISTORY_PATH = os.getenv("RIDDLE_HISTORY_PATH", "/app/data/riddle_history.json")
 _HISTORY_PATH = os.getenv("NARRATIVE_HISTORY_PATH", "/app/data/narrative_history.json")
+_INJECTION_PATH = os.getenv("NARRATIVE_INJECTION_PATH", "/app/data/narrative_injection.json")
 
 
 def to_sentence_case(text: str) -> str:
@@ -73,14 +90,15 @@ _client: genai.Client | None = None
 
 
 def _get_client() -> genai.Client:
-    """Get or create the Gemini client using GEMINI_API_KEY from the environment.
+    """Get or create the Gemini client using GEMINI_API_KEY from config/environment.
 
     Raises:
         ValueError: If GEMINI_API_KEY is not set (fail-fast).
     """
     global _client
     if _client is None:
-        api_key = os.getenv("GEMINI_API_KEY")
+        cfg = _get_settings()
+        api_key = cfg.gemini_api_key if cfg else os.getenv("GEMINI_API_KEY")
         if not api_key:
             raise ValueError(
                 "GEMINI_API_KEY environment variable is not set. "
@@ -91,8 +109,11 @@ def _get_client() -> genai.Client:
 
 
 def get_model_name(model_name: str | None = None) -> str:
-    """Get the effective model name from parameter or environment."""
-    return model_name or os.getenv("GEMINI_MODEL", "gemini-3-flash-preview")
+    """Get the effective model name from parameter, config, or environment."""
+    if model_name:
+        return model_name
+    cfg = _get_settings()
+    return cfg.gemini_model if cfg else os.getenv("GEMINI_MODEL", "gemini-3-flash-preview")
 
 
 def sanitize_data(sensor_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -170,6 +191,7 @@ def build_prompt(
     sanitized_data: Dict[str, Any],
     history: list[Dict[str, Any]] = None,
     is_weekly: bool = False,
+    injection: Optional[Dict[str, Any]] = None,
 ) -> str:
     """Construct the narrative prompt enforcing persona and safety constraints.
     
@@ -177,38 +199,53 @@ def build_prompt(
         sanitized_data: Sensor and weather data dict
         history: List of past narrative entries for continuity
         is_weekly: If True, generate Sunday "Week in Review" edition
+        injection: Optional one-time message to include (e.g., birthday)
     """
 
     lines = [
-        "You write for The Greenhouse Gazette — quick, practical updates for a family greenhouse",
-        "in Colington Harbour (Outer Banks, NC). Keep it casual and useful, like texting a neighbor.",
+        "ROLE: You are 'The Canal Captain', a grumpy but capable local in Colington Harbour, NC.",
+        "TASK: Write a status update for a family greenhouse based on the data provided.",
         "",
-        "VOICE:",
-        "- Brief and down-to-earth. This is a busy household.",
-        "- Skip the poetry. Get to the point, but keep it friendly.",
-        "- Local flavor: say 'in Colington' or 'the harbour' — not 'the Outer Banks' or 'OBX'.",
-        "- Never introduce yourself. Just talk.",
+        "THE PERSONA (STRICT ADHERENCE):",
+        "- VOICE: Dry, salty, pragmatic. You sound like a retired fisherman checking his gauges.",
+        "- LOCAL KNOWLEDGE: You live on the sound. You know the sound floods, the tourists can't drive, and the salt eats everything.",
+        "- BREVITY: Short sentences. No fluff. No 'Welcome to the update.' Just the facts.",
+        "- VIBE: You treat the greenhouse like a boat. It needs to be ship-shape.",
         "",
-        "CONTENT:",
-        "- Do NOT recite sensor data. Tables handle that.",
-        "- Only mention numbers for real issues: frost (<35°F), extreme heat (>90°F),",
-        "  high wind (>25 mph), critical battery (<3.4V).",
-        "- Keep paragraphs to 2-3 sentences MAX.",
-        "- Use <b>bold</b> only for actual alerts.",
-        "- No emojis.",
+        "GEOGRAPHY & SLANG:",
+        "- Use 'Colington' (referring to the neighborhood).",
+        "- Use 'the sound' (Albemarle Sound).",
+        "- Use 'the bypass' (the main highway, usually with disdain).",
+        "- Never say 'OBX' or 'The Outer Banks'. That's for tourists. Say 'here' or 'the island'.",
         "",
-        "COAST & SKY:",
-        "- Only if data is present AND notable: king tides (>5.5ft), very negative tides (<-0.75ft), meteor showers.",
-        "- Tides between -0.75ft and +5.5ft are normal — skip mentioning them, the table shows tides already.",
+        "DATA RULES:",
+        "- If Temp > 90F: Complaint about humidity or 'dog days'.",
+        "- If Temp < 35F: Warning about pipes freezing or frost on the windshield.",
+        "- If Wind > 20mph: Mention 'whitecaps in the sound'.",
+        "",
+        "SOUND WATER LEVEL RULES (Wind-Driven, from 'sound_level' data):",
+        "- Sound levels are OBSERVED (not predicted) and wind-driven. NE wind pushes water IN, SW pushes OUT.",
+        "- Use 'sound_level.observed_level_ft' and 'sound_level.flood_status' for flooding info.",
+        "- 'normal' status: Don't mention water levels.",
+        "- 'minor' status (2-3 ft): 'Water's creeping over the bulkhead' or 'low spots are wet'.",
+        "- 'moderate' status (3-4.5 ft): <b>Bold warning</b>. 'Colington Road might flood' or 'check the low spots'.",
+        "- 'major' status (>4.5 ft): <b>Bold alert</b>. Rare and serious. 'Stay off the roads' territory.",
+        "- Connect wind to water: 'Northeast wind pushing water in' when wind is NE/N and level is elevated.",
+        "- IGNORE 'tide_summary' / 'ocean_tides' data - that's ocean-side for surfing, not relevant to Colington.",
+        "",
+        "FORMATTING:",
+        "- <b>Bold</b> ONLY specifically dangerous alerts.",
+        "- NO EMOJIS.",
+        "- NO MARKDOWN HEADERS (###).",
+        "- ALWAYS include degree symbol (°) when mentioning temperatures (e.g., '68°' not '68').",
         "",
     ]
 
     # Add history section for continuity
     if history:
         if is_weekly:
-            # Sunday historian mode - review the week
-            lines.append("THE WEEK'S ARCHIVES:")
-            lines.append("This is the Sunday Weekly Edition. Review the past week's narratives:")
+            # Sunday logbook review mode
+            lines.append("THE WEEK'S LOG:")
             lines.append("")
             for entry in history:
                 date = entry.get("date", "Unknown")
@@ -217,15 +254,13 @@ def build_prompt(
                 lines.append(f"[{date}] - {headline}")
                 lines.append(f"  {body}...")
                 lines.append("")
-            lines.append("SUNDAY WEEKLY EDITION INSTRUCTIONS:")
-            lines.append("You're writing the Sunday 'Week in Review'. Structure:")
-            lines.append("1. Paragraph 1: Summarize the week's storylines from the Archives above.")
-            lines.append("   Use specific days and events. Make it narrative, not a list.")
-            lines.append("2. Paragraph 2: Today's current conditions.")
-            lines.append("3. Paragraph 3: Looking ahead to next week (if forecast data available).")
+            lines.append("SUNDAY LOGBOOK REVIEW:")
+            lines.append("You are reviewing the week's log. Summarize the battles we fought against the elements.")
+            lines.append("1. Paragraph 1: The week's recap. Did we freeze? Did we roast? Be specific based on the archives.")
+            lines.append("2. Paragraph 2: The look ahead. Prepare the crew for next week.")
             lines.append("")
-            lines.append("HEADLINE: Reflect the entire week (e.g., 'A week of wind and sun').")
-            lines.append("SUBJECT: Indicate it's weekly (e.g., 'Weekly recap: stormy start, sunny finish').")
+            lines.append("HEADLINE: A summary of the week's weather wars.")
+            lines.append("SUBJECT: Weekly Log: [Short Summary]")
             lines.append("")
         else:
             # Daily mode - reference recent history for continuity
@@ -242,6 +277,16 @@ def build_prompt(
             lines.append("- Don't repeat the same phrases or observations from recent days.")
             lines.append("- Build on the story — this is a serial, not isolated updates.")
             lines.append("")
+
+    # Add one-time injection if present (birthdays, special events, etc.)
+    if injection and injection.get("message"):
+        lines.append("SPECIAL MESSAGE (MUST INCLUDE IN NARRATIVE):")
+        lines.append(f"  {injection['message']}")
+        if injection.get("priority") == "high":
+            lines.append("  (HIGH PRIORITY: Work this into the opening of your narrative)")
+        else:
+            lines.append("  (Weave this naturally into the narrative)")
+        lines.append("")
 
     lines.extend([
         "DATA:",
@@ -283,10 +328,8 @@ def _get_riddle_state_path(test_mode: bool = False) -> str:
 def _load_riddle_state(test_mode: bool = False) -> Dict[str, Any]:
     path = _get_riddle_state_path(test_mode)
     try:
-        if os.path.exists(path):
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            return data if isinstance(data, dict) else {}
+        data = atomic_read_json(path)
+        return data if isinstance(data, dict) else {}
     except Exception as exc:  # noqa: BLE001
         log(f"WARNING: Failed to load riddle state: {exc}")
     return {}
@@ -316,13 +359,63 @@ def _extract_yesterday_answer(state: Dict[str, Any]) -> Optional[str]:
         return None
 
 
+def _load_riddle_history() -> list[Dict[str, Any]]:
+    """Load riddle history for variety tracking (last 14 riddles)."""
+    return atomic_read_json(_RIDDLE_HISTORY_PATH, default=[])
+
+
+def _save_riddle_to_history(riddle: str, answer: str) -> None:
+    """Save a riddle to history for variety tracking."""
+    try:
+        history = _load_riddle_history()
+        history.append({
+            "date": datetime.now().date().isoformat(),
+            "riddle": riddle,
+            "answer": answer,
+        })
+        # Keep only last 14 riddles
+        history = history[-14:]
+        atomic_write_json(_RIDDLE_HISTORY_PATH, history)
+        log(f"Saved riddle to history: {len(history)} entries")
+    except Exception as exc:
+        log(f"WARNING: Failed to save riddle history: {exc}")
+
+
+def _get_recent_riddle_topics() -> list[str]:
+    """Get list of recent riddle answers to avoid repetition."""
+    history = _load_riddle_history()
+    return [entry.get("answer", "") for entry in history if entry.get("answer")]
+
+
+def _load_narrative_injection() -> Optional[Dict[str, Any]]:
+    """Load and consume a one-time narrative injection (e.g., birthday message).
+    
+    The injection file is deleted after reading to ensure one-time use.
+    
+    Expected format:
+    {
+        "message": "Today is Sarah's 10th birthday!",
+        "priority": "high"  # optional: "high" puts it at start of narrative
+    }
+    """
+    if not os.path.exists(_INJECTION_PATH):
+        return None
+    try:
+        data = atomic_read_json(_INJECTION_PATH)
+        # Consume the file (one-time use)
+        os.remove(_INJECTION_PATH)
+        log(f"Loaded and consumed narrative injection: {data.get('message', '')[:50]}...")
+        return data if isinstance(data, dict) else None
+    except Exception as exc:
+        log(f"WARNING: Failed to load narrative injection: {exc}")
+        return None
+
+
 def _load_history() -> list[Dict[str, Any]]:
     """Load narrative history from persistent storage (last 7 days)."""
     try:
-        if os.path.exists(_HISTORY_PATH):
-            with open(_HISTORY_PATH, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            return data if isinstance(data, list) else []
+        data = atomic_read_json(_HISTORY_PATH)
+        return data if isinstance(data, list) else []
     except Exception as exc:
         log(f"WARNING: Failed to load narrative history: {exc}")
     return []
@@ -355,6 +448,9 @@ def _generate_joke_or_riddle_paragraph(narrative_body: str, test_mode: bool = Fa
     state = _load_riddle_state(test_mode=test_mode)
     yesterday_answer = _extract_yesterday_answer(state)
 
+    # Get recent riddle topics to avoid repetition
+    recent_topics = _get_recent_riddle_topics()
+
     # Always use riddle mode - answer revealed next day
     mode = "riddle"
     intro = ""
@@ -362,38 +458,36 @@ def _generate_joke_or_riddle_paragraph(narrative_body: str, test_mode: bool = Fa
         intro = f"Yesterday's riddle answer: {yesterday_answer}"
 
     prompt_lines = [
-        "ROLE: You are a grumpy but lovable gardener writing for a local coastal newsletter.",
-        "TASK: Write a 'Who am I?' or 'What am I?' riddle. The answer will be revealed tomorrow.",
+        "ROLE: You are that same salty Colington Harbour local.",
+        "TASK: Write a 'Who am I?' riddle. The answer will be revealed tomorrow.",
         "",
-        "THE RULES OF THE GAME:",
-        "1. Pick a specific, tangible object related to the provided context (e.g., a hose, a tourist, a mosquito, humidity).",
-        "2. Do NOT name the object in the riddle.",
-        "3. Personify the object. Describe its annoying or funny behavior as if it were a person or a deliberate act.",
-        "4. Keep it under 25 words.",
+        "THEME: Coastal Living, Maintenance, & Local Annoyances.",
+        "RULES:",
+        "1. Subject must be something tangible found in a coastal home, boat, or garden (e.g., a rusty trailer hitch, a fiddler crab, a lost tourist, dehumidifier water).",
+        "2. Personify the object. Make it sound annoying, relentless, or tricky.",
+        "3. Maximum 25 words.",
+        "4. Dry humor only. No whimsical fairy tale stuff.",
         "",
-        "TONE GUIDE (HUMAN, NOT ROBOT):",
-        "- Use dry, observational humor.",
-        "- Avoid cheesy intro phrases like 'I am the thing that...'",
-        "- Focus on the frustration or the absurdity of the object.",
-        "",
-        "EXAMPLES (Study these patterns):",
-        "Context: Gardening",
-        "Output: I spend all day lying in the grass, but the moment you try to use me, I tie myself in knots and refuse to work. What am I?",
-        "(Target Answer: A garden hose)",
-        "",
-        "Context: Beach Life",
-        "Output: I arrive every Friday with a car full of groceries, drive 15mph under the speed limit, and have no idea how a roundabout works. Who am I?",
-        "(Target Answer: A weekend tourist)",
-        "",
-        "Context: Weather",
-        "Output: You beg for me all July, but when I finally show up, you run inside and complain about the mud. What am I?",
-        "(Target Answer: Rain)",
+    ]
+
+    # Add recent topics to avoid
+    if recent_topics:
+        prompt_lines.append("AVOID THESE RECENT TOPICS (already used in past 2 weeks):")
+        prompt_lines.append(", ".join(recent_topics))
+        prompt_lines.append("")
+
+    prompt_lines.extend([
+        "EXAMPLES:",
+        "Output: I show up uninvited, drink all your blood, and laugh when you try to slap me. What am I?",
+        "(Target: A mosquito)",
+        "Output: I cost more than your car, sit in the driveway for 50 weeks a year, and rot from the inside out. What am I?",
+        "(Target: A boat)",
         "",
         f"INTRO: {intro}" if intro else "",
         "",
         "INSTRUCTION:",
-        "Write ONE riddle based on the context above. Do not output the answer. Do not output the logic. Return ONLY the riddle text.",
-    ]
+        "Write ONE riddle based on the vibe above. Return ONLY the riddle text.",
+    ])
     prompt = "\n".join(prompt_lines)
 
     client = _get_client()
@@ -476,6 +570,9 @@ def _generate_joke_or_riddle_paragraph(narrative_body: str, test_mode: bool = Fa
             },
             test_mode=test_mode,
         )
+        # Save to history for variety tracking (skip in test mode to avoid polluting history)
+        if not test_mode and answer:
+            _save_riddle_to_history(paragraph, answer)
     else:
         if yesterday_answer:
             _save_riddle_state(
@@ -539,7 +636,10 @@ def generate_update(
     history = _load_history()
     log(f"Loaded narrative history: {len(history)} entries (weekly_mode={is_weekly})")
 
-    prompt = build_prompt(sanitized, history=history, is_weekly=is_weekly)
+    # Check for one-time narrative injection (birthdays, special events, etc.)
+    injection = _load_narrative_injection()
+
+    prompt = build_prompt(sanitized, history=history, is_weekly=is_weekly, injection=injection)
 
     log(f"Generating narrative update for data: {sanitized}")
 

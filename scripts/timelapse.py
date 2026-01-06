@@ -17,18 +17,32 @@ from PIL import Image
 from utils.logger import create_logger
 from utils.image_utils import sample_frames_evenly
 
-
 log = create_logger("timelapse")
 
+# Lazy settings loader for app.config integration
+_settings = None
 
-ARCHIVE_ROOT = os.getenv("ARCHIVE_ROOT", "/app/data/archive")
+def _get_settings():
+    """Get settings lazily to avoid import-time failures."""
+    global _settings
+    if _settings is None:
+        try:
+            from app.config import settings
+            _settings = settings
+        except Exception:
+            _settings = None
+    return _settings
+
+_cfg = _get_settings()
+ARCHIVE_ROOT = _cfg.archive_path if _cfg else os.getenv("ARCHIVE_ROOT", "/app/data/archive")
 
 
 def get_sunrise_sunset(target_date: datetime) -> tuple[datetime, datetime]:
     """Get sunrise and sunset times for a specific date using OpenWeather API."""
-    api_key = os.getenv("OPENWEATHER_API_KEY")
-    lat = os.getenv("LAT")
-    lon = os.getenv("LON")
+    cfg = _get_settings()
+    api_key = cfg.openweather_api_key if cfg else os.getenv("OPENWEATHER_API_KEY")
+    lat = cfg.lat if cfg else os.getenv("LAT")
+    lon = cfg.lon if cfg else os.getenv("LON")
 
     if not api_key or not lat or not lon:
         log("Weather API config missing, using approximate daylight hours")

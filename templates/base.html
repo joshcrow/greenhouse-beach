@@ -1,0 +1,66 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="supported-color-schemes" content="dark" />
+    <title>{% block title %}Update{% endblock %}</title>
+    <style type="text/css">
+        /* GREENHOUSE GAZETTE - DARK MODE THEME */
+        body { margin: 0; padding: 0; min-width: 100%; font-family: Arial, sans-serif; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+        table { border-spacing: 0; border-collapse: collapse; }
+        td, th { padding: 0; vertical-align: top; }
+        img { border: 0; outline: none; text-decoration: none; -ms-interpolation-mode: bicubic; display: block; }
+        a[x-apple-data-detectors] { color: inherit !important; text-decoration: none !important; }
+        :root { color-scheme: dark; }
+        @media screen and (max-width: 600px) {
+            .container { width: 100% !important; max-width: 100% !important; }
+            .mobile-padding { padding-left: 16px !important; padding-right: 16px !important; }
+        }
+        @media screen and (max-width: 480px) {
+            .conditions-card { width: 50% !important; padding: 8px 4px !important; }
+        }
+    </style>
+    <!--[if mso]>
+    <style type="text/css">
+        body, table, td, th, p, div { font-family: Arial, sans-serif !important; }
+        td { mso-line-height-rule: exactly; }
+    </style>
+    <![endif]-->
+</head>
+<body style="margin:0; padding:0; background-color:#171717; color:#f5f5f5;">
+    
+    <!-- WRAPPER -->
+    <center role="article" aria-roledescription="email" lang="en" style="width:100%; background-color:#171717;">
+        
+        <!--[if mso]>
+        <table role="presentation" align="center" border="0" cellpadding="0" cellspacing="0" width="600">
+        <tr>
+        <td>
+        <![endif]-->
+        
+        <table role="presentation" class="container" align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width:600px; margin:0 auto;">
+            {% block header %}
+            <!-- Override in child templates -->
+            {% endblock %}
+
+            {% block content %}
+            <!-- Override in child templates -->
+            {% endblock %}
+
+            {% block footer %}
+            <!-- Override in child templates -->
+            {% endblock %}
+        </table>
+        
+        <!--[if mso]>
+        </td>
+        </tr>
+        </table>
+        <![endif]-->
+        
+    </center>
+
+</body>
+</html>
