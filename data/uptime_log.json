@@ -69,6 +69,16 @@
       "device": "satellite-2",
       "state": "online",
       "timestamp": "2026-01-04T13:16:51.877835+00:00"
+    },
+    {
+      "device": "greenhouse-pi",
+      "state": "offline",
+      "timestamp": "2026-01-06T04:32:10.355913+00:00"
+    },
+    {
+      "device": "satellite-2",
+      "state": "offline",
+      "timestamp": "2026-01-06T04:32:10.355913+00:00"
     }
   ],
   "daily_stats": {}

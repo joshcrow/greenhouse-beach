@@ -667,9 +667,11 @@ def generate_update(
     body = "The narrator encountered an error while generating today's update."
 
     # Structured output config for JSON response
+    # Enable thinking for Gemini 3 models (improves reasoning quality)
     structured_config = {
         "response_mime_type": "application/json",
         "response_json_schema": NarrativeResponse.model_json_schema(),
+        "thinking_config": {"thinking_budget": 1024},  # Enable thinking with token budget
     }
 
     client = _get_client()
