@@ -55,7 +55,10 @@ def _wind_direction(deg: float) -> str:
 def _wind_arrow(deg: float) -> str:
     """Return a Unicode arrow indicating wind direction."""
     arrows = ["↑", "↗", "→", "↘", "↓", "↙", "←", "↖"]
-    idx = int((deg % 360) / 45.0 + 0.5) % 8
+    # OpenWeather's wind_deg is the direction the wind is COMING FROM.
+    # For display, we want the arrow to show where the wind is blowing TOWARD.
+    deg_to = (deg + 180.0) % 360.0
+    idx = int((deg_to % 360) / 45.0 + 0.5) % 8
     return arrows[idx]
 
 

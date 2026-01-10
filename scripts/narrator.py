@@ -242,14 +242,21 @@ def build_prompt(
         "- If Wind > 20mph: Mention 'whitecaps in the sound'.",
         "",
         "SOUND WATER LEVEL RULES (Wind-Driven, from 'sound_level' data):",
-        "- Sound levels are OBSERVED (not predicted) and wind-driven. NE wind pushes water IN, SW pushes OUT.",
-        "- Use 'sound_level.observed_level_ft' and 'sound_level.flood_status' for flooding info.",
-        "- 'normal' status: Don't mention water levels.",
-        "- 'minor' status (2-3 ft): 'Water's creeping over the bulkhead' or 'low spots are wet'.",
-        "- 'moderate' status (3-4.5 ft): <b>Bold warning</b>. 'Colington Road might flood' or 'check the low spots'.",
-        "- 'major' status (>4.5 ft): <b>Bold alert</b>. Rare and serious. 'Stay off the roads' territory.",
-        "- Connect wind to water: 'Northeast wind pushing water in' when wind is NE/N and level is elevated.",
-        "- IGNORE 'tide_summary' / 'ocean_tides' data - that's ocean-side for surfing, not relevant to Colington.",
+        "- CRITICAL CONTEXT: The Albemarle Sound acts like a bathtub.",
+        "  - Wind FROM SW/W = Pushes water INTO Colington (Rising/Flooding).",
+        "  - Wind FROM NE/N = Pushes water AWAY from Colington (Low/Blow-out).",
+        "  - Water levels lag behind wind shifts by 3-6 hours.",
+        "- INTERPRETING 'sound_level.observed_level_ft':",
+        "  - < 0.5 ft (LOW): Warning. 'Water is blown out. Watch for grounding at the dock.'",
+        "  - 0.5 - 2.0 ft (NORMAL): Do not mention water levels unless specifically asked.",
+        "  - 2.0 - 3.0 ft (MINOR): 'Water's creeping over the bulkheads.'",
+        "  - 3.0 - 4.5 ft (MODERATE): <b>Bold warning.</b> 'Colington Road or low yards may have water.'",
+        "  - > 4.5 ft (MAJOR): <b>URGENT ALERT.</b> 'Severe soundside flooding likely.'",
+        "- CONNECTING WIND & WATER (Causal Phrasing):",
+        "  - IF (Level > 2.0) AND (Wind is SW/W): 'Strong SW winds are piling water into the harbor.'",
+        "  - IF (Level > 2.0) AND (Wind is NE/N): 'Water is still high, but the North wind should help drain it soon.' (Handle the lag).",
+        "  - IF (Level < 0.5) AND (Wind is NE/N): 'Strong North winds have pushed the water out.'",
+        "- IGNORE 'tide_summary' and 'ocean_tides' completely. Ocean tides do not affect the harbor.",
         "",
         "FORMATTING:",
         "- <b>Bold</b> ONLY specifically dangerous alerts.",
@@ -641,12 +648,6 @@ def generate_update(
         del sanitized["outdoor_temp"]
     if "humidity_out" in sanitized:
         del sanitized["humidity_out"]
-    if "wind_mph" in sanitized:
-        del sanitized["wind_mph"]
-    if "wind_deg" in sanitized:
-        del sanitized["wind_deg"]
-    if "wind_direction" in sanitized:
-        del sanitized["wind_direction"]
     if "wind_arrow" in sanitized:
         del sanitized["wind_arrow"]
 

@@ -89,6 +89,18 @@ THEME = {
 # - satellite-2_temperature = satellite sensor physically OUTSIDE (working)
 SENSOR_MAPPINGS = {
     "temp": {
+        "Inside": "interior_temp",
+        "Outside": "exterior_temp",
+    },
+    "humidity": {
+        "Inside": "interior_humidity",
+        "Outside": "exterior_humidity",
+    },
+}
+
+
+LEGACY_SENSOR_MAPPINGS = {
+    "temp": {
         "Inside": "exterior_temp",
         "Outside": "satellite-2_temperature",
     },
@@ -336,10 +348,18 @@ def generate_weather_dashboard(
     if len(readings) < 2:
         log(f"Insufficient data for chart: {len(readings)} readings")
         return None
-    
+
     # Extract series (using keys that have actual data variation)
-    temp_series = _extract_series(readings, SENSOR_MAPPINGS["temp"])
-    humidity_series = _extract_series(readings, SENSOR_MAPPINGS["humidity"])
+    temp_series = _extract_series(
+        readings,
+        SENSOR_MAPPINGS["temp"],
+        legacy_mapping=LEGACY_SENSOR_MAPPINGS["temp"],
+    )
+    humidity_series = _extract_series(
+        readings,
+        SENSOR_MAPPINGS["humidity"],
+        legacy_mapping=LEGACY_SENSOR_MAPPINGS["humidity"],
+    )
     
     if not any(len(s[0]) > 1 for s in temp_series.values()):
         log("No valid temperature data")
