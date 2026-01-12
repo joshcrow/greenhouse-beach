@@ -2,6 +2,7 @@
 {% from "components/sensor_card.html" import sensor_card %}
 {% from "components/weather_details.html" import weather_details %}
 {% from "components/riddle_card.html" import riddle_card %}
+{% from "components/scoreboard.html" import scoreboard %}
 {% from "components/alert_banner.html" import alert_banner %}
 
 {% block title %}{{ subject }}{% endblock %}
@@ -180,7 +181,15 @@
 </tr>
 
 <!-- RIDDLE SECTION -->
-{{ riddle_card(riddle_text, yesterday_answer) }}
+{{ riddle_card(riddle_text, yesterday_answer, riddle_date, bot_email, yesterdays_winners) }}
+
+<!-- SPACER between riddle and leaderboard -->
+<tr>
+    <td style="height: 12px;">&nbsp;</td>
+</tr>
+
+<!-- LEADERBOARD (if players exist) -->
+{{ scoreboard(leaderboard) }}
 
 {% endblock %}
 

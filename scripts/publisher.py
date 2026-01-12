@@ -13,6 +13,7 @@ from urllib.request import urlopen
 import chart_generator
 import email_templates
 import narrator
+import scorekeeper
 import stats
 import timelapse
 import weekly_digest
@@ -231,7 +232,14 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
         if weekly_data and weekly_data.get("days"):
             # Compute summary from raw weekly data
             ws = weekly_digest.compute_weekly_summary(weekly_data)
-            # Add weekly stats to narrator_data (interior = greenhouse)
+            # Add weekly stats to narrator_data - clearly labeled as greenhouse vs outdoor
+            narrator_data["greenhouse_weekly_high"] = ws.get("interior_temp_max")
+            narrator_data["greenhouse_weekly_low"] = ws.get("interior_temp_min")
+            narrator_data["greenhouse_weekly_avg"] = ws.get("interior_temp_avg")
+            narrator_data["outdoor_weekly_high"] = ws.get("exterior_temp_max")
+            narrator_data["outdoor_weekly_low"] = ws.get("exterior_temp_min")
+            narrator_data["outdoor_weekly_avg"] = ws.get("exterior_temp_avg")
+            # Legacy keys for compatibility (but now clearly greenhouse)
             narrator_data["weekly_high"] = ws.get("interior_temp_max")
             narrator_data["weekly_low"] = ws.get("interior_temp_min")
             narrator_data["weekly_avg_temp"] = ws.get("interior_temp_avg")
@@ -713,6 +721,31 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
     _riddle_text = sensor_data.get("_riddle_text", "")
     _yesterday_answer = sensor_data.get("_riddle_yesterday_answer")
     
+    # Riddle game integration
+    _riddle_date = None
+    _leaderboard = []
+    _yesterdays_winners = []
+    cfg = _get_settings()
+    # Get bot email with fallback to env var (settings may fail in container)
+    _bot_email = (cfg.smtp_user if cfg and cfg.smtp_user else None) or os.getenv("SMTP_USER", "")
+    
+    try:
+        # Load riddle state for the date (used in mailto link)
+        riddle_state = narrator._load_riddle_state()
+        _riddle_date = riddle_state.get("date")
+        
+        # Load game data
+        _leaderboard = scorekeeper.get_leaderboard(top_n=5)
+        _yesterdays_winners_data = scorekeeper.get_yesterdays_winners()
+        _yesterdays_winners = [w["display_name"] for w in _yesterdays_winners_data]
+        
+        if _leaderboard:
+            log(f"Riddle leaderboard: {len(_leaderboard)} players")
+        if _yesterdays_winners:
+            log(f"Yesterday's winners: {_yesterdays_winners}")
+    except Exception as exc:
+        log(f"Error loading riddle game data: {exc}")
+    
     # Build 24h stats dict for template (round all values for display)
     _stats_24h = None
     if has_24h_stats:
@@ -753,6 +786,10 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
         stats_24h=_stats_24h,
         riddle_text=_riddle_text,
         yesterday_answer=_yesterday_answer,
+        riddle_date=_riddle_date,
+        bot_email=_bot_email,
+        yesterdays_winners=_yesterdays_winners,
+        leaderboard=_leaderboard,
         alerts=alerts if alerts else None,
         weekly_mode=weekly_mode,
         weekly_stats=weekly_summary,
@@ -818,6 +855,14 @@ def run_once() -> None:
         log("Sending daily email...")
 
     send_email(msg, recipients)
+    
+    # Post-send: Reset riddle game daily log for new day
+    try:
+        scorekeeper.archive_daily_log()
+        scorekeeper.reset_daily_log(datetime.now().date().isoformat())
+        log("Riddle game: archived yesterday's log, reset for today")
+    except Exception as exc:
+        log(f"Warning: riddle game cleanup failed (non-fatal): {exc}")
 
 
 if __name__ == "__main__":

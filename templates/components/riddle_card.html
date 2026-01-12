@@ -1,5 +1,5 @@
-{# Riddle Card Component - "Brain Fart" section matching original design #}
-{% macro riddle_card(riddle_text, yesterday_answer=none) %}
+{# Riddle Card Component - "Brain Fart" section with interactive game #}
+{% macro riddle_card(riddle_text, yesterday_answer=none, riddle_date=none, bot_email=none, yesterdays_winners=none) %}
 {% if riddle_text %}
 <tr>
     <td style="padding: 0 20px;" class="mobile-padding">
@@ -13,6 +13,9 @@
                     {% if yesterday_answer %}
                     <div style="font-size: 13px; color: #a3a3a3; margin-bottom: 12px; padding: 10px; background-color: #262626; border-radius: 6px;">
                         <span style="font-weight: 600;">Yesterday's answer:</span> {{ yesterday_answer }}
+                        {% if yesterdays_winners %}
+                        <br><span style="font-size: 12px;">🏆 Solved by: {{ yesterdays_winners | join(", ") }}</span>
+                        {% endif %}
                     </div>
                     {% endif %}
                     <!-- Riddle box -->
@@ -24,6 +27,18 @@
                                 </p>
                             </td>
                         </tr>
+                        {% if riddle_date and bot_email %}
+                        <tr>
+                            <td style="padding: 0 16px 14px 16px; text-align: center;">
+                                <a href="mailto:{{ bot_email }}?subject=GUESS%20[{{ riddle_date }}]:%20"
+                                   style="display: inline-block; padding: 8px 16px; background-color: #60a5fa; 
+                                          color: #ffffff; text-decoration: none; border-radius: 6px; 
+                                          font-weight: 600; font-size: 12px;">
+                                    Email your guess
+                                </a>
+                            </td>
+                        </tr>
+                        {% endif %}
                     </table>
                 </td>
             </tr>

@@ -22,12 +22,13 @@ log = create_logger("sensor_bridge")
 
 # Sensor mapping: HA entity_id -> (mqtt_device, mqtt_key)
 # Format: greenhouse/{device}/sensor/{key}/state
+#
+# IMPORTANT: The registry.json remaps exterior_* -> interior_* (physical location swap)
+# So we only publish the "ext" sensors here - they become the real interior readings.
+# The non-ext sensors were conflicting and causing stuck data (see 2026-01 debugging).
 SENSOR_MAP = {
-    # Interior sensors (persistent = smoothed values)
-    "sensor.greenhouse_temp_persistent": ("interior", "temp"),
-    "sensor.greenhouse_humidity_persistent": ("interior", "humidity"),
-    "sensor.greenhouse_pressure_persistent": ("interior", "pressure"),
-    # Exterior sensors
+    # Interior sensors - published as "exterior" but remapped to "interior" by registry
+    # (HA "ext" sensors are physically INSIDE the greenhouse due to legacy naming)
     "sensor.greenhouse_ext_temp_persistent": ("exterior", "temp"),
     "sensor.greenhouse_ext_humidity_persistent": ("exterior", "humidity"),
     "sensor.greenhouse_ext_pressure_persistent": ("exterior", "pressure"),

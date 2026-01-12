@@ -178,6 +178,10 @@ class Settings(BaseSettings):
         default=False,
         description="Enable test mode (send to primary recipient only)",
     )
+    riddle_game_enabled: bool = Field(
+        default=True,
+        description="Enable riddle game (GUESS command processing)",
+    )
     resolution_target: str = Field(
         default="1080p",
         description="Target resolution for image processing",
