@@ -11,19 +11,19 @@ Data Files:
   data/riddle_game_archive.json - Historical archive of daily logs
 """
 
-import os
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
+from app.config import settings
 from utils.io import atomic_write_json, atomic_read_json
 from utils.logger import create_logger
 
 log = create_logger("scorekeeper")
 
-# Paths (configurable via env)
-_DAILY_LOG_PATH = os.getenv("RIDDLE_DAILY_LOG_PATH", "/app/data/riddle_daily_log.json")
-_SCORES_PATH = os.getenv("RIDDLE_SCORES_PATH", "/app/data/riddle_scores.json")
-_ARCHIVE_PATH = os.getenv("RIDDLE_GAME_ARCHIVE_PATH", "/app/data/riddle_game_archive.json")
+# Paths from centralized config
+_DAILY_LOG_PATH = settings.riddle_daily_log_path
+_SCORES_PATH = settings.riddle_scores_path
+_ARCHIVE_PATH = settings.riddle_archive_path
 
 # Scoring constants
 POINTS_CORRECT = 2        # Points for a correct answer
@@ -198,6 +198,12 @@ def record_attempt(
         "is_first": is_first,
         "rank": rank
     }
+
+
+def get_season_start() -> str:
+    """Return the season start date from scores file."""
+    scores = _load_scores()
+    return scores.get("season_start", datetime.now().date().isoformat())
 
 
 def get_leaderboard(top_n: int = 5) -> List[Dict[str, Any]]:

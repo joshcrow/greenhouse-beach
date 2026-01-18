@@ -305,8 +305,14 @@ async def get_leaderboard() -> Dict[str, Any]:
         if len(players) >= 10:  # Top 10
             break
     
+    # Get actual season start from scores file
+    try:
+        season_start = scorekeeper.get_season_start()
+    except Exception:
+        season_start = "2026-01-01"
+    
     return {
-        "season_start": "2026-01-01",  # TODO: Track actual season start
+        "season_start": season_start,
         "players": players,
     }
 

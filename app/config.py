@@ -166,6 +166,18 @@ class Settings(BaseSettings):
         default="/app/data/riddle_state.json",
         description="Path to riddle state JSON",
     )
+    riddle_scores_path: str = Field(
+        default="/app/data/riddle_scores.json",
+        description="Path to riddle season scores JSON",
+    )
+    riddle_daily_log_path: str = Field(
+        default="/app/data/riddle_daily_log.json",
+        description="Path to riddle daily log JSON",
+    )
+    riddle_archive_path: str = Field(
+        default="/app/data/riddle_game_archive.json",
+        description="Path to riddle game archive JSON",
+    )
     sensor_log_dir: str = Field(
         default="/app/data/sensor_log",
         description="Directory for sensor logs",
