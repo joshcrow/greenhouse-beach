@@ -193,7 +193,9 @@ async def submit_guess(request: Request, body: GuessRequest) -> Dict[str, Any]:
     riddle_path = settings.riddle_state_path if settings else "/app/data/riddle_state.json"
     riddle_state = atomic_read_json(riddle_path, default=None)
     
-    if not riddle_state or not riddle_state.get("question"):
+    # Check for riddle (supports both "question" and "riddle" keys)
+    riddle_text = riddle_state.get("question") or riddle_state.get("riddle") if riddle_state else None
+    if not riddle_text:
         raise HTTPException(
             status_code=404,
             detail={
@@ -221,7 +223,7 @@ async def submit_guess(request: Request, body: GuessRequest) -> Dict[str, Any]:
     # Judge the guess
     try:
         is_correct, feedback = narrator.judge_riddle(
-            riddle_state.get("question", ""),
+            riddle_text,
             riddle_state.get("answer", ""),
             guess,
         )

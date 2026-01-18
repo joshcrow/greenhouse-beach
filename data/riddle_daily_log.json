@@ -1,8 +1,10 @@
 {
   "riddle_date": "2026-01-18",
-  "first_solver": null,
-  "first_solve_time": null,
-  "solvers": [],
+  "first_solver": "anonymous",
+  "first_solve_time": "2026-01-18T20:43:59.357533Z",
+  "solvers": [
+    "anonymous"
+  ],
   "attempts": [
     {
       "user": "nickcrow8@gmail.com",
@@ -31,6 +33,13 @@
       "correct": false,
       "email_timestamp": "2026-01-18T10:16:46Z",
       "processed_at": "2026-01-18T20:19:14.355045Z"
+    },
+    {
+      "user": "anonymous",
+      "display_name": "anonymous",
+      "correct": "correct",
+      "email_timestamp": "2026-01-18T20:43:59.357533Z",
+      "processed_at": "2026-01-18T20:43:59.357533Z"
     }
   ]
 }

@@ -103,12 +103,19 @@ async def get_history_range(range: str):
 
 
 @router.get("/history")
-async def get_history(hours: int = 24, resolution: str = "auto"):
+async def get_history(
+    hours: int = 24,
+    resolution: str = "auto",
+    range: str = None,
+    metric: str = None,
+):
     """Get historical sensor data as JSON.
     
     Args:
         hours: Number of hours of history (default 24, max 720)
         resolution: Data resolution - "raw", "hourly", or "auto"
+        range: Alternative to hours - "24h", "7d", or "30d"
+        metric: Ignored (for frontend compatibility)
     
     Returns:
         {
@@ -124,6 +131,11 @@ async def get_history(hours: int = 24, resolution: str = "auto"):
             ]
         }
     """
+    # Parse range parameter if provided
+    if range:
+        range_map = {"24h": 24, "7d": 168, "30d": 720}
+        hours = range_map.get(range, 24)
+    
     # Clamp hours to valid range
     hours = max(1, min(hours, 720))
     
