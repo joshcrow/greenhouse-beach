@@ -1,18 +1,49 @@
 # Greenhouse Gazette — Windsurf Rules
-# Last Updated: 2026-01-17
+# Last Updated: 2026-01-18
 
 ## Quick Reference
 - **Stack:** Python 3.11 / Docker Compose / Raspberry Pi 5
+- **Frontend:** React 18 + Material UI + TanStack Query + Recharts
+- **Backend:** FastAPI + Pydantic + slowapi (rate limiting)
 - **Entry Points:** scheduler.py (cron), publisher.py (email), inbox_monitor.py (commands)
+- **Web API:** web/api/main.py (FastAPI app)
 - **Config:** app/config.py (Pydantic Settings) — NEVER use raw os.getenv()
 - **State:** /app/data/*.json — ALWAYS use utils.io.atomic_write_json
 
 ## Architecture
-MQTT (sensors) -> status_daemon.py -> /data/status.json
+```
+Internet -> Cloudflare Access -> Cloudflare Tunnel -> greenhouse-web (FastAPI+React)
+                                                          |
+MQTT (sensors) -> status_daemon.py -> /data/status.json <-+
                                           |
 scheduler.py -> publisher.py -> narrator.py -> Gemini API
                     |              |
               email_sender    context_engine.py <- knowledge_graph.json
+```
+
+## Web Application (NEW - Jan 2026)
+
+### API Endpoints
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| /api/status | GET | Real-time sensor data |
+| /api/history | GET | Historical sensor data (range=24h/7d/30d) |
+| /api/riddle | GET | Current riddle |
+| /api/riddle/guess | POST | Submit guess (rate limited: 10/min) |
+| /api/narrative | GET | AI-generated narrative |
+| /api/narrative/refresh | POST | Force regenerate (rate limited: 4/hr) |
+
+### Key Patterns
+- **Auth:** Use `Cf-Access-Authenticated-User-Email` header (set by Cloudflare after JWT validation)
+- **Rate Limiting:** `@limiter.limit("10/minute")` decorator from slowapi
+- **File Locking:** `fcntl.flock()` in atomic_write_json prevents race conditions
+- **Input Sanitization:** Pydantic validators with `html.escape()` and regex tag stripping
+
+### Riddle State Keys
+The riddle_state.json uses "riddle" key (not "question"). Always check both:
+```python
+riddle_text = state.get("question") or state.get("riddle")
+```
 
 ## CRITICAL RULES (Pi Hardware)
 
@@ -20,7 +51,7 @@ scheduler.py -> publisher.py -> narrator.py -> Gemini API
 # BAD - causes corruption on power loss
 with open("state.json", "w") as f: json.dump(data, f)
 
-# GOOD - atomic write via temp file + rename
+# GOOD - atomic write via temp file + rename + flock
 from utils.io import atomic_write_json
 atomic_write_json("state.json", data)
 
@@ -48,6 +79,7 @@ Do NOT "fix" this. It is handled by utils/registry.py.
 |------------------|----------------------------|--------------------------|
 | Math/Thresholds  | Python (context_engine.py) | Is wind > 25 mph?        |
 | Prose/Voice      | Gemini (narrator.py)       | How to describe the wind |
+| Riddle Judging   | Gemini (narrator.py)       | Is guess semantically correct? |
 
 Never ask the AI to calculate thresholds. Pass boolean flags.
 
@@ -56,6 +88,7 @@ Never ask the AI to calculate thresholds. Pass boolean flags.
 - Config: app.config.settings — never os.getenv() in functions
 - Time: UTC internally, local only at presentation layer
 - Retries: @tenacity.retry on all external HTTP/MQTT calls
+- Rate Limiting: Use slowapi on costly endpoints (Gemini calls)
 
 ## Graceful Degradation
 # BAD - crashes on None
@@ -73,6 +106,12 @@ If Gemini/OpenWeather fails, fall back to static text, still send email.
 | scripts/context_engine.py               | Knowledge graph trigger evaluation |
 | scripts/publisher.py                    | Daily email orchestration          |
 | scripts/status_daemon.py                | MQTT -> status.json buffering      |
+| scripts/inbox_monitor.py                | Email command processing (GUESS)   |
+| scripts/scorekeeper.py                  | Riddle scoring and leaderboard     |
+| web/api/main.py                         | FastAPI app entry point            |
+| web/api/routers/riddle.py               | Riddle game API endpoints          |
+| web/api/routers/charts.py               | History/chart data API             |
+| web/frontend/src/App.tsx                | React app entry point              |
 | configs/registry.json                   | Sensor mapping (The Great Swap)    |
 | data/colington_knowledge_graph.json     | Local facts, thresholds, seasons   |
 | data/prompts/narrator_persona.txt       | Hot-reloadable AI voice            |
@@ -80,6 +119,14 @@ If Gemini/OpenWeather fails, fall back to static text, still send email.
 ## Testing
 - Email Testing: Always use --test flag: python publisher.py --test
 - Mock Config: Mock app.config.settings in tests, not os.environ
+- API Testing: curl http://localhost:8000/api/status
+
+## Security (Jan 2026 Audit)
+- Full report: docs/security_audit_2026-01-18.md
+- JWT verified by Cloudflare Access, not application
+- All user input sanitized via Pydantic validators
+- File writes use fcntl.flock() to prevent race conditions
+- Rate limiting on expensive endpoints
 
 ## Output Style
 - Concise diffs, not full files

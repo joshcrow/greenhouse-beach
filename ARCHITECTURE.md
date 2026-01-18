@@ -23,10 +23,13 @@ The **Greenhouse Gazette** (codename: Project Chlorophyll) is a distributed IoT 
 |-------|------------|
 | **Runtime** | Python 3.11, Docker (multi-arch: ARM64/AMD64) |
 | **Messaging** | MQTT (Eclipse Mosquitto broker) |
-| **AI/ML** | Google Gemini API (narrative generation) |
+| **AI/ML** | Google Gemini API (narrative generation, riddle judging) |
 | **Image Processing** | OpenCV (headless), Pillow, FFmpeg |
 | **Scheduling** | `schedule` library (cron-like) |
 | **Email** | SMTP (Gmail) with embedded images |
+| **Web Frontend** | React 18, Material UI, TanStack Query, Recharts |
+| **Web Backend** | FastAPI, Pydantic, slowapi (rate limiting) |
+| **Auth/Ingress** | Cloudflare Tunnel + Access (JWT validation) |
 | **External APIs** | OpenWeatherMap, NOAA CO-OPS (tides) |
 | **CI/CD** | GitHub Actions → Docker Hub |
 
@@ -181,21 +184,38 @@ greenhouse-beach/
 | Container | Image | Purpose |
 |-----------|-------|---------|
 | `greenhouse-mosquitto` | `eclipse-mosquitto:2` | MQTT message broker |
-| `greenhouse-storyteller` | `name/greenhouse-storyteller` | Main application (5 Python processes) |
+| `greenhouse-storyteller` | `jcrow333/greenhouse-storyteller` | Scheduler, email, inbox monitor |
+| `greenhouse-web` | `greenhouse-beach-web` | FastAPI + React dashboard |
+| `greenhouse-tunnel` | `cloudflare/cloudflared` | Cloudflare Tunnel ingress |
 
 ### 3.2 Storyteller Processes
 
 The `greenhouse-storyteller` container runs 5 concurrent processes via `entrypoint.sh`:
 
 | Process | File | Purpose | Trigger |
-|---------|------|---------|---------|
+|---------|------|---------|--------|
 | **Ingestion** | `ingestion.py` | Receives MQTT images, saves to `incoming/` | MQTT subscription |
 | **Curator** | `curator.py` | Quality-filters images, moves to `archive/` | 10-second polling |
 | **Status Daemon** | `status_daemon.py` | Aggregates sensor MQTT → `status.json` | MQTT subscription |
-| **Scheduler** | `scheduler.py` | Triggers daily email, timelapses | Cron-like (7 AM) |
-| **Web Server** | `web_server.py` | Serves timelapse files on :8080 | HTTP requests |
+| **Scheduler** | `scheduler.py` | Triggers daily email, timelapses, inbox poll | Cron-like (7 AM) |
+| **Inbox Monitor** | `inbox_monitor.py` | Processes GUESS/BROADCAST email commands | 5-min polling |
 
-### 3.3 Email Generation Pipeline
+### 3.3 Web Application Stack
+
+The `greenhouse-web` container serves the public dashboard:
+
+| Layer | Technology | Purpose |
+|-------|------------|--------|
+| **Frontend** | React 18 + Vite | Single-page app with routing |
+| **UI Framework** | Material UI v5 | Dark theme components |
+| **Data Fetching** | TanStack Query | Caching, refetching, mutations |
+| **Charts** | Recharts | Interactive line charts |
+| **Backend** | FastAPI | REST API with OpenAPI docs |
+| **Validation** | Pydantic | Request/response models |
+| **Rate Limiting** | slowapi | Per-IP request throttling |
+| **Auth** | Cloudflare Access | JWT validation via headers |
+
+### 3.4 Email Generation Pipeline
 
 ```
 scheduler.py (07:00)
@@ -406,4 +426,4 @@ See `DEPLOYMENT.md` and `INSTALLATION_GUIDE.md` for detailed instructions.
 
 ---
 
-*Last updated: Dec 22, 2025*
+*Last updated: Jan 18, 2026*

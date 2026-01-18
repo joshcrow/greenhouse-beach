@@ -3,7 +3,8 @@
   "first_solver": "anonymous",
   "first_solve_time": "2026-01-18T20:43:59.357533Z",
   "solvers": [
-    "anonymous"
+    "anonymous",
+    "joshcrow1193@gmail.com"
   ],
   "attempts": [
     {
@@ -40,6 +41,13 @@
       "correct": "correct",
       "email_timestamp": "2026-01-18T20:43:59.357533Z",
       "processed_at": "2026-01-18T20:43:59.357533Z"
+    },
+    {
+      "user": "joshcrow1193@gmail.com",
+      "display_name": "joshcrow1193",
+      "correct": "correct",
+      "email_timestamp": "2026-01-18T20:45:39.449032Z",
+      "processed_at": "2026-01-18T20:45:39.449032Z"
     }
   ]
 }

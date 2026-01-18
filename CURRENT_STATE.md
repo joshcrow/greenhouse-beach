@@ -1,8 +1,8 @@
 # Project Chlorophyll: Current System State
 
-**Status:** ✅ Operational (via Tailscale) — Production-Hardened  
-**Last Updated:** Jan 5, 2026 @ 10:15 PM EST  
-**Architecture:** Jinja2 Templates + Pydantic Config (Refactor Complete)
+**Status:** ✅ Production Live (via Cloudflare Tunnel) — Security Audited  
+**Last Updated:** Jan 18, 2026 @ 3:45 PM EST  
+**Architecture:** React Frontend + FastAPI Backend + Cloudflare Access Auth
 
 ---
 
@@ -40,23 +40,25 @@ docker compose up -d --force-recreate storyteller
 | **Location** | Josh's home network (192.168.1.151) |
 | **Tailscale IP** | `<STORYTELLER_IP>` |
 | **Storage** | NVMe (1TB) ✅ |
-| **Docker** | 2 containers running |
+| **Docker** | 4 containers running |
 
 ### Docker Services
 | Container | Status | Purpose |
 |-----------|--------|---------|
 | `greenhouse-mosquitto` | ✅ Running | MQTT broker (port 1883) |
-| `greenhouse-storyteller` | ✅ Running | 5 Python processes + web server |
+| `greenhouse-storyteller` | ✅ Running | Scheduler, email, inbox monitor |
+| `greenhouse-web` | ✅ Running | FastAPI + React dashboard (port 8000) |
+| `greenhouse-tunnel` | ✅ Running | Cloudflare Tunnel (public ingress) |
 
 ### Storyteller Processes
 | Process | Topic/Schedule | Status |
 |---------|----------------|--------|
 | `ingestion.py` | `greenhouse/+/image` | ✅ Receiving camera images |
 | `curator.py` | Archive queue | ✅ Processing to `data/archive/` |
-| `scheduler.py` | 07:00 daily, monthly/yearly timelapses, broadcast poll | ✅ Running |
+| `scheduler.py` | 07:00 daily, monthly/yearly timelapses, inbox poll | ✅ Running |
 | `status_daemon.py` | `greenhouse/+/sensor/+/state` | ✅ Writing `status.json` + device monitoring |
 | `device_monitor.py` | Every 5 min | ✅ Online/offline alerts via email |
-| `web_server.py` | Port 8080 | ✅ Serving timelapses |
+| `inbox_monitor.py` | Every 5 min | ✅ Processing GUESS/BROADCAST commands |
 
 ---
 
@@ -179,6 +181,20 @@ docker compose up -d --force-recreate storyteller
   - `publisher.py` reduced from 1,398 to 895 lines (-36%)
   - All 12 scripts migrated to centralized Pydantic config
   - Security & durability audit complete
+- [x] **Web Application Launch** - Full stack deployment (Jan 18):
+  - React frontend with Material UI, TanStack Query, Recharts
+  - FastAPI backend with REST API endpoints
+  - Cloudflare Tunnel + Access for public ingress with authentication
+  - Real-time sensor dashboard with 24h/7d/30d chart views
+  - Interactive riddle game with AI-powered guess judging
+  - Leaderboard and timelapse viewer pages
+  - Rate limiting on API endpoints (slowapi)
+- [x] **Security Audit** - SAST review complete (Jan 18):
+  - JWT auth via Cloudflare Access validated headers
+  - Rate limiting: 10/min on riddle guess, 4/hr on narrative refresh
+  - File locking (fcntl.flock) prevents JSON race conditions
+  - Input sanitization on all user-submitted content
+  - Full report: `docs/security_audit_2026-01-18.md`
 
 ---
 
@@ -207,8 +223,10 @@ docker compose up -d --force-recreate storyteller
 - [ ] Fix sensor #1 hardware
 - [ ] Add more microclimate sensors
 - [x] **NVMe migration** - 1TB NVMe installed ✅
-- [ ] Web dashboard
+- [x] **Web dashboard** - React + FastAPI live at straightouttacolington.com ✅
 - [ ] Investigate FireBeetle BME280 not publishing (battery works, temp/humidity don't)
+- [ ] Add DOMPurify to frontend for narrative HTML sanitization
+- [ ] Bind internal Docker ports to 127.0.0.1 instead of 0.0.0.0
 - [x] **Security cleanup** - Scrubbed IPs/usernames from docs, removed cruft files
 
 ---
