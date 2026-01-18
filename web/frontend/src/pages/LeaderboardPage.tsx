@@ -97,6 +97,50 @@ export function LeaderboardPage() {
             )}
           </CardContent>
         </Card>
+
+        {/* Scoring Explanation */}
+        <Card sx={{ mt: 2 }}>
+          <CardContent>
+            <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
+              How Scoring Works
+            </Typography>
+            <List dense disablePadding>
+              <ListItem sx={{ py: 0.5 }}>
+                <ListItemText
+                  primary="🥇 First to Solve"
+                  secondary="3 points + credited as the day's winner"
+                  primaryTypographyProps={{ fontWeight: 500 }}
+                />
+              </ListItem>
+              <ListItem sx={{ py: 0.5 }}>
+                <ListItemText
+                  primary="✅ Correct Answer"
+                  secondary="2 points (after first solver)"
+                  primaryTypographyProps={{ fontWeight: 500 }}
+                />
+              </ListItem>
+              <ListItem sx={{ py: 0.5 }}>
+                <ListItemText
+                  primary="❌ Wrong Guess"
+                  secondary="0 points (but keep trying!)"
+                  primaryTypographyProps={{ fontWeight: 500 }}
+                />
+              </ListItem>
+              <ListItem sx={{ py: 0.5 }}>
+                <ListItemText
+                  primary="🔄 Already Solved"
+                  secondary="Once you solve a riddle, you can't earn more points on it"
+                  primaryTypographyProps={{ fontWeight: 500 }}
+                />
+              </ListItem>
+            </List>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+              A new riddle appears each morning at 7 AM in the daily email.
+              Submit guesses via email reply or the website. The AI judges
+              whether your answer is correct (synonyms and close matches count!).
+            </Typography>
+          </CardContent>
+        </Card>
       </Container>
     </Box>
   )

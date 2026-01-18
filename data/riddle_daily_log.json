@@ -48,6 +48,13 @@
       "correct": "correct",
       "email_timestamp": "2026-01-18T20:45:39.449032Z",
       "processed_at": "2026-01-18T20:45:39.449032Z"
+    },
+    {
+      "user": "anonymous",
+      "display_name": "anonymous",
+      "correct": false,
+      "email_timestamp": "2026-01-18T20:54:54.095264Z",
+      "processed_at": "2026-01-18T20:54:54.095264Z"
     }
   ]
 }

@@ -26,8 +26,8 @@ _SCORES_PATH = os.getenv("RIDDLE_SCORES_PATH", "/app/data/riddle_scores.json")
 _ARCHIVE_PATH = os.getenv("RIDDLE_GAME_ARCHIVE_PATH", "/app/data/riddle_game_archive.json")
 
 # Scoring constants
-POINTS_CORRECT = 1
-POINTS_FIRST_BONUS = 1  # Additional point for first solver
+POINTS_CORRECT = 2        # Points for a correct answer
+POINTS_FIRST_BONUS = 1    # Additional point for first solver (total: 3)
 
 
 def _empty_daily_log(date: str) -> Dict[str, Any]:

@@ -222,17 +222,20 @@ async def submit_guess(request: Request, body: GuessRequest) -> Dict[str, Any]:
     
     # Judge the guess
     try:
-        is_correct, feedback = narrator.judge_riddle(
-            riddle_text,
-            riddle_state.get("answer", ""),
+        # narrator.judge_riddle returns {"correct": bool, "reply_text": str}
+        judge_result = narrator.judge_riddle(
             guess,
+            riddle_state.get("answer", ""),
+            riddle_text,
         )
+        is_correct = judge_result.get("correct", False)
+        feedback = judge_result.get("reply_text", "")
     except Exception as e:
         log(f"Judge riddle failed: {e}")
         # Fallback to simple string matching
         correct_answer = riddle_state.get("answer", "").lower().strip()
         is_correct = guess.lower().strip() == correct_answer
-        feedback = "Correct!" if is_correct else "Not quite. Try again!"
+        feedback = "Aye, that be correct!" if is_correct else "Nay, that ain't it. Try again!"
     
     # Record the attempt
     try:
@@ -287,14 +290,20 @@ async def get_leaderboard() -> Dict[str, Any]:
         log(f"Get leaderboard failed: {e}")
         leaderboard = []
     
-    # Format for API response
+    # Format for API response (filter out anonymous users)
     players = []
-    for entry in leaderboard[:10]:  # Top 10
+    for entry in leaderboard:
+        display_name = entry.get("display_name", entry.get("email", ""))
+        # Skip anonymous users - they shouldn't be on the leaderboard
+        if not display_name or display_name.lower() == "anonymous":
+            continue
         players.append({
-            "display_name": entry.get("display_name", entry.get("email", "unknown")),
+            "display_name": display_name,
             "points": entry.get("points", 0),
             "wins": entry.get("wins", 0),
         })
+        if len(players) >= 10:  # Top 10
+            break
     
     return {
         "season_start": "2026-01-01",  # TODO: Track actual season start
