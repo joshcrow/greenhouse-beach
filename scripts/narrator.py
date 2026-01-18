@@ -8,6 +8,7 @@ from google import genai
 from pydantic import BaseModel, Field
 
 import coast_sky_service
+import context_engine
 import weather_service
 from utils.logger import create_logger
 from utils.io import atomic_write_json, atomic_read_json
@@ -55,6 +56,38 @@ _RIDDLE_STATE_PATH = _cfg.riddle_state_path if _cfg else os.getenv("RIDDLE_STATE
 _RIDDLE_HISTORY_PATH = os.getenv("RIDDLE_HISTORY_PATH", "/app/data/riddle_history.json")
 _HISTORY_PATH = os.getenv("NARRATIVE_HISTORY_PATH", "/app/data/narrative_history.json")
 _INJECTION_PATH = os.getenv("NARRATIVE_INJECTION_PATH", "/app/data/narrative_injection.json")
+_PROMPTS_DIR = _cfg.prompts_dir if _cfg else os.getenv("PROMPTS_DIR", "/app/data/prompts")
+
+
+def _load_prompt_template(filename: str, fallback: str = "") -> str:
+    """Load prompt template from disk, enabling hot-reload without container restart.
+    
+    Args:
+        filename: Name of the prompt file (e.g., "narrator_persona.txt")
+        fallback: Default text if file not found
+        
+    Returns:
+        Contents of the prompt file, or fallback if not found
+    """
+    path = os.path.join(_PROMPTS_DIR, filename)
+    
+    # Also check local dev path
+    if not os.path.exists(path):
+        local_path = os.path.join(os.path.dirname(__file__), '../data/prompts', filename)
+        if os.path.exists(local_path):
+            path = local_path
+    
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            content = f.read()
+            log(f"Loaded prompt template: {filename} ({len(content)} chars)")
+            return content
+    except FileNotFoundError:
+        log(f"Prompt file not found: {path}, using fallback")
+        return fallback
+    except Exception as exc:
+        log(f"Error loading prompt {filename}: {exc}")
+        return fallback
 
 
 def to_sentence_case(text: str) -> str:
@@ -226,21 +259,31 @@ def build_prompt(
         injection: Optional one-time message to include (e.g., birthday)
     """
 
+    # Load hot-reloadable persona (voice, style, local slang)
+    persona_fallback = """### ROLE
+You are **The Canal Captain**.
+- Location: Colington Harbour, Outer Banks, NC.
+- Experience: 30+ years. You've survived Hurricane Isabel. You know the septic rules.
+- Vibe: Cynical, helpful, observational. You lean on the truck tailgate and tell it like it is.
+
+### VOICE
+- Dry, salty, pragmatic. You sound like a retired fisherman checking his gauges.
+- Short sentences. No fluff. No "Welcome to the update." Just the facts.
+- You treat the greenhouse like a boat. It needs to be ship-shape.
+
+### LOCAL KNOWLEDGE
+- You live on the sound. You know the sound floods, the tourists can't drive, and the salt eats everything.
+- Use "Colington" (referring to the neighborhood).
+- Use "the sound" (Albemarle Sound).
+- Use "the bypass" (the main highway, usually with disdain).
+- Never say "OBX" or "The Outer Banks". That's for tourists. Say "here" or "the island".
+"""
+    persona = _load_prompt_template("narrator_persona.txt", fallback=persona_fallback)
+    
     lines = [
-        "ROLE: You are 'The Canal Captain', a grumpy but capable local in Colington Harbour, NC.",
         "TASK: Write a status update for a family greenhouse based on the data provided.",
         "",
-        "THE PERSONA (STRICT ADHERENCE):",
-        "- VOICE: Dry, salty, pragmatic. You sound like a retired fisherman checking his gauges.",
-        "- LOCAL KNOWLEDGE: You live on the sound. You know the sound floods, the tourists can't drive, and the salt eats everything.",
-        "- BREVITY: Short sentences. No fluff. No 'Welcome to the update.' Just the facts.",
-        "- VIBE: You treat the greenhouse like a boat. It needs to be ship-shape.",
-        "",
-        "GEOGRAPHY & SLANG:",
-        "- Use 'Colington' (referring to the neighborhood).",
-        "- Use 'the sound' (Albemarle Sound).",
-        "- Use 'the bypass' (the main highway, usually with disdain).",
-        "- Never say 'OBX' or 'The Outer Banks'. That's for tourists. Say 'here' or 'the island'.",
+        persona,
         "",
         "DATA RULES:",
         "- CRITICAL: 'greenhouse_weekly_high/low' = INSIDE the greenhouse. 'outdoor_weekly_high/low' = OUTSIDE weather.",
@@ -274,6 +317,22 @@ def build_prompt(
         "",
     ]
 
+    # Inject context engine intelligence (situational awareness)
+    try:
+        coast_data = sanitized_data.get("sound_level", {})
+        rich_flags = context_engine.get_rich_context(
+            date_obj=datetime.now(),
+            weather_data=sanitized_data,
+            coast_data=coast_data,
+        )
+        if rich_flags:
+            lines.append("LOCAL INTELLIGENCE (verified conditions - incorporate naturally):")
+            for flag in rich_flags:
+                lines.append(f"- {flag}")
+            lines.append("")
+    except Exception as exc:
+        log(f"Context engine failed (non-fatal): {exc}")
+
     # Add history section for continuity
     if history:
         if is_weekly:
@@ -297,18 +356,29 @@ def build_prompt(
             lines.append("")
         else:
             # Daily mode - reference recent history for continuity
-            lines.append("NARRATIVE HISTORY (for continuity):")
-            lines.append("Recent narratives from the past few days:")
+            lines.append("RECENT NARRATIVES (you wrote these — DO NOT REPEAT):")
             lines.append("")
             for entry in history[-3:]:  # Last 3 days for daily mode
                 date = entry.get("date", "Unknown")
-                headline = entry.get("headline", "")
-                lines.append(f"[{date}] - {headline}")
+                subject = entry.get("subject", "")
+                body = entry.get("body", "")[:200]  # Include body snippet
+                lines.append(f"[{date}] Subject: {subject}")
+                lines.append(f"  Body: {body}...")
+                lines.append("")
+            
+            # Extract phrases to explicitly ban
+            recent_subjects = [e.get("subject", "") for e in history[-3:]]
+            lines.append("BANNED PHRASES (already used recently — find fresh wording):")
+            for subj in recent_subjects:
+                if subj:
+                    lines.append(f"  - \"{subj}\"")
             lines.append("")
-            lines.append("CONTINUITY TIPS:")
-            lines.append("- Reference previous weather if relevant ('After yesterday's wind...').")
-            lines.append("- Don't repeat the same phrases or observations from recent days.")
-            lines.append("- Build on the story — this is a serial, not isolated updates.")
+            
+            lines.append("CONTINUITY RULES:")
+            lines.append("- This is an ongoing serial. Reference yesterday's conditions when relevant.")
+            lines.append("- NEVER reuse a subject line or opening phrase from the banned list above.")
+            lines.append("- Find NEW ways to describe recurring conditions (low water, wind direction, etc.).")
+            lines.append("- Vary your sentence structure. Yesterday's 'The sound level is X ft' becomes today's 'Harbor's down to X.'")
             lines.append("")
 
     # Add one-time injection if present (birthdays, special events, etc.)
@@ -483,6 +553,10 @@ def _generate_joke_or_riddle_paragraph(narrative_body: str, test_mode: bool = Fa
 
     # Get recent riddle topics to avoid repetition
     recent_topics = _get_recent_riddle_topics()
+    
+    # Get a specific topic from the knowledge graph
+    assigned_topic = context_engine.get_random_riddle_topic(exclude_recent=recent_topics)
+    log(f"Assigned riddle topic: {assigned_topic}")
 
     # Always use riddle mode - answer revealed next day
     mode = "riddle"
@@ -494,7 +568,9 @@ def _generate_joke_or_riddle_paragraph(narrative_body: str, test_mode: bool = Fa
         "ROLE: You are that same salty Colington Harbour local.",
         "TASK: Write a 'Who am I?' riddle. The answer will be revealed tomorrow.",
         "",
-        "THEME: Coastal Living, Maintenance, & Local Annoyances, aquatic life, surfing, local resturants, dog walking.",
+        f"ASSIGNED TOPIC: {assigned_topic}",
+        "Write your riddle about THIS SPECIFIC TOPIC. Do not deviate.",
+        "",
         "RULES:",
         "1. Subject must be something tangible ",
         "2. Personify the object. Make it sound annoying, relentless, or tricky.",
@@ -502,12 +578,6 @@ def _generate_joke_or_riddle_paragraph(narrative_body: str, test_mode: bool = Fa
         "4. Dry humor only. No whimsical fairy tale stuff.",
         "",
     ]
-
-    # Add recent topics to avoid
-    if recent_topics:
-        prompt_lines.append("AVOID THESE RECENT TOPICS (already used in past 2 weeks):")
-        prompt_lines.append(", ".join(recent_topics))
-        prompt_lines.append("")
 
     prompt_lines.extend([
         "EXAMPLES:",
@@ -519,7 +589,7 @@ def _generate_joke_or_riddle_paragraph(narrative_body: str, test_mode: bool = Fa
         f"INTRO: {intro}" if intro else "",
         "",
         "INSTRUCTION:",
-        "Write ONE riddle based on the vibe above. Return ONLY the riddle text.",
+        f"Write ONE riddle about '{assigned_topic}'. Return ONLY the riddle text.",
     ])
     prompt = "\n".join(prompt_lines)
 
@@ -533,7 +603,7 @@ def _generate_joke_or_riddle_paragraph(narrative_body: str, test_mode: bool = Fa
         log(f"Error during joke/riddle generation with {model_name}: {exc}")
 
     if not raw_text:
-        fallback_model = "gemini-2.0-flash-lite"
+        fallback_model = _cfg.gemini_fallback_model if _cfg else "gemini-2.0-flash-lite"
         try:
             response = client.models.generate_content(
                 model=fallback_model, contents=prompt
@@ -559,14 +629,14 @@ def _generate_joke_or_riddle_paragraph(narrative_body: str, test_mode: bool = Fa
     if mode == "riddle":
         answer_prompt_lines = [
             "You are helping generate a riddle.",
-            "Given the riddle text below, return ONLY the answer in a short phrase (no punctuation, no quotes).",
-            "Do not include the riddle again.",
-            "No emojis.",
+            f"The riddle was supposed to be about: {assigned_topic}",
+            "Return a SHORT answer phrase (2-5 words) that captures this topic.",
+            "No punctuation, no quotes, no emojis.",
             "",
             "RIDDLE:",
             paragraph,
             "",
-            "ANSWER:",
+            "CORRECT ANSWER (based on assigned topic):",
         ]
         answer_prompt = "\n".join(answer_prompt_lines)
         answer_raw = None
@@ -580,13 +650,14 @@ def _generate_joke_or_riddle_paragraph(narrative_body: str, test_mode: bool = Fa
 
         if not answer_raw:
             try:
+                fb_model = _cfg.gemini_fallback_model if _cfg else "gemini-2.0-flash-lite"
                 answer_resp = client.models.generate_content(
-                    model="gemini-2.0-flash-lite", contents=answer_prompt
+                    model=fb_model, contents=answer_prompt
                 )
                 answer_raw = _extract_text(answer_resp)
             except Exception as exc:  # noqa: BLE001
                 log(
-                    f"Error during riddle answer generation with gemini-2.0-flash-lite: {exc}"
+                    f"Error during riddle answer generation with {fb_model}: {exc}"
                 )
 
         answer = strip_emojis((answer_raw or "").strip())
@@ -702,8 +773,9 @@ def judge_riddle(
     try:
         client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
         
+        judge_model = _cfg.gemini_fallback_model if _cfg else "gemini-2.0-flash-lite"
         response = client.models.generate_content(
-            model="gemini-2.0-flash-lite",  # Fast, cheap model for judging
+            model=judge_model,  # Fast, cheap model for judging
             contents=prompt,
             config={
                 "response_mime_type": "application/json",
@@ -830,9 +902,9 @@ def generate_update(
     except Exception as exc:  # noqa: BLE001
         log(f"Error during Gemini generation with {model_name}: {exc}")
 
-    # Fallback attempt: gemini-2.0-flash-lite with structured output
+    # Fallback attempt with configured fallback model
     if not structured_success:
-        fallback_model = "gemini-2.0-flash-lite"
+        fallback_model = _cfg.gemini_fallback_model if _cfg else "gemini-2.0-flash-lite"
         try:
             log(f"Attempting fallback generation with model '{fallback_model}'.")
             response = client.models.generate_content(

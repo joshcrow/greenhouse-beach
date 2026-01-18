@@ -45,9 +45,12 @@ def get_24h_stats(now: Optional[datetime] = None) -> Dict[str, Any]:
     If the file is missing or invalid, log a warning and return an empty dict.
     """
 
+    from datetime import timezone
     if now is None:
-        from datetime import timezone
         now = datetime.now(timezone.utc)
+    elif now.tzinfo is None:
+        # Ensure now is timezone-aware for comparison with parsed timestamps
+        now = now.replace(tzinfo=timezone.utc)
 
     stats_path = os.getenv("STATS_24H_PATH", "/app/data/stats_24h.json")
     data = _load_stats_file(stats_path)

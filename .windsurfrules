@@ -1,0 +1,87 @@
+# Greenhouse Gazette — Windsurf Rules
+# Last Updated: 2026-01-17
+
+## Quick Reference
+- **Stack:** Python 3.11 / Docker Compose / Raspberry Pi 5
+- **Entry Points:** scheduler.py (cron), publisher.py (email), inbox_monitor.py (commands)
+- **Config:** app/config.py (Pydantic Settings) — NEVER use raw os.getenv()
+- **State:** /app/data/*.json — ALWAYS use utils.io.atomic_write_json
+
+## Architecture
+MQTT (sensors) -> status_daemon.py -> /data/status.json
+                                          |
+scheduler.py -> publisher.py -> narrator.py -> Gemini API
+                    |              |
+              email_sender    context_engine.py <- knowledge_graph.json
+
+## CRITICAL RULES (Pi Hardware)
+
+### File I/O — SD Card Protection
+# BAD - causes corruption on power loss
+with open("state.json", "w") as f: json.dump(data, f)
+
+# GOOD - atomic write via temp file + rename
+from utils.io import atomic_write_json
+atomic_write_json("state.json", data)
+
+### Memory — Image Processing
+# BAD - loads all images into RAM
+images = [Image.open(p) for p in paths]
+
+# GOOD - generator + explicit close
+for path in paths:
+    with Image.open(path) as img:
+        yield process(img)
+
+## The Great Swap (MEMORIZE THIS)
+Physical sensors are mapped inversely in MQTT. See configs/registry.json:
+
+| MQTT Topic                 | Physical Location        |
+|----------------------------|--------------------------|
+| exterior_temp              | INTERIOR greenhouse      |
+| satellite-2_temperature    | EXTERIOR yard            |
+
+Do NOT "fix" this. It is handled by utils/registry.py.
+
+## AI Architecture Split
+| Responsibility   | Where                      | Example                  |
+|------------------|----------------------------|--------------------------|
+| Math/Thresholds  | Python (context_engine.py) | Is wind > 25 mph?        |
+| Prose/Voice      | Gemini (narrator.py)       | How to describe the wind |
+
+Never ask the AI to calculate thresholds. Pass boolean flags.
+
+## Coding Standards
+- Logging: utils.logger.create_logger — never print()
+- Config: app.config.settings — never os.getenv() in functions
+- Time: UTC internally, local only at presentation layer
+- Retries: @tenacity.retry on all external HTTP/MQTT calls
+
+## Graceful Degradation
+# BAD - crashes on None
+temp = data["temp"] + 5
+
+# GOOD - handles missing data
+temp = (data.get("temp") or 0) + 5
+
+If Gemini/OpenWeather fails, fall back to static text, still send email.
+
+## Key Files
+| File                                    | Purpose                            |
+|-----------------------------------------|------------------------------------|
+| scripts/narrator.py                     | AI prompt building, riddle gen     |
+| scripts/context_engine.py               | Knowledge graph trigger evaluation |
+| scripts/publisher.py                    | Daily email orchestration          |
+| scripts/status_daemon.py                | MQTT -> status.json buffering      |
+| configs/registry.json                   | Sensor mapping (The Great Swap)    |
+| data/colington_knowledge_graph.json     | Local facts, thresholds, seasons   |
+| data/prompts/narrator_persona.txt       | Hot-reloadable AI voice            |
+
+## Testing
+- Email Testing: Always use --test flag: python publisher.py --test
+- Mock Config: Mock app.config.settings in tests, not os.environ
+
+## Output Style
+- Concise diffs, not full files
+- Check utils imports before editing
+- Verify file exists before editing

@@ -170,6 +170,14 @@ class Settings(BaseSettings):
         default="/app/data/sensor_log",
         description="Directory for sensor logs",
     )
+    knowledge_graph_path: str = Field(
+        default="/app/data/colington_knowledge_graph.json",
+        description="Path to Colington knowledge graph JSON",
+    )
+    prompts_dir: str = Field(
+        default="/app/data/prompts",
+        description="Directory for hot-reloadable prompt templates",
+    )
     
     # -------------------------------------------------------------------------
     # Feature Flags
@@ -181,10 +189,6 @@ class Settings(BaseSettings):
     riddle_game_enabled: bool = Field(
         default=True,
         description="Enable riddle game (GUESS command processing)",
-    )
-    resolution_target: str = Field(
-        default="1080p",
-        description="Target resolution for image processing",
     )
     status_write_interval: int = Field(
         default=60,

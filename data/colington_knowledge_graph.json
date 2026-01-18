@@ -1,0 +1,428 @@
+{
+  "version": "2.0",
+  "last_updated": "2026-01-17",
+  
+  "thresholds": {
+    "sound_flood_minor_ft": 2.0,
+    "sound_flood_moderate_ft": 3.0,
+    "sound_flood_major_ft": 4.5,
+    "sound_blowout_ft": -0.5,
+    "wind_bridge_advisory_mph": 35,
+    "wind_bridge_closure_mph": 60,
+    "wind_whitecaps_mph": 20,
+    "rain_septic_danger_in": 1.5,
+    "temp_frost_warning_f": 35,
+    "temp_dog_days_f": 90
+  },
+
+  "alerts": [
+    {
+      "id": "septic_danger",
+      "triggers": { "rain_24h_gt_in": 1.5 },
+      "priority": "warning",
+      "icon": "☣️",
+      "text": "Heavy rain = Colington Cocktail. Septic fields are flushed. Avoid the sound for 24 hours."
+    },
+    {
+      "id": "bridge_closure",
+      "triggers": { "wind_gt_mph": 60 },
+      "priority": "critical",
+      "icon": "🚫",
+      "text": "Bridge closed to high-profile vehicles. Gusts over 60 mph."
+    },
+    {
+      "id": "bridge_advisory",
+      "triggers": { "wind_gt_mph": 35, "wind_lt_mph": 60 },
+      "priority": "warning",
+      "icon": "⚠️",
+      "text": "White-knuckle bridge crossing. High wind advisory in effect."
+    },
+    {
+      "id": "frost_warning",
+      "triggers": { "temp_lt_f": 35 },
+      "priority": "warning",
+      "icon": "🥶",
+      "text": "Frost on the windshield. Check the hose bibs and cover the tender plants."
+    },
+    {
+      "id": "dog_days",
+      "triggers": { "temp_gt_f": 90 },
+      "priority": "flavor",
+      "icon": "🥵",
+      "text": "Dog days. AC working overtime. Don't leave anything in the truck that can melt."
+    },
+    {
+      "id": "greenhead_flies",
+      "triggers": { "temp_gt_f": 80, "wind_lt_mph": 10 },
+      "priority": "warning",
+      "icon": "🪰",
+      "text": "Greenhead fly conditions. Hot, humid, no wind. Stay off the marsh trails unless you enjoy blood loss."
+    },
+    {
+      "id": "noreaster_incoming",
+      "triggers": { "wind_gt_mph": 30, "wind_dir": "NE" },
+      "priority": "warning",
+      "icon": "🌀",
+      "text": "Nor'easter pattern. Sound will stack up on the west side. Check your dock lines."
+    },
+    {
+      "id": "bridge_ice",
+      "triggers": { "temp_lt_f": 32, "wind_gt_mph": 15 },
+      "priority": "critical",
+      "icon": "🧊",
+      "text": "Bridge deck ices before the roads. The Wright Memorial Bridge is a skating rink right now."
+    },
+    {
+      "id": "heat_advisory",
+      "triggers": { "temp_gt_f": 95 },
+      "priority": "warning",
+      "icon": "🥵",
+      "text": "Triple digits on the heat index. Hydrate or die. The AC will be working overtime."
+    },
+    {
+      "id": "rip_current_danger",
+      "triggers": { "wind_gt_mph": 15, "wind_dir": "NE" },
+      "priority": "critical",
+      "icon": "🌊",
+      "text": "Rip current conditions. NE wind stacking the surf. Swim near a lifeguard or don't swim at all."
+    },
+    {
+      "id": "beach_driving_soft_sand",
+      "triggers": { "rain_24h_lt_in": 0.1, "temp_gt_f": 85 },
+      "priority": "warning",
+      "icon": "🏖️",
+      "text": "Soft sand on the 4x4 beaches. Air down to 15 PSI or plan on getting stuck. Tow trucks are busy."
+    },
+    {
+      "id": "jellyfish_onshore",
+      "triggers": { "wind_dir": "E", "wind_gt_mph": 10 },
+      "priority": "warning",
+      "icon": "🎐",
+      "text": "East wind pushing jellies to shore. Watch where you step. Bring the meat tenderizer."
+    },
+    {
+      "id": "fog_advisory",
+      "triggers": { "temp_lt_f": 55, "wind_lt_mph": 5 },
+      "priority": "warning",
+      "icon": "🌫️",
+      "text": "Fog likely on the beach road. The Outer Banks disappear act. Headlights on, slow down."
+    }
+  ],
+
+  "micro_seasons": [
+    {
+      "id": "ghost_season",
+      "name": "Ghost Season",
+      "months": [1, 2],
+      "priority": "flavor",
+      "vibe": "Only contractors and cops on the road. Restaurants on winter hours. Locals reclaim the bar stools."
+    },
+    {
+      "id": "the_pollening",
+      "name": "The Pollening",
+      "months": [3, 4],
+      "triggers": { "rain_24h_lt_in": 0.1 },
+      "priority": "flavor",
+      "vibe": "The loblolly pines explode. Everything coated in neon yellow dust. Don't bother washing the truck."
+    },
+    {
+      "id": "cobia_season",
+      "name": "Cobia Season",
+      "start_md": [5, 1],
+      "end_md": [6, 20],
+      "priority": "flavor",
+      "vibe": "Boats with spotting towers cruising the oceanfront, hunting for The Man in the Brown Suit."
+    },
+    {
+      "id": "midges_hatch",
+      "name": "Midge Hatch",
+      "months": [5, 9],
+      "triggers": { "wind_lt_mph": 6 },
+      "priority": "flavor",
+      "vibe": "Calm air = fuzzy bills. Millions of non-biting midges coating the north side of every white house."
+    },
+    {
+      "id": "changeover_saturday",
+      "name": "Changeover Saturday",
+      "months": [6, 7, 8],
+      "dow": 6,
+      "triggers": { "hour_between": [10, 16] },
+      "priority": "warning",
+      "vibe": "Gridlock on the bypass. The Great Tourist Migration. Do not leave the house between 10 and 4."
+    },
+    {
+      "id": "hurricane_fatigue",
+      "name": "Hurricane Season",
+      "months": [9],
+      "priority": "flavor",
+      "vibe": "Checking the NHC website every 6 hours. Judging neighbors' plywood. Generator testing rituals."
+    },
+    {
+      "id": "locals_summer",
+      "name": "Locals Summer",
+      "months": [9, 10],
+      "priority": "flavor",
+      "vibe": "Water's still warm, tourists are gone, rates are down. The best time to be alive on the island."
+    },
+    {
+      "id": "tundra_swans",
+      "name": "Tundra Swan Season",
+      "start_md": [11, 15],
+      "end_md": [2, 28],
+      "priority": "flavor",
+      "vibe": "Fields on the mainland turn white with birds. Chaotic honking at Alligator River refuge."
+    },
+    {
+      "id": "jellyfish_season",
+      "name": "Jellyfish Season",
+      "months": [7, 8],
+      "priority": "flavor",
+      "vibe": "Sea nettles owning the sound. Every swim ends with the vinegar bottle. Kids screaming on the beach."
+    },
+    {
+      "id": "red_drum_run",
+      "name": "Red Drum Run",
+      "start_md": [9, 15],
+      "end_md": [11, 15],
+      "priority": "flavor",
+      "vibe": "Big reds cruising the shallows. Every boat with a fishfinder is out there. The tackle shop parking lot is full by 6 AM."
+    },
+    {
+      "id": "snowbird_exodus",
+      "name": "Snowbird Exodus",
+      "start_md": [4, 1],
+      "end_md": [4, 30],
+      "priority": "flavor",
+      "vibe": "Ohio plates heading north. For Sale signs going up. The year-rounders finally get their island back."
+    },
+    {
+      "id": "surf_fishing_blitz",
+      "name": "Fall Bluefish Blitz",
+      "start_md": [10, 15],
+      "end_md": [11, 30],
+      "priority": "flavor",
+      "vibe": "Blues and stripers running the beach. Trucks lined up on Jennette's Pier. Blood and scales everywhere."
+    },
+    {
+      "id": "wedding_season",
+      "name": "Beach Wedding Season",
+      "months": [5, 6, 9, 10],
+      "triggers": { "hour_between": [16, 19] },
+      "priority": "flavor",
+      "vibe": "White tents on every beach access. Bridesmaids in heels sinking in sand. Drunk uncles stumbling toward the waves."
+    },
+    {
+      "id": "spring_break_invasion",
+      "name": "Spring Break",
+      "start_md": [3, 15],
+      "end_md": [4, 15],
+      "priority": "flavor",
+      "vibe": "College kids discovering the Outer Banks exists. The Brewing Station is packed. Noise complaints spike."
+    }
+  ],
+
+  "sensory": [
+    {
+      "id": "peat_smoke",
+      "triggers": { "wind_dir": "W", "wind_gt_mph": 10 },
+      "priority": "flavor",
+      "icon": "👃",
+      "text": "West wind carrying peat smoke from the mainland fires. Smells like campfire and burning dirt."
+    },
+    {
+      "id": "low_tide_smell",
+      "triggers": { "wind_dir": "N" },
+      "priority": "flavor",
+      "icon": "👃",
+      "text": "North wind bringing the sulfur scent of exposed mud flats and crab pots."
+    },
+    {
+      "id": "ocean_roar",
+      "triggers": { "wind_gt_mph": 20 },
+      "priority": "flavor",
+      "icon": "🔊",
+      "text": "Can hear the ocean from the soundside today. That freight-train rumble means the surf is up."
+    },
+    {
+      "id": "pluff_mud",
+      "triggers": { "temp_gt_f": 75, "wind_lt_mph": 8 },
+      "priority": "flavor",
+      "icon": "👃",
+      "text": "Low tide funk. The marsh is breathing. That sulfur smell means the fiddler crabs are out."
+    },
+    {
+      "id": "fish_cleaning",
+      "triggers": { "temp_gt_f": 70, "wind_lt_mph": 6, "hour_between": [16, 20] },
+      "priority": "flavor",
+      "icon": "👃",
+      "text": "Fish cleaning station working overtime. Someone had a good day on the water."
+    },
+    {
+      "id": "cicada_wall",
+      "triggers": { "temp_gt_f": 85, "hour_between": [17, 21] },
+      "priority": "flavor",
+      "icon": "🔊",
+      "text": "Cicadas hitting that evening crescendo. The sound wall of summer."
+    },
+    {
+      "id": "prop_planes",
+      "triggers": { "wind_lt_mph": 15, "hour_between": [9, 17] },
+      "priority": "flavor",
+      "icon": "🔊",
+      "text": "Prop planes droning from First Flight. Banner planes advertising all-you-can-eat crab legs."
+    },
+    {
+      "id": "sunscreen_cloud",
+      "triggers": { "temp_gt_f": 80, "hour_between": [10, 14] },
+      "priority": "flavor",
+      "icon": "👃",
+      "text": "Coconut sunscreen haze at every beach access. Summer in a smell."
+    },
+    {
+      "id": "pier_creaking",
+      "triggers": { "wind_gt_mph": 25 },
+      "priority": "flavor",
+      "icon": "🔊",
+      "text": "Nags Head Pier is groaning in the wind. That old wood knows things."
+    },
+    {
+      "id": "seagull_chaos",
+      "triggers": { "hour_between": [11, 14] },
+      "priority": "flavor",
+      "icon": "🔊",
+      "text": "Seagull feeding frenzy at the beach. Someone opened a bag of chips. War has begun."
+    },
+    {
+      "id": "salt_spray_coating",
+      "triggers": { "wind_gt_mph": 20, "wind_dir": "NE" },
+      "priority": "flavor",
+      "icon": "👀",
+      "text": "Salt spray coating everything. Your windows, your car, your sunglasses. The ocean is claiming its territory."
+    }
+  ],
+
+  "infrastructure": [
+    {
+      "id": "boat_ramp_algae",
+      "triggers": { "rain_24h_gt_in": 0.5 },
+      "priority": "warning",
+      "icon": "🚤",
+      "text": "Boat ramp's slick after rain. The algae makes it a skating rink. Take it slow or watch your truck slide in."
+    },
+    {
+      "id": "gate_reader_humidity",
+      "triggers": { "temp_gt_f": 85 },
+      "priority": "flavor",
+      "icon": "🚧",
+      "text": "Gate barcode reader gets temperamental in humidity. Have your code ready to punch in manually."
+    },
+    {
+      "id": "marina_fuel_dock",
+      "triggers": { "wind_gt_mph": 20 },
+      "priority": "warning",
+      "icon": "⛽",
+      "text": "Marina fuel dock exposed in this wind. Fenders out, approach slow, or wait for it to lay down."
+    },
+    {
+      "id": "bypass_flooding",
+      "triggers": { "rain_24h_gt_in": 2.0 },
+      "priority": "warning",
+      "icon": "🚗",
+      "text": "Bypass floods before Beach Road in heavy rain. The low spot near milepost 9 goes first."
+    },
+    {
+      "id": "beach_road_tourists",
+      "triggers": { "hour_between": [10, 14] },
+      "priority": "flavor",
+      "icon": "🚗",
+      "text": "Beach Road crawling with rental bikes and confused tourists. Take the bypass if you value your sanity."
+    },
+    {
+      "id": "beach_road_flooding",
+      "triggers": { "sound_gt_ft": 2.5, "wind_dir": "SW" },
+      "priority": "warning",
+      "icon": "🚗",
+      "text": "Beach Road floods from the sound side before the ocean side. The low spots near Jockey's Ridge go first."
+    },
+    {
+      "id": "pier_closed_lightning",
+      "triggers": { "wind_gt_mph": 30 },
+      "priority": "warning",
+      "icon": "⚡",
+      "text": "Piers close when the weather turns. Check before you drive out there with all your gear."
+    },
+    {
+      "id": "jockeys_ridge_wind",
+      "triggers": { "wind_gt_mph": 25 },
+      "priority": "flavor",
+      "icon": "🏜️",
+      "text": "Jockey's Ridge sandblasting anyone dumb enough to climb it. Your legs will be exfoliated whether you like it or not."
+    },
+    {
+      "id": "beach_access_parking",
+      "triggers": { "temp_gt_f": 80, "hour_between": [10, 15] },
+      "priority": "flavor",
+      "icon": "🅿️",
+      "text": "Beach access parking is a blood sport right now. Cobia Street and Epstein Street are war zones."
+    },
+    {
+      "id": "outlet_mall_traffic",
+      "triggers": { "rain_24h_gt_in": 0.25 },
+      "priority": "flavor",
+      "icon": "🚗",
+      "text": "Rainy day = outlet mall gridlock. Every tourist who can't beach is shopping. Avoid the 158/64 intersection."
+    }
+  ],
+
+  "flooding_zones": {
+    "first_to_flood": "The S-Curve near the Fire Station",
+    "second_to_flood": "Low spots on Colington Road",
+    "context": "When sound level hits 2.5+ ft with SW wind, the S-Curve goes first."
+  },
+
+  "riddle_topics": [
+    "A rusted-out crab pot",
+    "The Fresh Market parking lot (combat zone)",
+    "A 5/4mm wetsuit that smells like mildew",
+    "Pine straw (the chore that never ends)",
+    "A dehumidifier water bucket",
+    "Driving through salt water at the Fire Station",
+    "Orb weaver spiders (the Colington face-plant)",
+    "The flashing red light on Wright Monument",
+    "A recycled Christmas tree on the dunes",
+    "Nutria rats swimming in the canal",
+    "The gate house barcode reader",
+    "Sandspurs in the carpet",
+    "Yellow flies in the swamp",
+    "A Generac generator self-testing at 2am",
+    "A tourist driving wrong way in the middle lane",
+    "The green flashing channel buoy",
+    "Getting stuck behind the garbage truck on the curvy road",
+    "A pelican dive-bombing the bait bucket",
+    "The sound of flip-flops on hot asphalt",
+    "A faded Trump flag still flying in January",
+    "Ghost crabs at night on the beach",
+    "The ice machine at the gas station",
+    "A cooler full of warm beer after the ice melts",
+    "The pothole on Colington Road everyone swerves around",
+    "A sun-bleached plastic flamingo that's been there since 2015",
+    "The boat on the trailer that hasn't moved since Obama was president",
+    "A screen door that slams every time the wind picks up",
+    "The neighbor's rooster that doesn't understand time zones",
+    "A pile of oyster shells in someone's driveway",
+    "The specific shopping cart always abandoned at the Food Lion entrance",
+    "A faded 'Slow Down - Kids at Play' sign with no kids in sight",
+    "The truck with the 'Salt Life' sticker and Virginia plates",
+    "A kayak strapped to a roof rack that's never touched water",
+    "The concrete ship visible at low tide",
+    "A boogie board with one fin missing",
+    "The guy selling hermit crabs from a bucket",
+    "A beach chair abandoned at high tide",
+    "The specific lifeguard stand where everyone takes photos",
+    "A metal detector guy who's been at it since sunrise",
+    "The faded 'No Lifeguard on Duty' sign",
+    "A kite tangled in the sea oats",
+    "The minivan with 47 beach towels drying on it",
+    "A ghost crab hole you almost twisted your ankle in"
+  ]
+}
