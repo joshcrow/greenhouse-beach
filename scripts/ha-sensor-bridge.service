@@ -1,0 +1,33 @@
+# Systemd service file for HA Sensor MQTT Bridge
+# Install on Greenhouse Pi (Node A):
+#   sudo cp ha-sensor-bridge.service /etc/systemd/system/
+#   sudo cp ha_sensor_bridge.py /opt/greenhouse/
+#   Create env file with HA_TOKEN, MQTT credentials
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable ha-sensor-bridge
+#   sudo systemctl start ha-sensor-bridge
+
+[Unit]
+Description=Greenhouse Gazette HA Sensor MQTT Bridge
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/opt/greenhouse
+EnvironmentFile=/opt/greenhouse/ha_sensor_bridge.env
+ExecStart=/usr/bin/python3 /opt/greenhouse/ha_sensor_bridge.py --daemon --interval 5
+Restart=on-failure
+RestartSec=30
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ha-sensor-bridge
+
+[Install]
+WantedBy=multi-user.target

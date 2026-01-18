@@ -1,0 +1,23 @@
+{
+  "season_start": "2026-01-11",
+  "players": {
+    "nickcrow8@gmail.com": {
+      "display_name": "nickcrow8",
+      "points": 2,
+      "wins": 1,
+      "last_played": "2026-01-13"
+    },
+    "carterpwalker@gmail.com": {
+      "display_name": "carterpwalker",
+      "points": 6,
+      "wins": 3,
+      "last_played": "2026-01-17"
+    },
+    "susanhcrow@gmail.com": {
+      "display_name": "susanhcrow",
+      "points": 2,
+      "wins": 0,
+      "last_played": "2026-01-17"
+    }
+  }
+}

@@ -17,6 +17,8 @@
 # Data directories (mounted as volumes)
 data/
 *.json
+!web/frontend/package.json
+!web/frontend/package-lock.json
 
 # Documentation
 *.md

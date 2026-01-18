@@ -1,0 +1,36 @@
+{
+  "riddle_date": "2026-01-18",
+  "first_solver": null,
+  "first_solve_time": null,
+  "solvers": [],
+  "attempts": [
+    {
+      "user": "nickcrow8@gmail.com",
+      "display_name": "nickcrow8",
+      "correct": false,
+      "email_timestamp": "2026-01-18T08:03:21Z",
+      "processed_at": "2026-01-18T20:18:38.919066Z"
+    },
+    {
+      "user": "joshcrow1193@gmail.com",
+      "display_name": "joshcrow1193",
+      "correct": false,
+      "email_timestamp": "2026-01-18T08:12:15Z",
+      "processed_at": "2026-01-18T20:18:50.123152Z"
+    },
+    {
+      "user": "carterpwalker@gmail.com",
+      "display_name": "carterpwalker",
+      "correct": false,
+      "email_timestamp": "2026-01-18T08:28:32Z",
+      "processed_at": "2026-01-18T20:19:03.184389Z"
+    },
+    {
+      "user": "susanhcrow@gmail.com",
+      "display_name": "susanhcrow",
+      "correct": false,
+      "email_timestamp": "2026-01-18T10:16:46Z",
+      "processed_at": "2026-01-18T20:19:14.355045Z"
+    }
+  ]
+}

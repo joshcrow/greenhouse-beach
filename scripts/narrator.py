@@ -806,6 +806,85 @@ def judge_riddle(
         }
 
 
+def generate_narrative_only(
+    sensor_data: Dict[str, Any],
+    model_name: str | None = None,
+) -> tuple[str, str, str]:
+    """Generate narrative without side effects (for web API).
+
+    Unlike generate_update(), this function:
+    - Does NOT call weather_service (uses sensor_data as-is)
+    - Does NOT generate a riddle
+    - Does NOT save to narrative_history.json
+    - Does NOT update riddle_state.json
+
+    Args:
+        sensor_data: Pre-fetched sensor data dict
+        model_name: Optional Gemini model override
+
+    Returns:
+        tuple: (subject, headline, body_html)
+    """
+    sanitized = sanitize_data(sensor_data)
+
+    # Minimal prompt without history (web narrative is standalone)
+    prompt = build_prompt(sanitized, history=None, is_weekly=False, injection=None)
+
+    # Default fallback values
+    subject = "Greenhouse Update"
+    headline = "Conditions Report"
+    body = "The greenhouse is holding steady."
+
+    client = _get_client()
+    model = get_model_name(model_name)
+
+    structured_config = {
+        "response_mime_type": "application/json",
+        "response_json_schema": NarrativeResponse.model_json_schema(),
+    }
+
+    try:
+        response = client.models.generate_content(
+            model=model,
+            contents=prompt,
+            config=structured_config,
+        )
+        raw_text = _extract_text(response)
+        if raw_text:
+            narrative = NarrativeResponse.model_validate_json(raw_text)
+            subject = to_sentence_case(narrative.subject)
+            headline = to_sentence_case(narrative.headline)
+            body = narrative.body
+    except Exception as exc:
+        log(f"Web narrative generation failed: {exc}")
+        # Fallback to lite model
+        try:
+            fallback = _cfg.gemini_fallback_model if _cfg else "gemini-2.0-flash-lite"
+            response = client.models.generate_content(
+                model=fallback,
+                contents=prompt,
+                config=structured_config,
+            )
+            raw_text = _extract_text(response)
+            if raw_text:
+                narrative = NarrativeResponse.model_validate_json(raw_text)
+                subject = to_sentence_case(narrative.subject)
+                headline = to_sentence_case(narrative.headline)
+                body = narrative.body
+        except Exception as fallback_exc:
+            log(f"Fallback generation also failed: {fallback_exc}")
+
+    # Convert markdown bold to HTML
+    body_html = re.sub(r"\*\*([^*]+)\*\*", r"<b>\1</b>", body)
+
+    # Strip emojis for consistency
+    subject = strip_emojis(subject)
+    headline = strip_emojis(headline)
+    body_html = strip_emojis(body_html)
+
+    return subject, headline, body_html
+
+
 def generate_update(
     sensor_data: Dict[str, Any], is_weekly: bool = False, test_mode: bool = False
 ) -> tuple[str, str, str, str, Dict[str, Any]]:

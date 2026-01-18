@@ -13,9 +13,13 @@ Usage:
     data = atomic_read_json("/path/to/file.json", default={})
 """
 
+import fcntl
 import json
 import os
 from typing import Any, Optional
+
+# Global file locks to prevent concurrent writes to the same file
+_file_locks: dict = {}
 
 
 def atomic_write_json(
@@ -28,6 +32,8 @@ def atomic_write_json(
     
     Uses the temp-file + fsync + rename pattern to ensure data
     is fully written to disk before the original file is replaced.
+    Also uses file locking to prevent race conditions between
+    multiple processes (web API, daemon, scheduler).
     
     Args:
         path: Target file path
@@ -36,12 +42,20 @@ def atomic_write_json(
         ensure_ascii: If False, allow non-ASCII characters (default False)
     """
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    lock_path = f"{path}.lock"
     tmp_path = f"{path}.tmp"
-    with open(tmp_path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=indent, ensure_ascii=ensure_ascii)
-        f.flush()
-        os.fsync(f.fileno())
-    os.replace(tmp_path, path)
+    
+    # Acquire exclusive lock
+    with open(lock_path, "w") as lock_file:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        try:
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=indent, ensure_ascii=ensure_ascii)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp_path, path)
+        finally:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
 
 def atomic_read_json(

@@ -216,8 +216,8 @@ def send_reply(original_msg, body: str, sender_email: str) -> bool:
     cfg = _get_settings()
     smtp_user = cfg.smtp_user if cfg else None
     smtp_password = cfg.smtp_password if cfg else None
-    smtp_server = cfg.smtp_server_host if cfg else "smtp.gmail.com"
-    smtp_port = cfg.smtp_port if cfg else 587
+    smtp_server = (cfg.smtp_server or cfg.smtp_host) if cfg else "smtp.gmail.com"
+    smtp_port = cfg.smtp_port if cfg else 465
     
     if not smtp_user or not smtp_password:
         log("ERROR: SMTP credentials not configured")
@@ -243,10 +243,16 @@ def send_reply(original_msg, body: str, sender_email: str) -> bool:
         msg["Auto-Submitted"] = "auto-replied"
         msg["X-Auto-Response-Suppress"] = "All"
         
-        with smtplib.SMTP(smtp_server, smtp_port) as server:
-            server.starttls()
-            server.login(smtp_user, smtp_password)
-            server.send_message(msg)
+        # Use SSL for port 465, STARTTLS for 587
+        if smtp_port == 465:
+            with smtplib.SMTP_SSL(smtp_server, smtp_port) as server:
+                server.login(smtp_user, smtp_password)
+                server.send_message(msg)
+        else:
+            with smtplib.SMTP(smtp_server, smtp_port) as server:
+                server.starttls()
+                server.login(smtp_user, smtp_password)
+                server.send_message(msg)
         
         record_reply_sent(sender_email)
         log(f"Sent reply to {sender_email}")
@@ -255,6 +261,59 @@ def send_reply(original_msg, body: str, sender_email: str) -> bool:
     except Exception as exc:
         log(f"Failed to send reply to {sender_email}: {exc}")
         return False
+
+
+# =============================================================================
+# HELP COMMAND
+# =============================================================================
+
+HELP_REPLY_TEXT = """Ahoy! Here's how to play the Riddle Game:
+
+📧 TO GUESS: Reply with subject line:
+   GUESS [YYYY-MM-DD]: your answer
+   
+   Example: GUESS [2026-01-17]: stingray
+
+🏆 SCORING:
+   - First correct answer: 2 points
+   - Subsequent correct answers: 1 point
+   
+📊 The leaderboard is in each morning's Gazette.
+
+📈 TO CHECK YOUR STATS: Reply with subject "STATS"
+
+Wind's fair, Captain out."""
+
+
+def handle_help(msg, sender_email: str) -> bool:
+    """Send game instructions to user."""
+    log(f"Sending HELP reply to {sender_email}")
+    return send_reply(msg, HELP_REPLY_TEXT, sender_email)
+
+
+# =============================================================================
+# STATS COMMAND
+# =============================================================================
+
+def handle_stats(msg, sender_email: str) -> bool:
+    """Send player's personal stats."""
+    stats = scorekeeper.get_player_stats(sender_email)
+    
+    if not stats:
+        reply = "Ye haven't played yet, landlubber. Answer tomorrow's riddle to get on the board!"
+    else:
+        rank_str = f"#{stats['rank']}" if stats.get('rank') else "unranked"
+        reply = f"""Your Riddle Stats, matey:
+
+🎯 Points: {stats['points']}
+🏆 First-solver wins: {stats['wins']}
+📊 Rank: {rank_str}
+📅 Last played: {stats.get('last_played', 'N/A')}
+
+Keep guessin'!"""
+    
+    log(f"Sending STATS reply to {sender_email}: {stats['points'] if stats else 0} points")
+    return send_reply(msg, reply, sender_email)
 
 
 # =============================================================================
@@ -281,40 +340,55 @@ def _load_riddle_state() -> Dict[str, Any]:
     return atomic_read_json(_get_riddle_state_path(), default={})
 
 
-def handle_guess(msg, sender_email: str) -> bool:
-    """Process a riddle guess email."""
-    subject = decode_email_subject(msg.get("Subject", ""))
+def _extract_guess_text(body: str) -> str:
+    """Extract just the guess from email body, stripping reply chains and signatures."""
+    if not body:
+        return ""
     
+    # Take only content before common reply markers
+    for marker in ["\nOn ", "\n>", "\n--", "\nSent from", "\n___"]:
+        if marker in body:
+            body = body.split(marker)[0]
+    
+    # Get first meaningful line(s) - limit to 200 chars
+    lines = [l.strip() for l in body.strip().split("\n") if l.strip()]
+    guess = " ".join(lines)[:200]
+    
+    return guess.strip()
+
+
+def handle_guess(msg, sender_email: str) -> bool:
+    """Process a riddle guess email.
+    
+    Supports multiple formats:
+    1. Subject: GUESS [2026-01-18]: answer
+    2. Subject: GUESS [2026-01-18] with answer in body
+    3. Subject contains GUESS, answer in body (uses current riddle date)
+    """
+    subject = decode_email_subject(msg.get("Subject", ""))
+    body = get_email_body(msg).strip()
+    
+    # Try to parse structured format from subject
     parsed = parse_guess_subject(subject)
-    if not parsed:
-        # Try to get guess from body if subject format is wrong
-        body = get_email_body(msg).strip()
-        if body and len(body) < 200:
-            # Assume the body is the guess, but we need the date
-            riddle_state = _load_riddle_state()
-            current_date = riddle_state.get("date")
-            if current_date:
-                parsed = (current_date, body)
-            else:
-                send_reply(msg, 
-                    "Ahoy! Format yer guess like this in the subject:\n"
-                    "GUESS [YYYY-MM-DD]: your answer\n\n"
-                    "Check today's Gazette for the riddle date.",
-                    sender_email)
-                return False
-        else:
+    
+    if parsed:
+        date_id, guess_text = parsed
+        # If subject had date but no answer, get answer from body
+        if not guess_text:
+            guess_text = _extract_guess_text(body)
+    else:
+        # Subject didn't have proper format - use body as guess with current date
+        riddle_state = _load_riddle_state()
+        current_date = riddle_state.get("date")
+        
+        if not current_date:
             send_reply(msg,
-                "Ahoy! Format yer guess like this in the subject:\n"
-                "GUESS [YYYY-MM-DD]: your answer\n\n"
-                "Check today's Gazette for the riddle date.",
+                "The Captain hasn't posed a riddle yet. Check back after the morning Gazette.",
                 sender_email)
             return False
-    
-    date_id, guess_text = parsed
-    
-    # If guess is empty, try body
-    if not guess_text:
-        guess_text = get_email_body(msg).strip()[:200]
+        
+        guess_text = _extract_guess_text(body)
+        date_id = current_date
     
     if not guess_text:
         send_reply(msg,
@@ -525,13 +599,21 @@ def poll_inbox() -> None:
                         handled = handle_injection(msg, sender)
                     elif subject_upper.startswith("GUESS") and game_enabled:
                         handled = handle_guess(msg, sender)
+                    elif subject_upper.startswith("HELP") and game_enabled:
+                        handled = handle_help(msg, sender)
+                    elif subject_upper.startswith("STATS") and game_enabled:
+                        handled = handle_stats(msg, sender)
                 
-                # Player guesses (non-admin)
+                # Player commands (non-admin)
                 elif sender in player_emails and game_enabled:
                     if subject_upper.startswith("GUESS"):
                         handled = handle_guess(msg, sender)
+                    elif subject_upper.startswith("HELP"):
+                        handled = handle_help(msg, sender)
+                    elif subject_upper.startswith("STATS"):
+                        handled = handle_stats(msg, sender)
                     else:
-                        log(f"Ignoring non-GUESS email from player {sender}: {subject[:50]}")
+                        log(f"Ignoring unrecognized email from player {sender}: {subject[:50]}")
                 
                 else:
                     log(f"Ignoring email from unknown sender {sender}: {subject[:50]}")

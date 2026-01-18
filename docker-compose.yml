@@ -109,6 +109,36 @@ services:
     command: ["python", "-u", "scripts/email_preview.py"]
 
   # ---------------------------------------------------------------------------
+  # Web Dashboard (STC - straightouttacolington.com)
+  # ---------------------------------------------------------------------------
+  web:
+    build:
+      context: .
+      target: web
+    container_name: greenhouse-web
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - TZ=${TZ:-America/New_York}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
+      - MQTT_HOST=mosquitto
+      - MQTT_PORT=1883
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./configs/registry.json:/app/configs/registry.json:ro
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ---------------------------------------------------------------------------
   # Development Service (hot-reload)
   # ---------------------------------------------------------------------------
   storyteller-dev:
@@ -136,6 +166,24 @@ services:
         condition: service_healthy
     # Override entrypoint for development iteration
     command: ["python", "-u", "scripts/publisher.py"]
+
+  # ---------------------------------------------------------------------------
+  # Cloudflare Tunnel (routes straightouttacolington.com to web service)
+  # ---------------------------------------------------------------------------
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: greenhouse-tunnel
+    restart: unless-stopped
+    command: tunnel run
+    environment:
+      - TUNNEL_TOKEN=${TUNNEL_TOKEN}
+    depends_on:
+      - web
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
 
 # =============================================================================
 # Named Volumes

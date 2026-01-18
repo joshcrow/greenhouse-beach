@@ -167,6 +167,15 @@ def get_current_weather() -> Dict[str, Any]:
             result["wind_direction"] = _wind_direction(deg)
             result["wind_arrow"] = _wind_arrow(deg)
 
+        # Rain volume (mm -> inches) for septic/runoff logic
+        # OpenWeather 3.0 provides daily rain total in daily[0].rain (mm)
+        if daily_list:
+            first_day = daily_list[0] or {}
+            if "rain" in first_day:
+                rain_mm = float(first_day["rain"])
+                result["rain_last_24h_mm"] = round(rain_mm, 1)
+                result["rain_last_24h_in"] = round(rain_mm / 25.4, 2)
+
         # Daily high/low and moon phase (use first daily entry, round to integers)
         if daily_list:
             first = daily_list[0] or {}
