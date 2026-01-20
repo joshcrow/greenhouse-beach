@@ -288,6 +288,11 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
     image_bytes: Optional[bytes] = None
     image_cid: Optional[str] = None
     image_type = "jpeg"  # Default to jpeg, may change to gif for timelapse
+    
+    # Generate URL for 4K timelapse on website (deep link from email)
+    from datetime import date
+    yesterday = date.today() - timedelta(days=1)
+    _timelapse_url = f"https://straightouttacolington.com/timelapse#daily_{yesterday.strftime('%Y-%m-%d')}"
 
     if weekly_mode:
         # Weekly Edition: Use existing weekly timelapse logic (golden hour stitch)
@@ -746,6 +751,21 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
     except Exception as exc:
         log(f"Error loading riddle game data: {exc}")
     
+    # Load broadcast message (if any) and clear after use
+    _broadcast = None
+    broadcast_path = "/app/data/broadcast.json"
+    try:
+        if os.path.exists(broadcast_path):
+            with open(broadcast_path, "r", encoding="utf-8") as f:
+                _broadcast = json.load(f)
+            if _broadcast and _broadcast.get("title") and _broadcast.get("message"):
+                log(f"Loaded broadcast: {_broadcast.get('title')}")
+                # Clear the broadcast file after loading (one-time use)
+                os.remove(broadcast_path)
+                log("Cleared broadcast.json after loading")
+    except Exception as exc:
+        log(f"Error loading broadcast: {exc}")
+    
     # Build 24h stats dict for template (round all values for display)
     _stats_24h = None
     if has_24h_stats:
@@ -782,6 +802,7 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
         moon_phase=fmt_moon_phase(moon_phase),
         tide_display=tide_display,
         image_cid=image_cid,
+        timelapse_url=_timelapse_url,
         chart_cid=temp_chart_cid,
         stats_24h=_stats_24h,
         riddle_text=_riddle_text,
@@ -791,6 +812,7 @@ def build_email(status_snapshot: Dict[str, Any]) -> Tuple[EmailMessage, Optional
         yesterdays_winners=_yesterdays_winners,
         leaderboard=_leaderboard,
         alerts=alerts if alerts else None,
+        broadcast=_broadcast,
         weekly_mode=weekly_mode,
         weekly_stats=weekly_summary,
         test_mode=_test_mode,

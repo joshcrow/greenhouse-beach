@@ -1,14 +1,19 @@
 # 🌱 The Greenhouse Gazette
 
-**An autonomous, AI-powered greenhouse monitoring system with daily newsletter and live web dashboard.**
+**A hyper-local family newsletter from Colington Harbour, Outer Banks — where a retired fisherman's AI reports on greenhouse conditions, king tides, and whether the tourists are clogging the bypass.**
 
-Transform passive greenhouse monitoring into an active, narrative-driven experience. The Greenhouse Gazette ingests environmental metrics and imagery from distributed sensors, then generates a daily email newsletter with a witty, scientific personality—plus a real-time web dashboard for on-demand access.
+Every morning at 7 AM, the Crow family receives an email from "The Canal Captain" — a salty, pragmatic voice who's survived Hurricane Isabel and knows when the septic backs up. He reports on:
 
-![Architecture](https://img.shields.io/badge/Architecture-Distributed_Edge-green)
+- 🌡️ **Greenhouse vitals** — Inside vs. outside temperature, humidity, and whether the heater kicked on
+- 🌅 **4K timelapse** — Yesterday's daylight compressed into a few seconds
+- 🌊 **Outer Banks context** — Tides at Jennette's Pier, meteor shower visibility, salt spray warnings
+- 🧩 **Daily riddle** — A brain teaser with a family leaderboard (first correct = 3 pts)
+
+The live dashboard at **[straightouttacolington.com](https://straightouttacolington.com)** streams 720p video from the greenhouse camera, shows real-time sensor data, and lets you guess the riddle.
+
+![Platform](https://img.shields.io/badge/Platform-Raspberry_Pi_5-red)
 ![AI](https://img.shields.io/badge/AI-Gemini_2.5_Flash-blue)
-![Platform](https://img.shields.io/badge/Platform-Raspberry_Pi-red)
-![Frontend](https://img.shields.io/badge/Frontend-React_+_MUI-61DAFB)
-![Backend](https://img.shields.io/badge/Backend-FastAPI-009688)
+![Location](https://img.shields.io/badge/Location-Outer_Banks,_NC-teal)
 
 ---
 
@@ -22,19 +27,20 @@ Transform passive greenhouse monitoring into an active, narrative-driven experie
 - **Riddle Game** – Daily brain teaser with AI-powered guess judging
 - **Leaderboard** – Compete with family members for riddle points
 - **Timelapse Viewer** – Monthly and yearly greenhouse videos
-- **Live camera** – Latest greenhouse image with lightbox
+- **Live Stream** – 720p HLS video feed from greenhouse camera
+- **4K Timelapses** – Daily, weekly, and monthly timelapse videos
 
 ---
 
 ## 📬 What You Get
 
 **Daily Email (7:00 AM)**
-- **AI-Generated Narrative** – Witty, scientific commentary on conditions
-- **Comic Relief** – Daily joke or riddle (dry, observational humor about gardening)
-- **Hero Image** – Photo captured at golden hour (optimal lighting)
-- **Sensor Dashboard** – Interior, exterior, and satellite readings with battery status
-- **Weather Forecast** – Today's conditions and tomorrow's outlook
-- **24-Hour Stats** – High/low temperature and humidity trends
+- **AI-Generated Narrative** – "The Canal Captain" reports on conditions in a dry, salty, Outer Banks voice
+- **Daily Timelapse** – GIF of yesterday's daylight activity (email) + 4K MP4 link (web)
+- **Sensor Dashboard** – Interior, exterior, and satellite readings with staleness indicators
+- **Weather Forecast** – Today's conditions with sunrise/sunset and tides
+- **24-Hour Chart** – Temperature trends with high/low badges
+- **Daily Riddle** – AI-generated brain teaser with leaderboard
 
 **Weekly Edition (Sundays 7:00 AM)**
 - Everything from the daily email, plus:

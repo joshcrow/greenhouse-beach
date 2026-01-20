@@ -2,15 +2,20 @@
 """Camera MQTT Bridge for Greenhouse Gazette.
 
 This script runs on the Greenhouse Pi (Node A) and:
-1. Captures snapshots from the Home Assistant camera entity
+1. Captures 4K snapshots using libcamera (Pi Camera Module 3)
 2. Publishes them to MQTT for the Storyteller to ingest
+3. Listens for on-demand capture requests via MQTT
 
-Designed to run as a systemd service or cron job.
+Designed to run as a systemd service.
 
 Usage:
     python3 camera_mqtt_bridge.py              # Run once (for cron)
-    python3 camera_mqtt_bridge.py --daemon     # Run continuously
+    python3 camera_mqtt_bridge.py --daemon     # Run continuously with MQTT listener
     python3 camera_mqtt_bridge.py --test       # Test single capture
+
+MQTT Topics:
+    Publishes to:  greenhouse/camera/main/image
+    Subscribes to: greenhouse/camera/capture (on-demand requests)
 """
 
 import argparse
@@ -20,13 +25,34 @@ import time
 from datetime import datetime
 from typing import Optional
 
-# Optional: Use libcamera directly if HA is not available
-USE_LIBCAMERA_FALLBACK = True
+# Camera capture priority
+# If HA is streaming, libcamera can't access the camera exclusively
+# Set USE_LIBCAMERA_FIRST = True only if HA camera stream is disabled
+USE_LIBCAMERA_FIRST = False  # HA is streaming, use it instead
+
+# Fallback options
+USE_LIBCAMERA_FALLBACK = True  # Try libcamera if HA fails
+USE_HA_FALLBACK = True  # Try HA if libcamera fails
+
+# 4K capture mode (stops stream temporarily for high-res capture)
+ENABLE_4K_CAPTURE = True
 
 
-from utils.logger import create_logger
+# Standalone logger for Pi deployment (no utils dependency)
+def _create_standalone_logger(name: str):
+    """Create a simple logger that prints with timestamp."""
+    def log(msg: str):
+        from datetime import datetime, timezone
+        ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        print(f"[{ts}] [{name}] {msg}", flush=True)
+    return log
 
-log = create_logger("camera_bridge")
+# Try to use utils.logger if available (Docker), fall back to standalone (Pi)
+try:
+    from utils.logger import create_logger
+    log = create_logger("camera_bridge")
+except ImportError:
+    log = _create_standalone_logger("camera_bridge")
 
 
 def capture_from_home_assistant(
@@ -73,8 +99,19 @@ def capture_from_home_assistant(
         return None
 
 
-def capture_from_libcamera() -> Optional[bytes]:
-    """Capture a snapshot using libcamera-still (fallback method).
+# Pi Camera Module 3 resolutions
+RESOLUTION_4K = (4608, 2592)  # Full sensor resolution
+RESOLUTION_1080P = (1920, 1080)  # Lower res for faster capture
+
+# Default to 4K for high-quality website images
+DEFAULT_RESOLUTION = RESOLUTION_4K
+
+
+def capture_from_libcamera(resolution: tuple = None) -> Optional[bytes]:
+    """Capture a snapshot using libcamera-still.
+
+    Args:
+        resolution: Tuple of (width, height), defaults to 4K
 
     Returns:
         JPEG image bytes, or None on failure
@@ -82,28 +119,37 @@ def capture_from_libcamera() -> Optional[bytes]:
     import subprocess
     import tempfile
 
+    if resolution is None:
+        resolution = DEFAULT_RESOLUTION
+    
+    width, height = resolution
+
     try:
         with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
             tmp_path = tmp.name
 
-        # Capture with libcamera-still
+        # Capture with rpicam-still (Bookworm) or libcamera-still (legacy)
+        # Try rpicam-still first (Pi OS Bookworm), fall back to libcamera-still
+        import shutil
+        camera_cmd = shutil.which("rpicam-still") or shutil.which("libcamera-still") or "rpicam-still"
+        
         result = subprocess.run(
             [
-                "libcamera-still",
+                camera_cmd,
                 "-o",
                 tmp_path,
                 "--width",
-                "1920",
+                str(width),
                 "--height",
-                "1080",
+                str(height),
                 "--quality",
-                "85",
+                "92",  # Higher quality for 4K
                 "--nopreview",
                 "-t",
-                "1000",  # 1 second timeout
+                "2000",  # 2 second timeout for 4K processing
             ],
             capture_output=True,
-            timeout=15,
+            timeout=30,  # Longer timeout for 4K
         )
 
         if result.returncode != 0:
@@ -118,13 +164,67 @@ def capture_from_libcamera() -> Optional[bytes]:
         return image_data
 
     except FileNotFoundError:
-        log("libcamera-still not found - is libcamera installed?")
+        log("rpicam-still/libcamera-still not found - is libcamera installed?")
         return None
     except subprocess.TimeoutExpired:
         log("libcamera-still timed out")
         return None
     except Exception as e:
         log(f"Error capturing via libcamera: {e}")
+        return None
+
+
+def capture_4k_with_stream_restart() -> Optional[bytes]:
+    """Capture a 4K image by temporarily stopping the HA stream.
+    
+    This function:
+    1. Stops the mediamtx service (releases the camera)
+    2. Captures at full 4K resolution via libcamera
+    3. Restarts mediamtx service
+    
+    Returns:
+        JPEG image bytes at 4K resolution, or None on failure
+    """
+    import subprocess
+    
+    log("Starting 4K capture (temporarily stopping stream)...")
+    
+    try:
+        # Stop mediamtx to release the camera
+        log("Stopping mediamtx stream...")
+        subprocess.run(["sudo", "systemctl", "stop", "mediamtx"], timeout=10, check=True)
+        time.sleep(1)  # Give camera time to release
+        
+        # Capture at full 4K resolution
+        log("Capturing 4K image via libcamera...")
+        image_data = capture_from_libcamera(resolution=RESOLUTION_4K)
+        
+        # Restart mediamtx
+        log("Restarting mediamtx stream...")
+        subprocess.run(["sudo", "systemctl", "start", "mediamtx"], timeout=10, check=True)
+        
+        if image_data:
+            log(f"4K capture successful: {len(image_data)} bytes")
+        else:
+            log("4K capture failed")
+        
+        return image_data
+        
+    except subprocess.CalledProcessError as e:
+        log(f"Failed to control mediamtx service: {e}")
+        # Try to restart mediamtx anyway
+        try:
+            subprocess.run(["sudo", "systemctl", "start", "mediamtx"], timeout=10)
+        except Exception:
+            pass
+        return None
+    except Exception as e:
+        log(f"Error during 4K capture: {e}")
+        # Try to restart mediamtx
+        try:
+            subprocess.run(["sudo", "systemctl", "start", "mediamtx"], timeout=10)
+        except Exception:
+            pass
         return None
 
 
@@ -193,18 +293,46 @@ def run_once(config: dict) -> bool:
     """
     image_data = None
 
-    # Try Home Assistant first
-    if config.get("ha_url") and config.get("ha_token"):
-        image_data = capture_from_home_assistant(
-            config["ha_url"],
-            config["ha_token"],
-            config.get("camera_entity", "camera.greenhouse"),
-        )
-
-    # Fallback to libcamera if HA failed
-    if image_data is None and USE_LIBCAMERA_FALLBACK:
-        log("HA capture failed, trying libcamera fallback...")
+    # Use 4K capture mode if enabled (stops stream temporarily)
+    if ENABLE_4K_CAPTURE:
+        image_data = capture_4k_with_stream_restart()
+        
+        # If 4K capture failed, fall back to HA
+        if image_data is None and USE_HA_FALLBACK:
+            if config.get("ha_url") and config.get("ha_token"):
+                log("4K capture failed, trying HA camera fallback...")
+                image_data = capture_from_home_assistant(
+                    config["ha_url"],
+                    config["ha_token"],
+                    config.get("camera_entity", "camera.greenhouse"),
+                )
+    elif USE_LIBCAMERA_FIRST:
+        # Try libcamera first for 4K quality (requires HA to not be streaming)
+        log("Capturing 4K image via libcamera...")
         image_data = capture_from_libcamera()
+        
+        # Fallback to HA if libcamera failed
+        if image_data is None and USE_HA_FALLBACK:
+            if config.get("ha_url") and config.get("ha_token"):
+                log("libcamera failed, trying HA camera fallback...")
+                image_data = capture_from_home_assistant(
+                    config["ha_url"],
+                    config["ha_token"],
+                    config.get("camera_entity", "camera.greenhouse"),
+                )
+    else:
+        # Try Home Assistant first (default when HA is streaming)
+        if config.get("ha_url") and config.get("ha_token"):
+            image_data = capture_from_home_assistant(
+                config["ha_url"],
+                config["ha_token"],
+                config.get("camera_entity", "camera.greenhouse"),
+            )
+        
+        # Fallback to libcamera if HA failed
+        if image_data is None and USE_LIBCAMERA_FALLBACK:
+            log("HA capture failed, trying libcamera fallback...")
+            image_data = capture_from_libcamera()
 
     if image_data is None:
         log("ERROR: Failed to capture image from any source")
@@ -222,23 +350,93 @@ def run_once(config: dict) -> bool:
 
 
 def run_daemon(config: dict, interval_minutes: int = 30) -> None:
-    """Run continuously, capturing at regular intervals.
+    """Run continuously with MQTT listener for on-demand capture.
 
     Args:
         config: Configuration dictionary
-        interval_minutes: Minutes between captures
+        interval_minutes: Minutes between scheduled captures
     """
-    log(f"Starting daemon mode, capturing every {interval_minutes} minutes")
-
+    import threading
+    
+    try:
+        import paho.mqtt.client as mqtt
+    except ImportError:
+        log("ERROR: paho-mqtt not installed. Run: pip3 install paho-mqtt")
+        return
+    
+    # Track last capture time to prevent rapid-fire requests
+    last_capture_time = [0.0]  # Use list for mutable closure
+    MIN_CAPTURE_INTERVAL = 10  # Minimum seconds between captures
+    
+    def on_connect(client, userdata, flags, rc):
+        if rc == 0:
+            log("Connected to MQTT broker")
+            # Subscribe to capture request topic
+            client.subscribe("greenhouse/camera/capture", qos=1)
+            log("Subscribed to greenhouse/camera/capture for on-demand requests")
+        else:
+            log(f"MQTT connection failed with code {rc}")
+    
+    def on_message(client, userdata, msg):
+        """Handle incoming MQTT messages (on-demand capture requests)."""
+        if msg.topic == "greenhouse/camera/capture":
+            # Rate limit: prevent rapid-fire captures
+            now = time.time()
+            if now - last_capture_time[0] < MIN_CAPTURE_INTERVAL:
+                log(f"On-demand capture rate-limited (wait {MIN_CAPTURE_INTERVAL}s)")
+                return
+            
+            log("On-demand capture request received via MQTT")
+            last_capture_time[0] = now
+            
+            # Capture and publish in a separate thread to not block MQTT
+            def capture_async():
+                try:
+                    success = run_once(config)
+                    if success:
+                        log("On-demand capture completed successfully")
+                    else:
+                        log("On-demand capture failed")
+                except Exception as e:
+                    log(f"On-demand capture error: {e}")
+            
+            threading.Thread(target=capture_async, daemon=True).start()
+    
+    # Setup MQTT client
+    client = mqtt.Client()
+    client.on_connect = on_connect
+    client.on_message = on_message
+    
+    if config.get("mqtt_username") and config.get("mqtt_password"):
+        client.username_pw_set(config["mqtt_username"], config["mqtt_password"])
+    
+    try:
+        client.connect(config["mqtt_host"], config.get("mqtt_port", 1883), keepalive=60)
+        client.loop_start()
+    except Exception as e:
+        log(f"Failed to connect to MQTT broker: {e}")
+        return
+    
+    log(f"Starting daemon mode: scheduled capture every {interval_minutes} min + on-demand via MQTT")
+    
+    # Initial capture on startup
+    try:
+        run_once(config)
+        last_capture_time[0] = time.time()
+    except Exception as e:
+        log(f"Initial capture failed: {e}")
+    
+    # Scheduled capture loop
     while True:
         try:
+            time.sleep(interval_minutes * 60)
+            log("Scheduled capture triggered")
             success = run_once(config)
+            last_capture_time[0] = time.time()
             if not success:
-                log("Capture cycle failed, will retry next interval")
+                log("Scheduled capture failed, will retry next interval")
         except Exception as e:
             log(f"Unexpected error in capture cycle: {e}")
-
-        time.sleep(interval_minutes * 60)
 
 
 def load_config() -> dict:

@@ -35,13 +35,15 @@ import scorekeeper
 _settings = None
 
 def _get_settings():
+    """Get settings, retrying if not yet loaded (avoids caching None on startup race)."""
     global _settings
     if _settings is None:
         try:
             from app.config import settings
-            _settings = settings
+            if settings.smtp_user:  # Verify settings actually loaded
+                _settings = settings
         except Exception:
-            _settings = None
+            pass
     return _settings
 
 
@@ -606,11 +608,15 @@ def poll_inbox() -> None:
                 
                 # Player commands (non-admin)
                 elif sender in player_emails and game_enabled:
-                    if subject_upper.startswith("GUESS"):
+                    # Strip Re:/Fwd: prefixes to detect command type
+                    clean_subject = re.sub(r'^(Re:\s*|Fwd:\s*)+', '', subject, flags=re.IGNORECASE).strip()
+                    clean_upper = clean_subject.upper()
+                    
+                    if clean_upper.startswith("GUESS") or "GUESS" in subject_upper:
                         handled = handle_guess(msg, sender)
-                    elif subject_upper.startswith("HELP"):
+                    elif clean_upper.startswith("HELP"):
                         handled = handle_help(msg, sender)
-                    elif subject_upper.startswith("STATS"):
+                    elif clean_upper.startswith("STATS"):
                         handled = handle_stats(msg, sender)
                     else:
                         log(f"Ignoring unrecognized email from player {sender}: {subject[:50]}")

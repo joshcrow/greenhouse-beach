@@ -124,6 +124,7 @@ services:
       - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
       - MQTT_HOST=mosquitto
       - MQTT_PORT=1883
+      - GREENHOUSE_PI_IP=${GREENHOUSE_PI_IP:-10.0.0.1}
     ports:
       - "8000:8000"
     volumes:

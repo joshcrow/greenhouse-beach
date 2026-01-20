@@ -56,3 +56,7 @@ esphome/sensors/*.yaml
 # Keep examples only
 !esphome/sensors/*.example.yaml
 configs/passwd
+
+# Lock files
+*.lock
+data/reply_rate_limit.json

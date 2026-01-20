@@ -4,6 +4,7 @@
 {% from "components/riddle_card.html" import riddle_card %}
 {% from "components/scoreboard.html" import scoreboard %}
 {% from "components/alert_banner.html" import alert_banner %}
+{% from "components/broadcast_card.html" import broadcast_card %}
 
 {% block title %}{{ subject }}{% endblock %}
 
@@ -30,6 +31,9 @@
 {% block content %}
 <!-- ALERTS (if any) -->
 {{ alert_banner(alerts) }}
+
+<!-- BROADCAST (if any) -->
+{{ broadcast_card(broadcast) }}
 
 <!-- NARRATIVE TEXT -->
 <tr>
@@ -64,6 +68,13 @@
                     <div style="border-radius: 12px; overflow: hidden; border: 2px solid #6b9b5a; box-shadow: 0 8px 24px rgba(0,0,0,0.4);">
                         <img src="cid:{{ image_cid }}" alt="Greenhouse timelapse" style="display:block; width:100%; height:auto; border:0;">
                     </div>
+                    {% if timelapse_url %}
+                    <div style="margin-top: 8px; text-align: center;">
+                        <a href="{{ timelapse_url }}" style="color: #6b9b5a; font-size: 12px; text-decoration: none;">
+                            ▶ View 4K version online
+                        </a>
+                    </div>
+                    {% endif %}
                 </td>
             </tr>
         </table>

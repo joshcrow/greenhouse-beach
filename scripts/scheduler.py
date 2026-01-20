@@ -8,6 +8,7 @@ import publisher
 import weekly_digest
 import golden_hour
 import extended_timelapse
+import timelapse
 
 
 from utils.logger import create_logger
@@ -48,6 +49,32 @@ def trigger_golden_hour_capture() -> None:
         log("Golden hour capture signal sent.")
     except Exception as exc:  # noqa: BLE001
         log(f"Error during golden hour capture: {exc}")
+
+
+def generate_daily_web_timelapse() -> None:
+    """Generate 4K daily timelapse MP4 for website."""
+    try:
+        log("Generating daily 4K website timelapse (MP4)...")
+        result = extended_timelapse.create_daily_timelapse_mp4(target_frames=60)
+        if result:
+            log(f"Daily 4K website timelapse created: {result}")
+        else:
+            log("Daily website timelapse: no images or generation failed")
+    except Exception as exc:  # noqa: BLE001
+        log(f"Error generating daily website timelapse: {exc}")
+
+
+def generate_weekly_web_timelapse() -> None:
+    """Generate 4K weekly timelapse MP4 for website (every Sunday)."""
+    try:
+        log("Generating weekly 4K website timelapse (MP4)...")
+        result = extended_timelapse.create_weekly_timelapse_mp4(target_frames=200)
+        if result:
+            log(f"Weekly 4K website timelapse created: {result}")
+        else:
+            log("Weekly website timelapse: no images or generation failed")
+    except Exception as exc:  # noqa: BLE001
+        log(f"Error generating weekly website timelapse: {exc}")
 
 
 def generate_monthly_timelapse() -> None:
@@ -124,6 +151,12 @@ def main() -> None:
     schedule.every().day.at(gh_time).do(trigger_golden_hour_capture)
     log(f"Golden hour for this month: {gh_time}")
 
+    # Daily website timelapse at 07:30 (after email dispatch, uses yesterday's images)
+    schedule.every().day.at("07:30").do(generate_daily_web_timelapse)
+
+    # Weekly website timelapse on Sundays at 07:45
+    schedule.every().sunday.at("07:45").do(generate_weekly_web_timelapse)
+
     # Monthly timelapse on the 1st at 08:00 (after daily email)
     schedule.every().day.at("08:00").do(
         lambda: generate_monthly_timelapse() if datetime.now().day == 1 else None
@@ -140,7 +173,7 @@ def main() -> None:
     schedule.every(5).minutes.do(inbox_monitor.poll_inbox)
 
     log(
-        f"Registered: Daily @ 07:00, Golden Hour @ {gh_time}, Monthly Timelapse @ 08:00 (1st), Yearly @ 09:00 (Jan 1), Broadcast Poll @ 5min"
+        f"Registered: Daily @ 07:00, Daily 4K Timelapse @ 07:30, Weekly 4K @ Sun 07:45, Golden Hour @ {gh_time}, Monthly @ 08:00 (1st), Yearly @ 09:00 (Jan 1), Inbox Poll @ 5min"
     )
 
     while True:

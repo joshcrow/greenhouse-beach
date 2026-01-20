@@ -6,14 +6,15 @@ import Typography from '@mui/material/Typography'
 import Container from '@mui/material/Container'
 
 import { ConnectionPulse } from './components/ConnectionPulse'
-import { CameraCard } from './components/CameraCard'
 import { VitalsGrid } from './components/VitalsGrid'
 import { NarrativeCard } from './components/NarrativeCard'
 import { RiddleCard } from './components/RiddleCard'
 import { ChartCard } from './components/ChartCard'
+import { LiveStreamCard } from './components/LiveStreamCard'
 import { useStatusWebSocket } from './hooks/useWebSocket'
 import { TimelapsePage } from './pages/TimelapsePage'
 import { LeaderboardPage } from './pages/LeaderboardPage'
+import { LivePage } from './pages/LivePage'
 
 function HomePage() {
   // Connect to WebSocket for real-time sensor updates
@@ -46,8 +47,8 @@ function HomePage() {
         {/* Narrative (Email-style headline at top) */}
         <NarrativeCard />
 
-        {/* Greenhouse Camera Image */}
-        <CameraCard />
+        {/* Live Stream */}
+        <LiveStreamCard />
 
         {/* Vitals Grid (Sensor Cards) */}
         <VitalsGrid />
@@ -68,6 +69,7 @@ function App() {
       <Route path="/" element={<HomePage />} />
       <Route path="/timelapse" element={<TimelapsePage />} />
       <Route path="/leaderboard" element={<LeaderboardPage />} />
+      <Route path="/live" element={<LivePage />} />
     </Routes>
   )
 }

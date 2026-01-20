@@ -315,8 +315,8 @@ def create_daily_timelapse() -> Optional[bytes]:
         sampled_images,
         max_frames=60,  # 60 frames for 6-second animation
         frame_duration_ms=100,  # 10 fps
-        max_width=600,  # Force 600px width for size management
-        max_height=400,
+        max_width=400,  # Reduced from 600px for smaller email file size
+        max_height=267,  # Maintain 3:2 aspect ratio
         optimize=True,
         colors=128,  # Aggressive color quantization for smaller file size
     )
@@ -336,9 +336,59 @@ def create_weekly_timelapse() -> Optional[bytes]:
         images,
         max_frames=100,  # 100 frames for weekly edition
         frame_duration_ms=100,  # 10 fps for 10-second animation
-        max_width=600,
-        max_height=400,
+        max_width=400,  # Reduced from 600px for smaller email file size
+        max_height=267,  # Maintain 3:2 aspect ratio
     )
+
+
+def create_daily_timelapse_for_web() -> Optional[str]:
+    """Create a higher-quality daily timelapse GIF for the website.
+    
+    Saves to /app/data/www/timelapses/daily_YYYY-MM-DD.gif
+    
+    Returns:
+        Path to saved file, or None on failure
+    """
+    from datetime import date
+    from pathlib import Path
+    
+    images = get_yesterday_images()
+    
+    if not images:
+        log("No daylight images found for website timelapse")
+        return None
+    
+    # Sample to reasonable frame count
+    sampled_images = sample_frames_evenly(images, 60)
+    
+    if len(sampled_images) < 2:
+        log("Not enough daylight images for website timelapse")
+        return None
+    
+    # Create output directory
+    output_dir = Path("/app/data/www/timelapses")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    yesterday = date.today() - timedelta(days=1)
+    output_path = output_dir / f"daily_{yesterday.strftime('%Y-%m-%d')}.gif"
+    
+    # Create high-quality GIF for web (1080p for 4K-ready website)
+    gif_bytes = create_timelapse_gif(
+        sampled_images,
+        output_path=str(output_path),
+        max_frames=60,
+        frame_duration_ms=100,
+        max_width=1920,  # Full HD for website viewing
+        max_height=1080,  # 16:9 aspect ratio
+        optimize=True,
+        colors=256,  # Full color palette for quality
+    )
+    
+    if gif_bytes:
+        log(f"Created website timelapse: {output_path} ({len(gif_bytes)} bytes)")
+        return str(output_path)
+    
+    return None
 
 
 if __name__ == "__main__":

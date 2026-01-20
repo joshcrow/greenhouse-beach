@@ -66,6 +66,7 @@ def render_daily_email(
     tide_display: str = "",
     # Optional sections
     image_cid: Optional[str] = None,
+    timelapse_url: Optional[str] = None,
     chart_cid: Optional[str] = None,
     stats_24h: Optional[Dict[str, Any]] = None,
     riddle_text: Optional[str] = None,
@@ -75,6 +76,8 @@ def render_daily_email(
     yesterdays_winners: Optional[List[str]] = None,
     leaderboard: Optional[List[Dict[str, Any]]] = None,
     alerts: Optional[List[Dict[str, str]]] = None,
+    # Broadcast message
+    broadcast: Optional[Dict[str, str]] = None,
     # Weekly mode (Sunday edition)
     weekly_mode: bool = False,
     weekly_stats: Optional[Dict[str, Any]] = None,
@@ -139,6 +142,7 @@ def render_daily_email(
         moon_phase=moon_phase,
         tide_display=tide_display,
         image_cid=image_cid,
+        timelapse_url=timelapse_url,
         chart_cid=chart_cid,
         stats_24h=stats_24h,
         riddle_text=riddle_text,
@@ -148,6 +152,7 @@ def render_daily_email(
         yesterdays_winners=yesterdays_winners or [],
         leaderboard=leaderboard or [],
         alerts=alerts or [],
+        broadcast=broadcast,
         weekly_mode=weekly_mode,
         weekly_stats=weekly_stats,
         test_mode=test_mode,

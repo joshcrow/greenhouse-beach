@@ -56,7 +56,7 @@ _RIDDLE_STATE_PATH = _cfg.riddle_state_path if _cfg else os.getenv("RIDDLE_STATE
 _RIDDLE_HISTORY_PATH = os.getenv("RIDDLE_HISTORY_PATH", "/app/data/riddle_history.json")
 _HISTORY_PATH = os.getenv("NARRATIVE_HISTORY_PATH", "/app/data/narrative_history.json")
 _INJECTION_PATH = os.getenv("NARRATIVE_INJECTION_PATH", "/app/data/narrative_injection.json")
-_PROMPTS_DIR = _cfg.prompts_dir if _cfg else os.getenv("PROMPTS_DIR", "/app/data/prompts")
+_PROMPTS_DIR = getattr(_cfg, 'prompts_dir', None) or os.getenv("PROMPTS_DIR", "/app/data/prompts")
 
 
 def _load_prompt_template(filename: str, fallback: str = "") -> str:

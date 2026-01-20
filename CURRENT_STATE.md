@@ -1,8 +1,8 @@
 # Project Chlorophyll: Current System State
 
 **Status:** ✅ Production Live (via Cloudflare Tunnel) — Security Audited  
-**Last Updated:** Jan 18, 2026 @ 3:45 PM EST  
-**Architecture:** React Frontend + FastAPI Backend + Cloudflare Access Auth
+**Last Updated:** Jan 19, 2026 @ 10:20 PM EST  
+**Architecture:** React Frontend + FastAPI Backend + Cloudflare Access Auth + HLS Live Streaming
 
 ---
 
@@ -13,7 +13,7 @@
 | **GitHub Repo** | [<USER>/greenhouse-beach](https://github.com/<USER>/greenhouse-beach) |
 | **Docker Hub** | [jcrow333/greenhouse-storyteller](https://hub.docker.com/r/jcrow333/greenhouse-storyteller) |
 | **CI/CD** | GitHub Actions ✅ |
-| **Tests** | 4 passed, 6 skipped (publisher tests) |
+| **Tests** | 95 passed, 11 skipped, 47 need mock fixes |
 
 ### Development Workflow
 ```bash
@@ -195,6 +195,19 @@ docker compose up -d --force-recreate storyteller
   - File locking (fcntl.flock) prevents JSON race conditions
   - Input sanitization on all user-submitted content
   - Full report: `docs/security_audit_2026-01-18.md`
+- [x] **4K Timelapse & Live Streaming** - Major upgrade (Jan 19):
+  - Live 720p HLS stream from greenhouse camera via mediamtx
+  - 4K MP4 timelapses (daily, weekly, monthly) at 4608×2592 resolution
+  - Deep link from email timelapse GIF to 4K web version
+  - API proxy for HLS streaming (`/api/stream/cam/*`)
+  - LiveStreamCard component with hls.js player
+  - Dedicated `/live` route for full-screen streaming
+  - Removed CameraCard (replaced by live stream)
+  - Tech debt cleanup: removed orphaned BottomSheet.tsx
+- [x] **Riddle Game Enhancement** - Reply chain support (Jan 19):
+  - Users can reply to "wrong answer" emails with another guess
+  - Subject parsing strips `Re:` and `Fwd:` prefixes
+  - Fixed settings initialization race condition in inbox_monitor
 
 ---
 

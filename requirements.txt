@@ -13,6 +13,7 @@ google-genai>=1.0.0
 
 # HTTP/Networking
 requests>=2.31.0,<3.0.0
+httpx>=0.27.0,<1.0.0
 
 # Scheduling
 schedule>=1.2.0,<2.0.0

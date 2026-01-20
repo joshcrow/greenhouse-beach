@@ -223,6 +223,85 @@ def create_mp4_timelapse(
         shutil.rmtree(temp_dir, ignore_errors=True)
 
 
+def create_daily_timelapse_mp4(target_frames: int = 60) -> Optional[str]:
+    """Create a 4K daily timelapse MP4 from yesterday's daylight images.
+    
+    Saves to /app/data/www/timelapses/daily_YYYY-MM-DD.mp4
+    
+    Returns:
+        Path to saved file, or None on failure
+    """
+    from datetime import date
+    
+    # Import from timelapse.py to get yesterday's daylight images
+    try:
+        from scripts.timelapse import get_yesterday_images
+    except ImportError:
+        from timelapse import get_yesterday_images
+    
+    images = get_yesterday_images()
+    
+    if not images:
+        log("No daylight images found for daily MP4 timelapse")
+        return None
+    
+    # Sample to target frame count
+    sampled = sample_frames_evenly(images, target_frames)
+    
+    if len(sampled) < 2:
+        log("Not enough daylight images for daily MP4 timelapse")
+        return None
+    
+    yesterday = date.today() - timedelta(days=1)
+    output_filename = f"daily_{yesterday.strftime('%Y-%m-%d')}.mp4"
+    output_path = os.path.join(OUTPUT_ROOT, output_filename)
+    
+    log(f"Creating daily 4K timelapse for {yesterday} ({len(sampled)} frames)")
+    
+    # 4K at 24fps for smooth playback
+    return create_mp4_timelapse(sampled, output_path, fps=24, max_width=4608)
+
+
+def create_weekly_timelapse_mp4(target_frames: int = 200) -> Optional[str]:
+    """Create a 4K weekly timelapse MP4 from the past 7 days.
+    
+    Saves to /app/data/www/timelapses/weekly_YYYY-Www.mp4
+    
+    Returns:
+        Path to saved file, or None on failure
+    """
+    from datetime import date
+    
+    # Import from timelapse.py
+    try:
+        from scripts.timelapse import get_images_for_period
+    except ImportError:
+        from timelapse import get_images_for_period
+    
+    images = get_images_for_period(days=7)
+    
+    if not images:
+        log("No images found for weekly MP4 timelapse")
+        return None
+    
+    # Sample to target frame count
+    sampled = sample_frames_evenly(images, target_frames)
+    
+    if len(sampled) < 2:
+        log("Not enough images for weekly MP4 timelapse")
+        return None
+    
+    today = date.today()
+    week_num = today.isocalendar()[1]
+    output_filename = f"weekly_{today.year}_W{week_num:02d}.mp4"
+    output_path = os.path.join(OUTPUT_ROOT, output_filename)
+    
+    log(f"Creating weekly 4K timelapse for week {week_num} ({len(sampled)} frames)")
+    
+    # 4K at 24fps
+    return create_mp4_timelapse(sampled, output_path, fps=24, max_width=4608)
+
+
 def create_monthly_timelapse(
     year: Optional[int] = None,
     month: Optional[int] = None,
@@ -255,7 +334,7 @@ def create_monthly_timelapse(
     output_filename = f"monthly_{year}_{month:02d}.mp4"
     output_path = os.path.join(OUTPUT_ROOT, output_filename)
 
-    return create_mp4_timelapse(sampled, output_path, fps=24, max_width=1280)
+    return create_mp4_timelapse(sampled, output_path, fps=24, max_width=4608)
 
 
 def create_yearly_timelapse(
@@ -284,8 +363,8 @@ def create_yearly_timelapse(
     output_filename = f"yearly_{year}.mp4"
     output_path = os.path.join(OUTPUT_ROOT, output_filename)
 
-    # Higher quality for yearly - 30fps for smoother playback
-    return create_mp4_timelapse(sampled, output_path, fps=30, max_width=1920)
+    # 4K quality for yearly - 30fps for smoother playback
+    return create_mp4_timelapse(sampled, output_path, fps=30, max_width=4608)
 
 
 def get_timelapse_url(filename: str) -> str:

@@ -26,7 +26,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
 
 from utils.logger import create_logger
-from web.api.routers import status, narrative, riddle, charts, camera
+from web.api.routers import status, narrative, riddle, charts, camera, stream
 
 log = create_logger("web_api")
 
@@ -74,6 +74,7 @@ app.include_router(narrative.router, prefix="/api", tags=["Narrative"])
 app.include_router(riddle.router, prefix="/api", tags=["Riddle"])
 app.include_router(charts.router, prefix="/api", tags=["Charts"])
 app.include_router(camera.router, prefix="/api", tags=["Camera"])
+app.include_router(stream.router, prefix="/api", tags=["Stream"])
 
 
 @app.get("/api/health")

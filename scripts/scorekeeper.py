@@ -14,16 +14,39 @@ Data Files:
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
-from app.config import settings
 from utils.io import atomic_write_json, atomic_read_json
 from utils.logger import create_logger
 
 log = create_logger("scorekeeper")
 
-# Paths from centralized config
-_DAILY_LOG_PATH = settings.riddle_daily_log_path
-_SCORES_PATH = settings.riddle_scores_path
-_ARCHIVE_PATH = settings.riddle_archive_path
+# Lazy settings loader to avoid import-time failures
+_settings = None
+
+def _get_settings():
+    """Get settings lazily to avoid import-time failures."""
+    global _settings
+    if _settings is None:
+        try:
+            from app.config import settings
+            _settings = settings
+        except Exception:
+            _settings = None
+    return _settings
+
+
+def _get_daily_log_path():
+    s = _get_settings()
+    return s.riddle_daily_log_path if s else "/app/data/riddle_daily_log.json"
+
+
+def _get_scores_path():
+    s = _get_settings()
+    return s.riddle_scores_path if s else "/app/data/riddle_scores.json"
+
+
+def _get_archive_path():
+    s = _get_settings()
+    return s.riddle_archive_path if s else "/app/data/riddle_game_archive.json"
 
 # Scoring constants
 POINTS_CORRECT = 2        # Points for a correct answer
@@ -51,7 +74,7 @@ def _empty_scores() -> Dict[str, Any]:
 
 def _load_daily_log() -> Dict[str, Any]:
     """Load the current daily log."""
-    data = atomic_read_json(_DAILY_LOG_PATH, default=None)
+    data = atomic_read_json(_get_daily_log_path(), default=None)
     if data is None:
         today = datetime.now().date().isoformat()
         return _empty_daily_log(today)
@@ -60,12 +83,12 @@ def _load_daily_log() -> Dict[str, Any]:
 
 def _save_daily_log(data: Dict[str, Any]) -> None:
     """Save the daily log atomically."""
-    atomic_write_json(_DAILY_LOG_PATH, data)
+    atomic_write_json(_get_daily_log_path(), data)
 
 
 def _load_scores() -> Dict[str, Any]:
     """Load the season scores."""
-    data = atomic_read_json(_SCORES_PATH, default=None)
+    data = atomic_read_json(_get_scores_path(), default=None)
     if data is None:
         return _empty_scores()
     return data
@@ -73,7 +96,7 @@ def _load_scores() -> Dict[str, Any]:
 
 def _save_scores(data: Dict[str, Any]) -> None:
     """Save scores atomically."""
-    atomic_write_json(_SCORES_PATH, data)
+    atomic_write_json(_get_scores_path(), data)
 
 
 def get_display_name(email: str) -> str:
@@ -262,7 +285,7 @@ def archive_daily_log() -> None:
         log("No attempts to archive, skipping")
         return
     
-    archive = atomic_read_json(_ARCHIVE_PATH, default=[])
+    archive = atomic_read_json(_get_archive_path(), default=[])
     if not isinstance(archive, list):
         archive = []
     
@@ -277,7 +300,7 @@ def archive_daily_log() -> None:
         if entry.get("riddle_date", "") >= cutoff[:10]
     ]
     
-    atomic_write_json(_ARCHIVE_PATH, archive)
+    atomic_write_json(_get_archive_path(), archive)
     log(f"Archived daily log for {daily_log.get('riddle_date')}")
 
 
