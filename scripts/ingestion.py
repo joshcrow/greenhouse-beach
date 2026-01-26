@@ -27,7 +27,7 @@ BROKER_HOST = _cfg.mqtt_host if _cfg else os.getenv("MQTT_HOST", "mosquitto")
 BROKER_PORT = _cfg.mqtt_port if _cfg else int(os.getenv("MQTT_PORT", "1883"))
 MQTT_USERNAME = _cfg.mqtt_username if _cfg else os.getenv("MQTT_USERNAME")
 MQTT_PASSWORD = _cfg.mqtt_password if _cfg else os.getenv("MQTT_PASSWORD")
-TOPIC_FILTER = "greenhouse/+/image"
+TOPIC_FILTER = "greenhouse/+/+/image"
 
 INCOMING_DIR = "/app/data/incoming"
 

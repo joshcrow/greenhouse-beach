@@ -40,7 +40,7 @@ def _get_settings():
     if _settings is None:
         try:
             from app.config import settings
-            if settings.smtp_user:  # Verify settings actually loaded
+            if settings is not None and settings.smtp_user:  # Verify settings actually loaded
                 _settings = settings
         except Exception:
             pass
@@ -216,10 +216,12 @@ def record_reply_sent(user_email: str) -> None:
 def send_reply(original_msg, body: str, sender_email: str) -> bool:
     """Send a reply that threads properly with the original email."""
     cfg = _get_settings()
-    smtp_user = cfg.smtp_user if cfg else None
-    smtp_password = cfg.smtp_password if cfg else None
-    smtp_server = (cfg.smtp_server or cfg.smtp_host) if cfg else "smtp.gmail.com"
-    smtp_port = cfg.smtp_port if cfg else 465
+    # Use settings if available, otherwise fall back to env vars
+    smtp_user = (cfg.smtp_user if cfg else None) or os.getenv("SMTP_USER")
+    smtp_password = (cfg.smtp_password if cfg else None) or os.getenv("SMTP_PASSWORD")
+    smtp_server = (cfg.smtp_server or cfg.smtp_host) if cfg else None
+    smtp_server = smtp_server or os.getenv("SMTP_SERVER", "smtp.gmail.com")
+    smtp_port = cfg.smtp_port if cfg else int(os.getenv("SMTP_PORT", "465"))
     
     if not smtp_user or not smtp_password:
         log("ERROR: SMTP credentials not configured")
@@ -269,7 +271,7 @@ def send_reply(original_msg, body: str, sender_email: str) -> bool:
 # HELP COMMAND
 # =============================================================================
 
-HELP_REPLY_TEXT = """Ahoy! Here's how to play the Riddle Game:
+HELP_REPLY_TEXT = """Here's how the Riddle Game works:
 
 📧 TO GUESS: Reply with subject line:
    GUESS [YYYY-MM-DD]: your answer
@@ -277,14 +279,14 @@ HELP_REPLY_TEXT = """Ahoy! Here's how to play the Riddle Game:
    Example: GUESS [2026-01-17]: stingray
 
 🏆 SCORING:
-   - First correct answer: 2 points
-   - Subsequent correct answers: 1 point
+   - First correct answer: 3 points
+   - Subsequent correct answers: 2 points
    
 📊 The leaderboard is in each morning's Gazette.
 
 📈 TO CHECK YOUR STATS: Reply with subject "STATS"
 
-Wind's fair, Captain out."""
+Good luck."""
 
 
 def handle_help(msg, sender_email: str) -> bool:
@@ -302,17 +304,17 @@ def handle_stats(msg, sender_email: str) -> bool:
     stats = scorekeeper.get_player_stats(sender_email)
     
     if not stats:
-        reply = "Ye haven't played yet, landlubber. Answer tomorrow's riddle to get on the board!"
+        reply = "You haven't played yet. Answer tomorrow's riddle to get on the board."
     else:
         rank_str = f"#{stats['rank']}" if stats.get('rank') else "unranked"
-        reply = f"""Your Riddle Stats, matey:
+        reply = f"""Your Riddle Stats:
 
 🎯 Points: {stats['points']}
 🏆 First-solver wins: {stats['wins']}
 📊 Rank: {rank_str}
 📅 Last played: {stats.get('last_played', 'N/A')}
 
-Keep guessin'!"""
+Keep at it."""
     
     log(f"Sending STATS reply to {sender_email}: {stats['points'] if stats else 0} points")
     return send_reply(msg, reply, sender_email)
@@ -394,7 +396,7 @@ def handle_guess(msg, sender_email: str) -> bool:
     
     if not guess_text:
         send_reply(msg,
-            "Ye sent an empty bottle, matey. Put yer guess in it next time.",
+            "You sent an empty guess. Put something in it next time.",
             sender_email)
         return False
     
@@ -410,7 +412,7 @@ def handle_guess(msg, sender_email: str) -> bool:
     
     if date_id != current_date:
         send_reply(msg,
-            f"That riddle is ancient history, matey. Today's riddle is dated {current_date}. "
+            f"That riddle is old news. Today's riddle is dated {current_date}. "
             "Check the latest Gazette.",
             sender_email)
         return False
@@ -422,35 +424,53 @@ def handle_guess(msg, sender_email: str) -> bool:
     correct_answer = riddle_state.get("answer", "")
     riddle_text = riddle_state.get("riddle", "")
     
-    judgment = narrator.judge_riddle(
-        user_guess=guess_text,
-        correct_answer=correct_answer,
-        riddle_text=riddle_text
-    )
+    try:
+        judgment = narrator.judge_riddle(
+            user_guess=guess_text,
+            correct_answer=correct_answer,
+            riddle_text=riddle_text
+        )
+        log(f"AI judgment for '{guess_text[:30]}...': correct={judgment.get('correct')}, reply_len={len(judgment.get('reply_text', ''))}")
+    except Exception as exc:
+        log(f"ERROR: judge_riddle failed: {exc}")
+        judgment = {
+            "correct": False,
+            "reply_text": "Something's off with my end. Try again in a bit."
+        }
+    
+    # Ensure reply_text is never empty for wrong guesses
+    reply_text = judgment.get("reply_text", "").strip()
+    if not reply_text:
+        log("WARNING: AI returned empty reply_text, using fallback")
+        reply_text = "Nope. Think it over."
+    
+    # For wrong guesses, remind them of the riddle
+    if not judgment.get("correct", False):
+        reply_text += f"\n\nThe riddle was:\n\"{riddle_text}\""
     
     # Record the attempt
     result = scorekeeper.record_attempt(
         user_email=sender_email,
-        guess_is_correct=judgment["correct"],
+        guess_is_correct=judgment.get("correct", False),
         riddle_date=date_id,
         email_timestamp=email_timestamp
     )
     
-    # Build reply
-    reply_text = judgment["reply_text"]
-    
+    # Build reply based on result status
     if result["status"] == "correct":
         if result.get("is_first"):
             reply_text += f" First to crack it today! +{result['points']} points."
         else:
             reply_text += f" +{result['points']} point. You're #{result['rank']} to solve it."
     elif result["status"] == "already_solved":
-        reply_text = "Ye already cracked this one, matey. Save yer ink for tomorrow's riddle."
+        reply_text = "You already got this one. Save it for tomorrow's riddle."
     elif result["status"] == "stale_riddle":
         reply_text = "That riddle's from another tide. Check the latest Gazette."
-    # status == "wrong" uses the AI's reply_text as-is
+    # status == "wrong" uses the AI's reply_text (with fallback guarantee above)
     
-    send_reply(msg, reply_text, sender_email)
+    success = send_reply(msg, reply_text, sender_email)
+    if not success:
+        log(f"WARNING: Failed to send reply to {sender_email}")
     return True
 
 
@@ -546,8 +566,9 @@ def poll_inbox() -> None:
     
     imap_server = "imap.gmail.com"
     cfg = _get_settings()
-    email_addr = cfg.smtp_user if cfg else None
-    password = cfg.smtp_password if cfg else None
+    # Use settings if available, otherwise fall back to env vars (like publisher.py)
+    email_addr = (cfg.smtp_user if cfg else None) or os.getenv("SMTP_USER")
+    password = (cfg.smtp_password if cfg else None) or os.getenv("SMTP_PASSWORD")
     
     # Sender allow-lists
     admin_senders_env = os.getenv("BROADCAST_ALLOWED_SENDERS", "")
