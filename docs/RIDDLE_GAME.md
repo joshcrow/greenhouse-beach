@@ -24,8 +24,8 @@ The date in brackets must match the riddle's date (shown in the email).
 
 | Action | Points |
 |--------|--------|
-| Correct answer | +1 |
-| First to solve (speed bonus) | +1 additional |
+| Correct answer | +2 |
+| First to solve (speed bonus) | +1 additional (total: 3) |
 | Wrong guess | 0 (unlimited retries) |
 
 - You can only score **once per riddle** (no spam-farming points)
@@ -115,6 +115,7 @@ The date in your subject doesn't match today's riddle. Check the newsletter for 
 - Check spam folder
 - You may have hit the rate limit (5 replies/day)
 - The inbox is polled every 5 minutes, so replies aren't instant
+- Wrong guesses now include a reminder of the riddle text in the reply
 
 ### Leaderboard not updating
 Scores update immediately, but the leaderboard display only refreshes in the next newsletter.

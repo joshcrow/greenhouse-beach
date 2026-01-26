@@ -41,7 +41,7 @@ The scripts are organized into three categories:
 
 **Security Notes:**
 - Credentials read from environment, never logged
-- Subscribes only to `greenhouse/+/image` topic filter
+- Subscribes only to `greenhouse/+/+/image` topic filter
 
 ---
 
@@ -610,4 +610,4 @@ Humidity:       0% to 100%    → out-of-bounds replaced with None
 
 ---
 
-*Last updated: Jan 5, 2026*
+*Last updated: Jan 25, 2026*
